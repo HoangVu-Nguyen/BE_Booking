@@ -2,6 +2,9 @@ package clyvasync.Clyvasync.service.impl;
 
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.security.PasswordService;
 import clyvasync.Clyvasync.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +14,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+    private final PasswordService passwordService;
 
     @Override
     public LoginResponse login(LoginRequest request, String ipAddress, String userAgent) {
@@ -28,8 +32,14 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void registerUser(RegisterRequest request) {
+    public void register(RegisterRequest request) {
         log.info("Bắt đầu đăng ký cho email: {}", request.getEmail());
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ResultCode.PASSWORD_NOT_MATCH);
+        }
+        if (!passwordService.isStrongPassword(request.getPassword())) {
+            throw new AppException(ResultCode.PASSWORD_TOO_WEAK);
+        }
 
     }
 

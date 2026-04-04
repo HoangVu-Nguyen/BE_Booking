@@ -1,127 +1,87 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.5</version>
-		<relativePath/> <!-- lookup parent from repository -->
-	</parent>
-	<groupId>clyvasync</groupId>
-	<artifactId>Clyvasync</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
-	<properties>
-		<java.version>17</java.version>
-	</properties>
-	<dependencies>
-        <!-- Spring Boot Starter -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.3</version> <!-- Đổi thành bản ổn định nhất -->
+        <relativePath/>
+    </parent>
 
-        <!-- Spring Boot Starter Test -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
+    <groupId>clyvasync</groupId>
+    <artifactId>Clyvasync</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>Clyvasync</name>
+    <description>Clyvasync Application</description>
 
-        <!-- Lombok -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-web -->
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+
+    <dependencies>
+        <!-- CÁC GÓI LÕI CỦA SPRING BOOT (Tuyệt đối không điền version) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <version>3.4.5</version>
         </dependency>
-        <!-- Remove explicit Hibernate Core as it's provided by Spring Data JPA -->
-
-        <!-- Spring Boot Starter Data JPA -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-neo4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-authorization-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
 
-        <!-- PostgreSQL Driver -->
+        <!-- DATABASE DRIVERS & MIGRATION -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>42.7.2</version> <!-- Chọn phiên bản phù hợp -->
-        </dependency>
-        <!-- Remove explicit JPA API as it's provided by Spring Data JPA -->
-        <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-            <version>3.0-rc3</version>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.15.2</version> <!-- Thay phiên bản phù hợp với yêu cầu của bạn -->
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- Jackson Core (Nếu bạn cần thêm các tính năng liên quan đến JSON) -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-core</artifactId>
-            <version>2.15.2</version> <!-- Thay phiên bản phù hợp với yêu cầu của bạn -->
-        </dependency>
-
-        <!-- Jackson Annotations (Nếu bạn cần sử dụng annotations như @JsonProperty) -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-annotations</artifactId>
-            <version>2.15.2</version> <!-- Thay phiên bản phù hợp với yêu cầu của bạn -->
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-redis -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-            <version>3.4.5</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.data/spring-data-redis -->
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-redis</artifactId>
-            <version>3.4.5</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-core</artifactId>
-            <version>6.4.4</version> <!-- Hoặc phiên bản mới nhất -->
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-            <version>3.4.3</version>
-        </dependency>
+        <!-- SECURITY & JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -135,89 +95,16 @@
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId> <!-- or jjwt-gson if you prefer -->
+            <artifactId>jjwt-jackson</artifactId>
             <version>0.11.5</version>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-mongodb -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-mongodb</artifactId>
-            <version>3.4.5</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-neo4j</artifactId>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.data/spring-data-neo4j -->
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-neo4j</artifactId>
-            <version>7.4.5</version>
-        </dependency>
-        <dependency>
-            <groupId>org.neo4j</groupId>
-            <artifactId>neo4j-ogm-core</artifactId>
-            <version>3.2.0</version>
-        </dependency>
-        <!-- Neo4j Driver (cần thiết cho việc kết nối với Neo4j) -->
-        <!-- https://mvnrepository.com/artifact/org.neo4j.driver/neo4j-java-driver -->
-        <dependency>
-            <groupId>org.neo4j.driver</groupId>
-            <artifactId>neo4j-java-driver</artifactId>
-            <version>5.28.5</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-neo4j -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-neo4j</artifactId>
-            <version>3.4.5</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-neo4j</artifactId>
-            <version>7.4.5</version>
-        </dependency>
+
+        <!-- UTILS & LIBRARIES -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <!-- Nếu bạn dùng Neo4j -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-neo4j</artifactId>
-        </dependency>
-
-        <!-- JUnit 5 -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-test</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.15.2</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
@@ -230,67 +117,33 @@
             <version>1.5.3.Final</version>
             <scope>provided</scope>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/software.amazon.awssdk/s3 -->
+        <dependency>
+            <groupId>org.modelmapper</groupId>
+            <artifactId>modelmapper</artifactId>
+            <version>3.2.4</version>
+        </dependency>
+        <dependency>
+            <groupId>com.querydsl</groupId>
+            <artifactId>querydsl-jpa</artifactId>
+            <version>5.0.0</version>
+            <classifier>jakarta</classifier>
+        </dependency>
+        <dependency>
+            <groupId>com.querydsl</groupId>
+            <artifactId>querydsl-apt</artifactId>
+            <version>5.0.0</version>
+            <classifier>jakarta</classifier>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
             <version>2.31.39</version>
-            <scope>compile</scope>
         </dependency>
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <version>2.10.1</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.2.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
-            <version>3.2.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-amqp -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp</artifactId>
-            <version>3.5.0</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-test-autoconfigure -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-test-autoconfigure</artifactId>
-            <version>3.5.0</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-test-autoconfigure</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-junit-jupiter</artifactId>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -301,79 +154,16 @@
             <artifactId>owasp-java-html-sanitizer</artifactId>
             <version>20211018.1</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/io.github.resilience4j/resilience4j-ratelimiter -->
-        <!--		<dependency>-->
-        <!--			<groupId>io.github.resilience4j</groupId>-->
-        <!--			<artifactId>resilience4j-ratelimiter</artifactId>-->
-        <!--			<version>2.3.0</version>-->
-        <!--		</dependency>-->
-        <!--		&lt;!&ndash; https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-gateway &ndash;&gt;-->
-        <!--		<dependency>-->
-        <!--			<groupId>org.springframework.cloud</groupId>-->
-        <!--			<artifactId>spring-cloud-gateway</artifactId>-->
-        <!--			<version>4.3.0</version>-->
-        <!--			<type>pom</type>-->
-        <!--		</dependency>-->
-        <!--		&lt;!&ndash; Spring Boot Starter Webflux (Gateway là reactive) &ndash;&gt;-->
-        <!--		<dependency>-->
-        <!--			<groupId>org.springframework.boot</groupId>-->
-        <!--			<artifactId>spring-boot-starter-webflux</artifactId>-->
-        <!--		</dependency>-->
-
-        <!--		&lt;!&ndash; Spring Cloud Gateway &ndash;&gt;-->
-        <!--		&lt;!&ndash; https://mvnrepository.com/artifact/org.springframework.cloud/spring-cloud-starter-gateway &ndash;&gt;-->
-        <!--		<dependency>-->
-        <!--			<groupId>org.springframework.cloud</groupId>-->
-        <!--			<artifactId>spring-cloud-starter-gateway</artifactId>-->
-        <!--			<version>4.3.0</version>-->
-        <!--		</dependency>-->
-
-        <!-- Redis Reactive (bắt buộc để dùng Rate Limiting) -->
-        <!--		<dependency>-->
-        <!--			<groupId>org.springframework.boot</groupId>-->
-        <!--			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>-->
-        <!--		</dependency>-->
-        <!-- https://mvnrepository.com/artifact/com.twilio.sdk/twilio -->
-        <!--		<dependency>-->
-        <!--			<groupId>com.twilio.sdk</groupId>-->
-        <!--			<artifactId>twilio</artifactId>-->
-        <!--			<version>9.0.0</version>-->
-        <!--		</dependency>-->
-        <!-- https://mvnrepository.com/artifact/org.modelmapper/modelmapper -->
-        <dependency>
-            <groupId>org.modelmapper</groupId>
-            <artifactId>modelmapper</artifactId>
-            <version>3.2.4</version>
-        </dependency>
-        <!-- https://mvnrepository.com/artifact/org.flywaydb/flyway-core -->
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-            <version>11.11.2</version>
-        </dependency>
         <dependency>
             <groupId>com.maxmind.geoip2</groupId>
             <artifactId>geoip2</artifactId>
             <version>4.2.0</version>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-authorization-server</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-        <!-- Source: https://mvnrepository.com/artifact/com.authzed.api/authzed -->
-        <!-- Source: https://mvnrepository.com/artifact/com.authzed.api/authzed -->
-        <dependency>
             <groupId>com.authzed.api</groupId>
             <artifactId>authzed</artifactId>
             <version>1.5.4</version>
         </dependency>
-
-
         <dependency>
             <groupId>io.grpc</groupId>
             <artifactId>grpc-netty-shaded</artifactId>
@@ -389,30 +179,29 @@
             <artifactId>grpc-stub</artifactId>
             <version>1.62.2</version>
         </dependency>
-        <dependency>
-            <groupId>com.querydsl</groupId>
-            <artifactId>querydsl-jpa</artifactId>
-            <version>5.0.0</version>
-            <classifier>jakarta</classifier>
-        </dependency>
 
+        <!-- TESTING -->
         <dependency>
-            <groupId>com.querydsl</groupId>
-            <artifactId>querydsl-apt</artifactId>
-            <version>5.0.0</version>
-            <classifier>jakarta</classifier>
-            <scope>provided</scope>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
-
     </dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-		</plugins>
-	</build>
-
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

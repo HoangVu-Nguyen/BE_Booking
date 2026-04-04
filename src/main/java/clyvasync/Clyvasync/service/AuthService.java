@@ -19,7 +19,7 @@ public interface AuthService {
     // 2. REGISTRATION & VERIFICATION (Đăng ký / Xác thực tài khoản)
     // =====================================================================
 
-    void registerUser(RegisterRequest request);
+    void register(RegisterRequest request);
 
     void verifyAccount(VerifyAccountRequest request);
 

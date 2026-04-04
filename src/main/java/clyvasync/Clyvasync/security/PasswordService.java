@@ -1,4 +1,7 @@
 package clyvasync.Clyvasync.security;
 
-public class PasswordService {
+public interface PasswordService {
+    boolean isStrongPassword(String password);
+    String hashPassword(String password);
+    boolean matches(String rawPassword, String encodedPassword);
 }
