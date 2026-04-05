@@ -54,51 +54,46 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtil jwtUtil;
 
     @Override
-    @Transactional // Đảm bảo tính nhất quán: Lưu Token, Log Login và Reset Cache phải đi cùng nhau
+    @Transactional
     public TokenResponse login(LoginRequest request, String ipAddress, String userAgent) {
         String email = request.getEmail().trim().toLowerCase();
 
-        // 1. Kiểm tra Brute Force (Anti-DDoS & Bot)
-        // Nếu sai quá nhiều lần, bắt buộc phải có Captcha
+        if (cacheService.isAccountLocked(email)) {
+            log.warn("Truy cập bị chặn: Tài khoản {} đang bị khóa", email);
+            throw new AppException(ResultCode.ACCOUNT_TEMPORARILY_LOCKED);
+        }
+
+        // 2. KIỂM TRA BRUTE FORCE (YÊU CẦU CAPTCHA)
+        // Nếu sai từ 5-9 lần, bắt buộc phải có Captcha hợp lệ mới được đi tiếp.
         if (cacheService.isBruteForce(email)) {
             if (!StringUtils.hasText(request.getRecaptcha())) {
                 throw new AppException(ResultCode.CAPTCHA_REQUIRED);
             }
-            // captchaService.verify(request.getRecaptcha()); // Mở ra nếu dùng Google ReCaptcha
+            // verifyCaptcha(request.getRecaptcha());
         }
 
-        if (cacheService.isAccountLocked(email)) {
-            throw new AppException(ResultCode.ACCOUNT_TEMPORARILY_LOCKED);
-        }
-
-        // 3. Tìm User (Dùng chung lỗi LOGIN_FAILED để tránh bị Hacker dò tìm email tồn tại)
+        // 3. TÌM USER VÀ KIỂM TRA PASSWORD
         User user = userService.findOptionalByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("Login failed: Email {} không tồn tại", email);
+                    // Email không tồn tại cũng phải tăng đếm để kích hoạt Khóa nếu phá hoại
+                    cacheService.increaseFailedAttempts(email);
                     return new AppException(ResultCode.LOGIN_FAILED);
                 });
 
-        // 4. Kiểm tra mật khẩu
         if (!passwordService.matches(request.getPassword(), user.getPasswordHash())) {
+
             cacheService.increaseFailedAttempts(email);
-            log.warn("Login failed: Email {} nhập sai mật khẩu", email);
             throw new AppException(ResultCode.LOGIN_FAILED);
         }
 
-        // 5. Kiểm tra trạng thái Active
         if (!user.isActive()) {
-            log.info("Login blocked: Tài khoản {} chưa được kích hoạt", email);
             throw new AppException(ResultCode.USER_NOT_ACTIVE);
         }
 
-        // 6. Đăng nhập thành công -> Dọn dẹp bộ nhớ đệm failed attempts
         cacheService.resetFailedAttempts(email);
 
-        // 7. Cấp phát Token (Access Token & Refresh Token)
-        // Access Token: Chứa thông tin quyền hạn (Role/UserId) - JWT
         String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRoles(), user.getId());
 
-        // Refresh Token: Opaque Token lưu xuống DB và quản lý theo thiết bị (DeviceID)
         String refreshToken = refreshTokenService.issueRefreshToken(
                 user.getEmail(),
                 request.getDeviceId(),
@@ -108,7 +103,6 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("User {} login thành công. Device: {}, IP: {}", email, request.getDeviceId(), ipAddress);
 
-        // 8. Trả về TokenResponse chuẩn DTO
         return TokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
