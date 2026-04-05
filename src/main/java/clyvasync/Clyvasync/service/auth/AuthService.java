@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.service;
+package clyvasync.Clyvasync.service.auth;
 
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;

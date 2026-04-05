@@ -1,6 +1,5 @@
-package clyvasync.Clyvasync.service;
+package clyvasync.Clyvasync.service.auth;
 
-import clyvasync.Clyvasync.dto.request.RegisterRequest;
 import clyvasync.Clyvasync.entity.auth.User;
 
 import java.util.List;

@@ -1,11 +1,11 @@
-package clyvasync.Clyvasync.service.impl;
+package clyvasync.Clyvasync.service.auth.impl;
 
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.security.PasswordService;
-import clyvasync.Clyvasync.service.AuthService;
+import clyvasync.Clyvasync.service.auth.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

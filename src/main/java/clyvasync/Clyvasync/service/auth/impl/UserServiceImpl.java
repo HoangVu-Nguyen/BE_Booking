@@ -1,10 +1,10 @@
-package clyvasync.Clyvasync.service.impl;
+package clyvasync.Clyvasync.service.auth.impl;
 
 import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
-import clyvasync.Clyvasync.service.UserService;
+import clyvasync.Clyvasync.service.auth.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
