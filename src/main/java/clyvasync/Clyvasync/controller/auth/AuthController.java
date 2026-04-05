@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.auth;
 
 import clyvasync.Clyvasync.dto.request.LoginRequest;
 import clyvasync.Clyvasync.dto.request.RegisterRequest;
+import clyvasync.Clyvasync.dto.request.VerifyAccountRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.auth.AuthService;
@@ -42,5 +43,16 @@ public class AuthController {
 
         // TODO: Gọi authService.login(...)
         return ResponseEntity.ok("Login logic here");
+    }
+    /**
+     * Endpoint xác thực tài khoản qua OTP
+     */
+    @PostMapping("/verify-account")
+    public ApiResponse<Void> verifyAccount(
+            @RequestBody @Valid VerifyAccountRequest request
+    ) {
+        log.info("Nhận yêu cầu xác thực tài khoản cho email: {}", request.getEmail());
+        authService.verifyAccount(request);
+        return ApiResponse.success(ResultCode.ACTIVATION_SUCCESS);
     }
 }

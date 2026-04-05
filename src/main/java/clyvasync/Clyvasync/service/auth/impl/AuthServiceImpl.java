@@ -27,6 +27,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -100,10 +101,36 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void verifyAccount(VerifyAccountRequest request) {
+        String email = request.getEmail();
 
+        User user = userService.findOptionalByEmail(email)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+
+        if (user.isActive()) {
+            cacheService.delete(RedisKeyType.VERIFY_ACCOUNT.getFullKey(email));
+            throw new AppException(ResultCode.USER_ALREADY_ACTIVE);
+        }
+
+        String storedToken = cacheService.getOtp(email, RedisKeyType.VERIFY_ACCOUNT);
+        if (ObjectUtils.isEmpty(storedToken)) {
+            throw new AppException(ResultCode.OTP_EXPIRED);
+        }
+
+        if (!storedToken.equals(request.getVerificationCode())) {
+            throw new AppException(ResultCode.OTP_INVALID);
+        }
+
+        user.setActive(true);
+        userService.save(user);
+
+        cacheService.delete(RedisKeyType.VERIFY_ACCOUNT.getFullKey(email));
+        cacheService.delete(RedisKeyType.USER_PROFILE.getFullKey(email));
+
+        log.info("Xác thực tài khoản thành công cho email: {}", email);
     }
-
     @Override
     public void resendVerification(ResendVerificationRequest request) {
 
