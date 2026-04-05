@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -58,5 +59,55 @@ public class RedisCacheServiceImpl implements CacheService {
         String key = type.getFullKey(email);
         // Lưu một giá trị bất kỳ, quan trọng là cái TTL 60s
         redisTemplate.opsForValue().set(key, "blocked", type.getDefaultTtl(), type.getTimeUnit());
+    }
+    @Override
+    public void increaseFailedAttempts(String email) {
+        String key = RedisKeyType.FAILED_ATTEMPTS.getFullKey(email);
+        Long attempts = redisTemplate.opsForValue().increment(key);
+
+        // 1. Nếu là lần đầu tiên sai, đặt TTL (ví dụ 30 phút) để reset đếm sau một khoảng thời gian
+        if (attempts != null && attempts == 1) {
+            redisTemplate.expire(key, RedisKeyType.FAILED_ATTEMPTS.getDefaultTtl(), RedisKeyType.FAILED_ATTEMPTS.getTimeUnit());
+        }
+
+        // 2. LOGIC QUAN TRỌNG: Nếu đạt ngưỡng 10 lần, thực hiện khóa tài khoản
+        if (attempts != null && attempts >= 10) {
+            log.warn("Tài khoản {} đã nhập sai {} lần. Tiến hành khóa 24h.", email, attempts);
+            this.lockAccount(email); // Gọi hàm này để tạo key BLOCK_LOGIN
+
+            // Tùy chọn: Xóa luôn key đếm để sau 24h họ bắt đầu lại từ 0
+            this.resetFailedAttempts(email);
+        }
+    }
+
+    @Override
+    public boolean isBruteForce(String email) {
+        String key = RedisKeyType.FAILED_ATTEMPTS.getFullKey(email);
+        Object val = redisTemplate.opsForValue().get(key);
+
+        if (val == null) return false;
+
+        try {
+            // Redis increment thường trả về Long hoặc Integer tùy Serializer
+            int attempts = Integer.parseInt(val.toString());
+            return attempts >= 5;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    @Override
+    public void resetFailedAttempts(String email) {
+        redisTemplate.delete(RedisKeyType.FAILED_ATTEMPTS.getFullKey(email));
+    }
+    @Override
+    public void lockAccount(String email) {
+        String key = RedisKeyType.BLOCK_LOGIN.getFullKey(email);
+        redisTemplate.opsForValue().set(key, "locked", 24, TimeUnit.HOURS);
+    }
+
+    @Override
+    public boolean isAccountLocked(String email) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(RedisKeyType.BLOCK_LOGIN.getFullKey(email)));
     }
 }

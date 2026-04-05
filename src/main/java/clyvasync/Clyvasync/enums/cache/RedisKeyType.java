@@ -10,8 +10,9 @@ public enum RedisKeyType {
     RESET_PASSWORD("auth:reset:", 10, TimeUnit.MINUTES),
     USER_PROFILE("user:profile:", 60, TimeUnit.MINUTES),
     LOGIN_ATTEMPT("auth:login_attempt:", 5, TimeUnit.MINUTES),
-    // Key này chỉ sống 60 giây để chặn gửi lại quá nhanh
     SEND_EMAIL_LIMIT("auth:limit:", 60, TimeUnit.SECONDS),
+    FAILED_ATTEMPTS("auth:failed_attempts:", 1, TimeUnit.HOURS),
+    BLOCK_LOGIN("auth:block:", 24, TimeUnit.HOURS), // Nếu sai quá nhiều thì khóa 24,
     REFRESH_TOKEN("auth:refresh_token:", 7, TimeUnit.DAYS);
 
     private final String prefix;

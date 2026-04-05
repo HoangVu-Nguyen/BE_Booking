@@ -1,10 +1,12 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
+import clyvasync.Clyvasync.config.JwtProperties;
 import clyvasync.Clyvasync.config.RabbitMQConfig;
 import clyvasync.Clyvasync.constant.MessagingConstants;
 import clyvasync.Clyvasync.dto.event.UserEventDTO;
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
+import clyvasync.Clyvasync.dto.response.TokenResponse;
 import clyvasync.Clyvasync.entity.auth.Role;
 import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.enums.auth.RoleName;
@@ -15,7 +17,9 @@ import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.producer.AuthProducer;
 import clyvasync.Clyvasync.security.PasswordService;
+import clyvasync.Clyvasync.security.util.JwtUtil;
 import clyvasync.Clyvasync.service.auth.AuthService;
+import clyvasync.Clyvasync.service.auth.RefreshTokenService;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.cache.CacheService;
@@ -27,6 +31,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -44,10 +50,64 @@ public class AuthServiceImpl implements AuthService {
     private final AuthProducer authProducer;
     private final CacheService cacheService;
     private final OtpService otpService;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtUtil jwtUtil;
 
     @Override
-    public LoginResponse login(LoginRequest request, String ipAddress, String userAgent) {
-        return null;
+    @Transactional
+    public TokenResponse login(LoginRequest request, String ipAddress, String userAgent) {
+        String email = request.getEmail().trim().toLowerCase();
+
+        if (cacheService.isAccountLocked(email)) {
+            log.warn("Truy cập bị chặn: Tài khoản {} đang bị khóa", email);
+            throw new AppException(ResultCode.ACCOUNT_TEMPORARILY_LOCKED);
+        }
+
+        // 2. KIỂM TRA BRUTE FORCE (YÊU CẦU CAPTCHA)
+        // Nếu sai từ 5-9 lần, bắt buộc phải có Captcha hợp lệ mới được đi tiếp.
+        if (cacheService.isBruteForce(email)) {
+            if (!StringUtils.hasText(request.getRecaptcha())) {
+                throw new AppException(ResultCode.CAPTCHA_REQUIRED);
+            }
+            // verifyCaptcha(request.getRecaptcha());
+        }
+
+        // 3. TÌM USER VÀ KIỂM TRA PASSWORD
+        User user = userService.findOptionalByEmail(email)
+                .orElseThrow(() -> {
+                    // Email không tồn tại cũng phải tăng đếm để kích hoạt Khóa nếu phá hoại
+                    cacheService.increaseFailedAttempts(email);
+                    return new AppException(ResultCode.LOGIN_FAILED);
+                });
+
+        if (!passwordService.matches(request.getPassword(), user.getPasswordHash())) {
+
+            cacheService.increaseFailedAttempts(email);
+            throw new AppException(ResultCode.LOGIN_FAILED);
+        }
+
+        if (!user.isActive()) {
+            throw new AppException(ResultCode.USER_NOT_ACTIVE);
+        }
+
+        cacheService.resetFailedAttempts(email);
+
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRoles(), user.getId());
+
+        String refreshToken = refreshTokenService.issueRefreshToken(
+                user.getEmail(),
+                request.getDeviceId(),
+                userAgent,
+                ipAddress
+        );
+
+        log.info("User {} login thành công. Device: {}, IP: {}", email, request.getDeviceId(), ipAddress);
+
+        return TokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .email(user.getEmail())
+                .build();
     }
 
     @Override
@@ -100,10 +160,36 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void verifyAccount(VerifyAccountRequest request) {
+        String email = request.getEmail();
 
+        User user = userService.findOptionalByEmail(email)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+
+        if (user.isActive()) {
+            cacheService.delete(RedisKeyType.VERIFY_ACCOUNT.getFullKey(email));
+            throw new AppException(ResultCode.USER_ALREADY_ACTIVE);
+        }
+
+        String storedToken = cacheService.getOtp(email, RedisKeyType.VERIFY_ACCOUNT);
+        if (ObjectUtils.isEmpty(storedToken)) {
+            throw new AppException(ResultCode.OTP_EXPIRED);
+        }
+
+        if (!storedToken.equals(request.getVerificationCode())) {
+            throw new AppException(ResultCode.OTP_INVALID);
+        }
+
+        user.setActive(true);
+        userService.save(user);
+
+        cacheService.delete(RedisKeyType.VERIFY_ACCOUNT.getFullKey(email));
+        cacheService.delete(RedisKeyType.USER_PROFILE.getFullKey(email));
+
+        log.info("Xác thực tài khoản thành công cho email: {}", email);
     }
-
     @Override
     public void resendVerification(ResendVerificationRequest request) {
 
@@ -185,5 +271,8 @@ public class AuthServiceImpl implements AuthService {
         if (!passwordService.isStrongPassword(request.getPassword())) {
             throw new AppException(ResultCode.PASSWORD_TOO_WEAK);
         }
+    }
+    private boolean statusCaptcha(int count) {
+        return count >= 3;
     }
 }

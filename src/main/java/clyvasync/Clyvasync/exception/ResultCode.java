@@ -19,6 +19,10 @@ public enum ResultCode {
     USER_ALREADY_ACTIVE(1007, "Account has already been activated", HttpStatus.BAD_REQUEST),
     LOGOUT_SUCCESS(1008, "Logged out successfully", HttpStatus.OK),
     LOGOUT_FAILED(1009, "Logout failed", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    ACCOUNT_TEMPORARILY_LOCKED(1010, "Account is temporarily locked due to multiple failed login attempts. Please try again later.", HttpStatus.FORBIDDEN),
+    DEVICE_NOT_FOUND(1011, "The requested device session could not be found", HttpStatus.NOT_FOUND),
+    // Lỗi yêu cầu Captcha
     // --- 2xxx: User & Profile Management (Success & Specific) ---
     REGISTER_SUCCESS(2010, "Registration successful. Please verify your email to activate your account.", HttpStatus.CREATED),
     ACTIVATION_SUCCESS(2011, "Account activated successfully. You can now log in.", HttpStatus.OK),
