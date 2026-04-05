@@ -1,11 +1,10 @@
 package clyvasync.Clyvasync.service.auth;
 
 import clyvasync.Clyvasync.entity.auth.User;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-@Service
+
 public interface UserService {
     // =====================================================================
     // 1. TÌM KIẾM THEO ĐỊNH DANH (IDENTIFICATION)
@@ -14,7 +13,6 @@ public interface UserService {
     User getUserByEmail(String email);
 
     Optional<User> findById(Long userId);
-    Optional<User> findOptionalByEmail(String email);
 
     boolean existsById(Long userId);
 
@@ -43,7 +41,7 @@ public interface UserService {
 //    // 2. THAO TÁC CƠ BẢN (CRUD & STATE)
 //    // =====================================================================
 //
-    User save(User user);
+//    User save(User user);
 //
 //    /**
 //     * Tạo mới User từ request đăng ký.

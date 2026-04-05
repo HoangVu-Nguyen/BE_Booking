@@ -1,7 +1,5 @@
 package clyvasync.Clyvasync.security;
 
-import clyvasync.Clyvasync.dto.request.RegisterRequest;
-
 public interface PasswordService {
     boolean isStrongPassword(String password);
     String hashPassword(String password);

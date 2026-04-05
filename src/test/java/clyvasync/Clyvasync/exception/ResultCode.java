@@ -92,13 +92,10 @@ public enum ResultCode {
     INVALID_EMAIL(8001, "Invalid email format", HttpStatus.BAD_REQUEST),
     EMAIL_REQUIRED(8002, "Email is required", HttpStatus.BAD_REQUEST),
     PASSWORD_REQUIRED(8003, "Password is required", HttpStatus.BAD_REQUEST),
-    PASSWORD_MIN_8_CHARACTERS(8004, "Password must be at least 8 characters", HttpStatus.BAD_REQUEST),
+    PASSWORD_MIN_LENGTH(8004, "Password must be at least 8 characters", HttpStatus.BAD_REQUEST),
     USERNAME_REQUIRED(8005, "Username is required", HttpStatus.BAD_REQUEST),
     FIELD_REQUIRED(8006, "This field is required", HttpStatus.BAD_REQUEST),
     INVALID_INPUT(8007, "Invalid input data", HttpStatus.BAD_REQUEST),
-    USERNAME_LENGTH_INVALID(8008, "Username length is invalid (3-50 chars)", HttpStatus.BAD_REQUEST),
-    CONFIRM_PASSWORD_REQUIRED(8009, "Confirm password is required", HttpStatus.BAD_REQUEST),
-    BIRTHDATE_MUST_BE_IN_PAST(8010, "Birthdate must be in the past", HttpStatus.BAD_REQUEST),
 
     // --- 9xxx: Global / System ---
     UNCATEGORIZED_EXCEPTION(9999, "Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),

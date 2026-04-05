@@ -7,13 +7,11 @@ import clyvasync.Clyvasync.repository.auth.UserRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 @Slf4j
 @RequiredArgsConstructor
-@Service
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     @Override
@@ -25,11 +23,6 @@ public class UserServiceImpl implements UserService {
     @Override
     public Optional<User> findById(Long userId) {
         return null;
-    }
-
-    @Override
-    public Optional<User> findOptionalByEmail(String email) {
-        return userRepository.findByEmail(email);
     }
 
     @Override
@@ -57,10 +50,10 @@ public class UserServiceImpl implements UserService {
 //        return null;
 //    }
 //
-    @Override
-    public User save(User user) {
-        return userRepository.save(user);
-    }
+//    @Override
+//    public User save(User user) {
+//        return null;
+//    }
 //
 //    @Override
 //    public User createUser(RegisterRequest request) {
