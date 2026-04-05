@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -58,5 +59,40 @@ public class RedisCacheServiceImpl implements CacheService {
         String key = type.getFullKey(email);
         // Lưu một giá trị bất kỳ, quan trọng là cái TTL 60s
         redisTemplate.opsForValue().set(key, "blocked", type.getDefaultTtl(), type.getTimeUnit());
+    }
+    @Override
+    public void increaseFailedAttempts(String email) {
+        String key = RedisKeyType.FAILED_ATTEMPTS.getFullKey(email);
+        Long attempts = redisTemplate.opsForValue().increment(key);
+
+        if (attempts != null && attempts == 1) {
+            redisTemplate.expire(key, RedisKeyType.FAILED_ATTEMPTS.getDefaultTtl(), RedisKeyType.FAILED_ATTEMPTS.getTimeUnit());
+        }
+    }
+
+    @Override
+    public boolean isBruteForce(String email) {
+        String key = RedisKeyType.FAILED_ATTEMPTS.getFullKey(email);
+        Object val = redisTemplate.opsForValue().get(key);
+
+        if (val == null) return false;
+
+        int attempts = Integer.parseInt(val.toString());
+        return attempts >= 5;
+    }
+
+    @Override
+    public void resetFailedAttempts(String email) {
+        redisTemplate.delete(RedisKeyType.FAILED_ATTEMPTS.getFullKey(email));
+    }
+    @Override
+    public void lockAccount(String email) {
+        String key = RedisKeyType.BLOCK_LOGIN.getFullKey(email);
+        redisTemplate.opsForValue().set(key, "locked", 24, TimeUnit.HOURS);
+    }
+
+    @Override
+    public boolean isAccountLocked(String email) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(RedisKeyType.BLOCK_LOGIN.getFullKey(email)));
     }
 }

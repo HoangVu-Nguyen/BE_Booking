@@ -15,4 +15,11 @@ public interface CacheService {
     boolean hasKey(String email, RedisKeyType type);
     boolean isSpamming(String email, RedisKeyType type);
     void setProcessLimit(String email, RedisKeyType type);
+     void increaseFailedAttempts(String email);
+     boolean isBruteForce(String email);
+     void resetFailedAttempts(String email);
+     void lockAccount(String email) ;
+
+     boolean isAccountLocked(String email) ;
+
 }

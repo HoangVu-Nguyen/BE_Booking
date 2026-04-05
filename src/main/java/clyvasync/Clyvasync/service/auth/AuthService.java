@@ -2,13 +2,14 @@ package clyvasync.Clyvasync.service.auth;
 
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
+import clyvasync.Clyvasync.dto.response.TokenResponse;
 
 public interface AuthService {
     // =====================================================================
     // 1. AUTHENTICATION (Đăng nhập / Đăng xuất)
     // =====================================================================
 
-    LoginResponse login(LoginRequest request, String ipAddress, String userAgent);
+    TokenResponse login(LoginRequest request, String ipAddress, String userAgent);
 
     void logout(String accessToken, String deviceId);
 

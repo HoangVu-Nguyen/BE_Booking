@@ -1,10 +1,12 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
+import clyvasync.Clyvasync.config.JwtProperties;
 import clyvasync.Clyvasync.config.RabbitMQConfig;
 import clyvasync.Clyvasync.constant.MessagingConstants;
 import clyvasync.Clyvasync.dto.event.UserEventDTO;
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
+import clyvasync.Clyvasync.dto.response.TokenResponse;
 import clyvasync.Clyvasync.entity.auth.Role;
 import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.enums.auth.RoleName;
@@ -15,7 +17,9 @@ import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.producer.AuthProducer;
 import clyvasync.Clyvasync.security.PasswordService;
+import clyvasync.Clyvasync.security.util.JwtUtil;
 import clyvasync.Clyvasync.service.auth.AuthService;
+import clyvasync.Clyvasync.service.auth.RefreshTokenService;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.cache.CacheService;
@@ -28,6 +32,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -45,10 +50,70 @@ public class AuthServiceImpl implements AuthService {
     private final AuthProducer authProducer;
     private final CacheService cacheService;
     private final OtpService otpService;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtUtil jwtUtil;
 
     @Override
-    public LoginResponse login(LoginRequest request, String ipAddress, String userAgent) {
-        return null;
+    @Transactional // Đảm bảo tính nhất quán: Lưu Token, Log Login và Reset Cache phải đi cùng nhau
+    public TokenResponse login(LoginRequest request, String ipAddress, String userAgent) {
+        String email = request.getEmail().trim().toLowerCase();
+
+        // 1. Kiểm tra Brute Force (Anti-DDoS & Bot)
+        // Nếu sai quá nhiều lần, bắt buộc phải có Captcha
+        if (cacheService.isBruteForce(email)) {
+            if (!StringUtils.hasText(request.getRecaptcha())) {
+                throw new AppException(ResultCode.CAPTCHA_REQUIRED);
+            }
+            // captchaService.verify(request.getRecaptcha()); // Mở ra nếu dùng Google ReCaptcha
+        }
+
+        if (cacheService.isAccountLocked(email)) {
+            throw new AppException(ResultCode.ACCOUNT_TEMPORARILY_LOCKED);
+        }
+
+        // 3. Tìm User (Dùng chung lỗi LOGIN_FAILED để tránh bị Hacker dò tìm email tồn tại)
+        User user = userService.findOptionalByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("Login failed: Email {} không tồn tại", email);
+                    return new AppException(ResultCode.LOGIN_FAILED);
+                });
+
+        // 4. Kiểm tra mật khẩu
+        if (!passwordService.matches(request.getPassword(), user.getPasswordHash())) {
+            cacheService.increaseFailedAttempts(email);
+            log.warn("Login failed: Email {} nhập sai mật khẩu", email);
+            throw new AppException(ResultCode.LOGIN_FAILED);
+        }
+
+        // 5. Kiểm tra trạng thái Active
+        if (!user.isActive()) {
+            log.info("Login blocked: Tài khoản {} chưa được kích hoạt", email);
+            throw new AppException(ResultCode.USER_NOT_ACTIVE);
+        }
+
+        // 6. Đăng nhập thành công -> Dọn dẹp bộ nhớ đệm failed attempts
+        cacheService.resetFailedAttempts(email);
+
+        // 7. Cấp phát Token (Access Token & Refresh Token)
+        // Access Token: Chứa thông tin quyền hạn (Role/UserId) - JWT
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getRoles(), user.getId());
+
+        // Refresh Token: Opaque Token lưu xuống DB và quản lý theo thiết bị (DeviceID)
+        String refreshToken = refreshTokenService.issueRefreshToken(
+                user.getEmail(),
+                request.getDeviceId(),
+                userAgent,
+                ipAddress
+        );
+
+        log.info("User {} login thành công. Device: {}, IP: {}", email, request.getDeviceId(), ipAddress);
+
+        // 8. Trả về TokenResponse chuẩn DTO
+        return TokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .email(user.getEmail())
+                .build();
     }
 
     @Override
@@ -212,5 +277,8 @@ public class AuthServiceImpl implements AuthService {
         if (!passwordService.isStrongPassword(request.getPassword())) {
             throw new AppException(ResultCode.PASSWORD_TOO_WEAK);
         }
+    }
+    private boolean statusCaptcha(int count) {
+        return count >= 3;
     }
 }

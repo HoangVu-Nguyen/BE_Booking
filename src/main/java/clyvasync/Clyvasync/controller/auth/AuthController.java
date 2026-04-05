@@ -4,14 +4,19 @@ import clyvasync.Clyvasync.dto.request.LoginRequest;
 import clyvasync.Clyvasync.dto.request.RegisterRequest;
 import clyvasync.Clyvasync.dto.request.VerifyAccountRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.TokenResponse;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.auth.AuthService;
+import clyvasync.Clyvasync.util.IPAddressUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,11 +43,26 @@ public class AuthController {
     // Viết sẵn khung cho Login
     @Operation(summary = "Đăng nhập hệ thống")
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpServletRequest) {
         log.info("REST Request to login user with email: {}", request.getEmail());
+        String ipAddress = IPAddressUtil.getClientIp(httpServletRequest);
+        String userAgent = httpServletRequest.getHeader("User-Agent");
 
-        // TODO: Gọi authService.login(...)
-        return ResponseEntity.ok("Login logic here");
+        TokenResponse result = authService.login(request, ipAddress, userAgent);
+
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("None")
+                .maxAge(7 * 24 * 60 * 60)
+                .build();
+
+        result.setRefreshToken(null);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .body(ApiResponse.success(result));
     }
     /**
      * Endpoint xác thực tài khoản qua OTP
