@@ -1,21 +1,29 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
+import clyvasync.Clyvasync.config.RabbitMQConfig;
+import clyvasync.Clyvasync.constant.MessagingConstants;
+import clyvasync.Clyvasync.dto.event.UserEventDTO;
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
 import clyvasync.Clyvasync.entity.auth.Role;
 import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.enums.auth.RoleName;
+import clyvasync.Clyvasync.enums.cache.RedisKeyType;
 import clyvasync.Clyvasync.enums.media.RingtoneType;
 import clyvasync.Clyvasync.event.auth.UserRegisteredEvent;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.producer.AuthProducer;
 import clyvasync.Clyvasync.security.PasswordService;
 import clyvasync.Clyvasync.service.auth.AuthService;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.cache.CacheService;
 import clyvasync.Clyvasync.service.media.RingtoneService;
+import clyvasync.Clyvasync.service.otp.OtpService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +41,9 @@ public class AuthServiceImpl implements AuthService {
     private final RoleService roleService;
    private final ApplicationEventPublisher eventPublisher;
    private final UserService userService;
+    private final AuthProducer authProducer;
+    private final CacheService cacheService;
+    private final OtpService otpService;
 
     @Override
     public LoginResponse login(LoginRequest request, String ipAddress, String userAgent) {
@@ -56,6 +67,10 @@ public class AuthServiceImpl implements AuthService {
         validateRegisterRequest(request);
         Optional<User> userOptional = userService.findOptionalByEmail(request.getEmail());
         User userToSave;
+        if (cacheService.isSpamming(request.getEmail(), RedisKeyType.SEND_EMAIL_LIMIT)) {
+            log.warn("Người dùng {} gửi yêu cầu quá nhanh!", request.getEmail());
+            throw new AppException(ResultCode.PLEASE_WAIT_BEFORE_RESENDING);
+        }
 
         if (userOptional.isPresent()) {
             User existingUser = userOptional.get();
@@ -70,10 +85,15 @@ public class AuthServiceImpl implements AuthService {
         assignDefaultResources(userToSave);
 
         User savedUser = userService.save(userToSave);
+        String otp = otpService.generateOtp();
+        cacheService.saveOtp(savedUser.getEmail(), otp, RedisKeyType.VERIFY_ACCOUNT);
+        cacheService.setProcessLimit(request.getEmail(), RedisKeyType.SEND_EMAIL_LIMIT);
 
-        // 5. TUYỆT CHIÊU EVENT: Phát loa báo cho toàn hệ thống biết!
-        // Các module khác (như Media) nghe được sẽ tự động gán Ringtone
         eventPublisher.publishEvent(new UserRegisteredEvent(savedUser));
+        UserEventDTO eventPayload = new UserEventDTO(savedUser.getEmail(), savedUser.getFullName(),otp);
+
+        authProducer.sendRegisterEvent(eventPayload);
+
 
         log.info("Đăng ký thành công User có email: {}", request.getEmail());
 

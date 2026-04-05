@@ -33,6 +33,7 @@ public enum ResultCode {
     CAPTCHA_REQUIRED(1104, "Captcha verification is required", HttpStatus.BAD_REQUEST),
     CAPTCHA_INVALID(1105, "Invalid captcha", HttpStatus.BAD_REQUEST),
     EMAIL_IS_SPAM(1106, "Email address is suspected of spam", HttpStatus.BAD_REQUEST),
+    PLEASE_WAIT_BEFORE_RESENDING(1107, "Too many requests. Please wait 60 seconds before requesting a new code.", HttpStatus.TOO_MANY_REQUESTS),
 
     // --- 2xxx: User & Profile Management ---
     USER_NOT_FOUND(2001, "User not found", HttpStatus.NOT_FOUND),
