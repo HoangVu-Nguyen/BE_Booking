@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.service;
+package clyvasync.Clyvasync.service.auth;
 
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.LoginResponse;
@@ -19,7 +19,7 @@ public interface AuthService {
     // 2. REGISTRATION & VERIFICATION (Đăng ký / Xác thực tài khoản)
     // =====================================================================
 
-    void registerUser(RegisterRequest request);
+    void register(RegisterRequest request);
 
     void verifyAccount(VerifyAccountRequest request);
 

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:18
+    container_name: my-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${USERNAME_RSQL}
+      POSTGRES_PASSWORD: ${PASSWORD_RSQL}
+      POSTGRES_DB: clyvasync
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${USERNAME_RSQL} -d clyvasync" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+
+
+  app:
+    build: .
+    container_name: clyvasync-be
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      DBMSRSQL_CONNECTION: jdbc:postgresql://my-postgres:5432/clyvasync
+      USERNAME_RSQL: ${USERNAME_RSQL}
+      PASSWORD_RSQL: ${PASSWORD_RSQL}
+
+    ports:
+      - "8443:8443"
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  pgdata:
