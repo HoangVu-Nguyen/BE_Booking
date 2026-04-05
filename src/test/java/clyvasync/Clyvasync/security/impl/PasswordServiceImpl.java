@@ -1,8 +1,5 @@
 package clyvasync.Clyvasync.security.impl;
 
-import clyvasync.Clyvasync.dto.request.RegisterRequest;
-import clyvasync.Clyvasync.exception.AppException;
-import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.security.PasswordService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,5 +25,4 @@ public class PasswordServiceImpl implements PasswordService {
     public boolean matches(String rawPassword, String encodedPassword) {
         return passwordEncoder.matches(rawPassword, encodedPassword);
     }
-
 }
