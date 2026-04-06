@@ -1,29 +1,27 @@
 package clyvasync.Clyvasync.exception;
 
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.utils.Translator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Objects;
-@ControllerAdvice
+
+@Slf4j
+@RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
-    @ExceptionHandler(AppException.class)
-    ResponseEntity<ApiResponse<?>> handlingAppException(AppException exception) {
-        ResultCode errorCode = exception.getErrorCode();
 
-        ApiResponse<?> apiResponse = ApiResponse.builder()
-                .success(false)
-                .code(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .build();
+    // TIÊM BỘ MÁY PHIÊN DỊCH VÀO ĐÂY
+    private final Translator translator;
 
-        return ResponseEntity
-                .status(errorCode.getStatusCode())
-                .body(apiResponse);
-    }
+    /**
+     * Bắt lỗi từ Validation ở DTO (ví dụ: @NotBlank(message = "EMAIL_REQUIRED"))
+     */
     @ExceptionHandler(value = MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handlingValidation(MethodArgumentNotValidException exception) {
         String enumKey = Objects.requireNonNull(exception.getBindingResult().getFieldError()).getDefaultMessage();
@@ -35,27 +33,49 @@ public class GlobalExceptionHandler {
                 resultCode = ResultCode.valueOf(enumKey);
             }
         } catch (IllegalArgumentException e) {
-            // Khi nhảy vào đây tức là bạn cấu hình message="XXX" ở DTO nhưng quên tạo Enum XXX.
-            // Trạm xá sẽ tự động giữ nguyên resultCode = INVALID_KEY để trả về JSON một cách êm ái.
+            // Khi nhảy vào đây tức là cấu hình message="XXX" ở DTO nhưng quên tạo Enum XXX.
+            log.warn("Lỗi Validation: Không tìm thấy Enum nào tên là '{}'", enumKey);
         }
 
         return ResponseEntity
                 .status(resultCode.getStatusCode())
                 .body(ApiResponse.<Void>builder()
-                        .success(false)
                         .code(resultCode.getCode())
-                        .message(resultCode.getMessage())
+                        // MA THUẬT NẰM Ở DÒNG NÀY: Dịch mã Enum thành câu chữ tùy theo ngôn ngữ Client
+                        .message(translator.toLocale(resultCode))
                         .build());
     }
-    @ExceptionHandler(value = HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiResponse<?>> handlingJsonException(HttpMessageNotReadableException exception) {
 
-        ApiResponse<?> apiResponse = ApiResponse.builder()
-                .success(false)
-                .code(ResultCode.INVALID_REQUEST_FORMAT.getCode())
-                .message(ResultCode.INVALID_REQUEST_FORMAT.name())
-                .build();
+    /**
+     * Bắt lỗi chủ động từ Logic (ví dụ: throw new AppException(ResultCode.USER_NOT_FOUND))
+     */
+    @ExceptionHandler(value = AppException.class)
+    public ResponseEntity<ApiResponse<Void>> handlingAppException(AppException exception) {
+        ResultCode resultCode = exception.getResultCode();
 
-        return ResponseEntity.badRequest().body(apiResponse);
+        return ResponseEntity
+                .status(resultCode.getStatusCode())
+                .body(ApiResponse.<Void>builder()
+                        .code(resultCode.getCode())
+                        // VÀ Ở ĐÂY NỮA
+                        .message(translator.toLocale(resultCode))
+                        .build());
+    }
+
+    /**
+     * Bắt tất cả các lỗi còn lọt lưới (Lỗi 500)
+     */
+    @ExceptionHandler(value = Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handlingGeneralException(Exception exception) {
+        log.error("Lỗi hệ thống không xác định: ", exception);
+
+        ResultCode resultCode = ResultCode.UNCATEGORIZED_EXCEPTION;
+
+        return ResponseEntity
+                .status(resultCode.getStatusCode())
+                .body(ApiResponse.<Void>builder()
+                        .code(resultCode.getCode())
+                        .message(translator.toLocale(resultCode))
+                        .build());
     }
 }

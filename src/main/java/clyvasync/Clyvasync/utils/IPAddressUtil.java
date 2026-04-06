@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.util;
+package clyvasync.Clyvasync.utils;
 
 import jakarta.servlet.http.HttpServletRequest;
 

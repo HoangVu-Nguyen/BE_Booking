@@ -8,7 +8,7 @@ import clyvasync.Clyvasync.repository.auth.UserDeviceRepository;
 import clyvasync.Clyvasync.security.util.JwtUtil;
 import clyvasync.Clyvasync.service.auth.RefreshTokenService;
 import clyvasync.Clyvasync.service.auth.UserDeviceService;
-import clyvasync.Clyvasync.util.IPAddressUtil;
+import clyvasync.Clyvasync.utils.IPAddressUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

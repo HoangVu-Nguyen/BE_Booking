@@ -223,7 +223,7 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ResultCode.OTP_EXPIRED);
         }
 
-        if (!storedToken.equals(request.getVerificationCode())) {
+        if (!storedToken.equals(request.getCode())) {
             throw new AppException(ResultCode.OTP_INVALID);
         }
 
@@ -236,8 +236,35 @@ public class AuthServiceImpl implements AuthService {
         log.info("Xác thực tài khoản thành công cho email: {}", email);
     }
     @Override
+    @Transactional
     public void resendVerification(ResendVerificationRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
 
+        // 1. Chống Spam (Fail-fast)
+        if (cacheService.isSpamming(email, RedisKeyType.SEND_EMAIL_LIMIT)) {
+            log.warn("Yêu cầu gửi lại OTP quá nhanh: {}", email);
+            throw new AppException(ResultCode.PLEASE_WAIT_BEFORE_RESENDING);
+        }
+
+        // 2. Tìm User
+        User user = userService.findOptionalByEmail(email)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+        // 3. Nếu User đã kích hoạt rồi thì chửi
+        if (user.isActive()) {
+            throw new AppException(ResultCode.USER_ALREADY_ACTIVE);
+        }
+
+        // 4. Sinh OTP mới, lưu Redis và Set Rate Limit
+        String otp = otpService.generateOtp();
+        cacheService.saveOtp(email, otp, RedisKeyType.VERIFY_ACCOUNT);
+        cacheService.setProcessLimit(email, RedisKeyType.SEND_EMAIL_LIMIT);
+
+        // 5. Ném vào RabbitMQ để Worker gửi mail
+        UserEventDTO eventPayload = new UserEventDTO(user.getEmail(), user.getFullName(), otp);
+        authProducer.sendRegisterEvent(eventPayload);
+
+        log.info("Đã gửi lại 1UP (OTP) thành công cho: {}", email);
     }
 
     @Override

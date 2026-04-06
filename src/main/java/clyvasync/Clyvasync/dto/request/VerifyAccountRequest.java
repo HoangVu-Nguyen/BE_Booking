@@ -11,5 +11,5 @@ public class VerifyAccountRequest {
     private String email;
 
     @NotBlank(message = "OTP_REQUIRED")
-    private String verificationCode;
+    private String code;
 }
