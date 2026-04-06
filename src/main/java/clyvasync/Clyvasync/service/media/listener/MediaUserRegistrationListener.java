@@ -20,7 +20,7 @@ public class MediaUserRegistrationListener {
     private final RingtoneService ringtoneService;
     private final UserRepository userRepository;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void handleUserRegisteredEvent(UserRegisteredEvent event) {
         User user = event.user();
         log.info("[MEDIA MODULE] Nghe tin User {} vừa đăng ký. Đang gán nhạc chuông mặc định...", user.getEmail());

@@ -31,4 +31,6 @@ public interface RefreshTokenService {
      * Bảo mật: Đăng xuất khỏi mọi thiết bị khác trừ phiên đang dùng
      */
     void revokeOtherSessions(String email, String currentToken);
+
+    void deleteByDeviceIdAndEmail(String deviceId, String email);
 }
