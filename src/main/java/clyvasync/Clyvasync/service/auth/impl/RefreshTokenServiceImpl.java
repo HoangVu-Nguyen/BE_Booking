@@ -123,6 +123,12 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         refreshTokenRepository.deleteAllByEmailAndTokenNot(email, currentToken);
     }
 
+    @Override
+    public void deleteByDeviceIdAndEmail(String deviceId, String email) {
+        refreshTokenRepository.deleteByDeviceIdAndEmail(deviceId, email);
+
+    }
+
     // --- Helpers ---
 
     private void syncUserDevice(RefreshToken token, String userAgent, String ipAddress) {

@@ -28,13 +28,20 @@ import clyvasync.Clyvasync.service.otp.OtpService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -52,6 +59,9 @@ public class AuthServiceImpl implements AuthService {
     private final OtpService otpService;
     private final RefreshTokenService refreshTokenService;
     private final JwtUtil jwtUtil;
+    private final JwtDecoder jwtDecoder;
+    private final PasswordEncoder passwordEncoder;
+
 
     @Override
     @Transactional
@@ -111,52 +121,87 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void logout(String accessToken, String deviceId) {
+        // Trong OAuth2, Token đã được Filter verify trước khi vào tới đây
+        // nên bạn không cần gọi jwtUtil.validateToken nữa.
 
+        // 1. Giải mã token thủ công hoặc truyền Instant từ Controller xuống
+        // Ở đây tôi giả sử bạn truyền String accessToken xuống:
+        Jwt jwt = jwtDecoder.decode(accessToken);
+        Instant expiry = jwt.getExpiresAt();
+        String email = jwt.getClaimAsString("email");
+
+        if (expiry != null) {
+            long remainingTime = expiry.getEpochSecond() - Instant.now().getEpochSecond();
+            if (remainingTime > 0) {
+                // Đưa vào Redis Blacklist
+                cacheService.save("blacklist:" + accessToken, "logout", Duration.ofSeconds(remainingTime));
+            }
+        }
+
+        // 2. Xóa Refresh Token trong DB
+        refreshTokenService.deleteByDeviceIdAndEmail(deviceId, email);
     }
 
     @Override
     public void logoutAll(String token) {
+        if (!jwtUtil.validateToken(token)) {
+            throw new AppException(ResultCode.INVALID_TOKEN);
+        }
+        String email = jwtUtil.extractEmail(token);
+        refreshTokenService.revokeAllUserSessions(email);
 
     }
 
     @Override
     @Transactional
     public void register(RegisterRequest request) {
-        log.info("Bắt đầu đăng ký cho email: {}", request.getEmail());
+        String email = request.getEmail().trim().toLowerCase();
+        log.info("Bắt đầu đăng ký cho email: {}", email);
+
+        // 1. Kiểm tra request hợp lệ (Pass mạnh, khớp confirm pass...)
         validateRegisterRequest(request);
-        Optional<User> userOptional = userService.findOptionalByEmail(request.getEmail());
-        User userToSave;
-        if (cacheService.isSpamming(request.getEmail(), RedisKeyType.SEND_EMAIL_LIMIT)) {
-            log.warn("Người dùng {} gửi yêu cầu quá nhanh!", request.getEmail());
+
+        // 2. Chống Spam (Đưa lên đầu để Fail-fast, chặn luôn không cần gọi DB)
+        if (cacheService.isSpamming(email, RedisKeyType.SEND_EMAIL_LIMIT)) {
+            log.warn("Người dùng {} gửi yêu cầu đăng ký quá nhanh!", email);
             throw new AppException(ResultCode.PLEASE_WAIT_BEFORE_RESENDING);
         }
+
+        // 3. Xử lý logic User
+        User userToSave;
+        Optional<User> userOptional = userService.findOptionalByEmail(email);
 
         if (userOptional.isPresent()) {
             User existingUser = userOptional.get();
             if (existingUser.isActive()) {
-                throw new AppException(ResultCode.USER_EXISTED);
+                throw new AppException(ResultCode.USER_EXISTED); // Đã active thì cút
             }
+            // Tồn tại nhưng chưa Active (chưa nhập OTP) -> Ghi đè thông tin & Mật khẩu mới
             userToSave = updateUserFromRequest(existingUser, request);
         } else {
+            // User hoàn toàn mới
             userToSave = createUserFromRequest(request);
         }
 
+        // Gán Role mặc định (USER)
         assignDefaultResources(userToSave);
 
+        // 4. Lưu xuống Database
         User savedUser = userService.save(userToSave);
+
+        // 5. Tạo OTP, lưu Cache và Set Process Limit (khóa mõm chống gửi tiếp)
         String otp = otpService.generateOtp();
         cacheService.saveOtp(savedUser.getEmail(), otp, RedisKeyType.VERIFY_ACCOUNT);
-        cacheService.setProcessLimit(request.getEmail(), RedisKeyType.SEND_EMAIL_LIMIT);
+        cacheService.setProcessLimit(email, RedisKeyType.SEND_EMAIL_LIMIT);
 
+        // 6. Bắn Event nội bộ & Ném vào RabbitMQ cho Worker gửi mail
         eventPublisher.publishEvent(new UserRegisteredEvent(savedUser));
-        UserEventDTO eventPayload = new UserEventDTO(savedUser.getEmail(), savedUser.getFullName(),otp);
-
+        UserEventDTO eventPayload = new UserEventDTO(savedUser.getEmail(), savedUser.getFullName(), otp);
         authProducer.sendRegisterEvent(eventPayload);
 
-
-        log.info("Đăng ký thành công User có email: {}", request.getEmail());
-
+        log.info("Đăng ký thành công (Chờ xác thực OTP) cho email: {}", email);
     }
 
     @Override
@@ -229,15 +274,7 @@ public class AuthServiceImpl implements AuthService {
     public boolean isCaptchaRequired(int failedAttempts) {
         return false;
     }
-    private void assignDefaultResources(User user) {
-        Set<Role> roles = Optional.ofNullable(user.getRoles()).orElseGet(HashSet::new);
 
-        if (roles.isEmpty()) {
-            roles.add(roleService.getRoleByName(RoleName.USER));
-        }
-        user.setRoles(roles);
-
-    }
 
     private User updateUserFromRequest(User user, RegisterRequest request) {
         user.setFullName(request.getUsername());
@@ -245,25 +282,40 @@ public class AuthServiceImpl implements AuthService {
         user.setPhoneNumber(request.getPhoneNumber());
         user.setGender(request.getGender());
         user.setBirthDate(request.getBirthDate());
-        user.setPasswordHash(passwordService.hashPassword(request.getPassword()));
+
+        // MA THUẬT NẰM Ở ĐÂY: Hàm encode này tự động nối Pepper và băm bằng Argon2
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+
         user.setUpdatedAt(LocalDateTime.now());
         return user;
     }
 
     private User createUserFromRequest(RegisterRequest request) {
         User user = new User();
-        user.setEmail(request.getEmail());
+        user.setEmail(request.getEmail().trim().toLowerCase());
         user.setFullName(request.getUsername());
         user.setUsername(request.getUsername());
         user.setPhoneNumber(request.getPhoneNumber());
         user.setGender(request.getGender());
         user.setBirthDate(request.getBirthDate());
-        user.setPasswordHash(passwordService.hashPassword(request.getPassword()));
+
+        // MA THUẬT NẰM Ở ĐÂY
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
         user.setActive(false);
         return user;
     }
+
+    private void assignDefaultResources(User user) {
+        Set<Role> roles = Optional.ofNullable(user.getRoles()).orElseGet(HashSet::new);
+        if (roles.isEmpty()) {
+            roles.add(roleService.getRoleByName(RoleName.USER));
+        }
+        user.setRoles(roles);
+    }
+
     private void validateRegisterRequest(RegisterRequest request) {
         if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new AppException(ResultCode.PASSWORD_NOT_MATCH);

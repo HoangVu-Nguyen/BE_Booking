@@ -21,5 +21,7 @@ public interface CacheService {
      void lockAccount(String email) ;
 
      boolean isAccountLocked(String email) ;
+    long increment(String key, long timeoutInSeconds);
+    boolean hasKey(String key);
 
 }

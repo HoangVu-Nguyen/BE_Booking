@@ -110,4 +110,18 @@ public class RedisCacheServiceImpl implements CacheService {
     public boolean isAccountLocked(String email) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(RedisKeyType.BLOCK_LOGIN.getFullKey(email)));
     }
+    @Override
+    public long increment(String key, long timeoutInSeconds) {
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, timeoutInSeconds, TimeUnit.SECONDS);
+        }
+        return count != null ? count : 0;
+    }
+
+    @Override
+    public boolean hasKey(String key) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+    }
+
 }
