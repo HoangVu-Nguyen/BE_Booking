@@ -16,9 +16,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -29,6 +33,8 @@ public class AuthController {
 
     private final AuthService authService;
     private final Translator translator;
+    private final JwtEncoder jwtEncoder;
+    private final JwtDecoder jwtDecoder;
 
     @Operation(summary = "Đăng ký tài khoản mới")
     @Parameter(
@@ -79,4 +85,5 @@ public class AuthController {
                 translator.toLocale(ResultCode.LOGOUT_SUCCESS)
         );
     }
+
 }

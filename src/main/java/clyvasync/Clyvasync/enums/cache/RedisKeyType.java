@@ -12,6 +12,7 @@ public enum RedisKeyType {
     LOGIN_ATTEMPT("auth:login_attempt:", 5, TimeUnit.MINUTES),
     SEND_EMAIL_LIMIT("auth:limit:", 60, TimeUnit.SECONDS),
     FAILED_ATTEMPTS("auth:failed_attempts:", 1, TimeUnit.HOURS),
+    RATE_LIMIT("auth:rate_limit:", 10, TimeUnit.MINUTES),
     BLOCK_LOGIN("auth:block:", 24, TimeUnit.HOURS), // Nếu sai quá nhiều thì khóa 24,
     REFRESH_TOKEN("auth:refresh_token:", 7, TimeUnit.DAYS);
 

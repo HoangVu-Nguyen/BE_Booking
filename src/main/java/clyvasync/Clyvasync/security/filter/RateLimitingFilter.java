@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.security.filter;
 
 
+import clyvasync.Clyvasync.enums.cache.RedisKeyType;
 import clyvasync.Clyvasync.service.cache.CacheService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -25,7 +26,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String ip = request.getRemoteAddr();
-        String key = "rate_limit:" + ip;
+        String key = RedisKeyType.RATE_LIMIT.getPrefix() + ip;
 
         // Sử dụng logic increment trong Redis
         long count = cacheService.increment(key, 60); // Hàm increment trả về số lần hiện tại

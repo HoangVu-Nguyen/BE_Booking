@@ -23,6 +23,7 @@ public class CorsConfig {
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
+        configuration.setAllowedOrigins(List.of("https://localhost:4200"));
         UrlBasedCorsConfigurationSource urlBasedSource = new UrlBasedCorsConfigurationSource();
         urlBasedSource.registerCorsConfiguration("/**", configuration);
 

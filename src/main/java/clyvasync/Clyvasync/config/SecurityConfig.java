@@ -3,6 +3,10 @@ package clyvasync.Clyvasync.config;
 import clyvasync.Clyvasync.security.custom.CustomAuthenticationFailureHandler;
 import clyvasync.Clyvasync.security.encoder.PepperedPasswordEncoder;
 import clyvasync.Clyvasync.security.entrypoint.CustomAuthenticationEntryPoint;
+import clyvasync.Clyvasync.security.filter.RateLimitingFilter;
+import clyvasync.Clyvasync.security.filter.RefreshTokenCookieFilter;
+import clyvasync.Clyvasync.security.filter.RequestLoggingFilter;
+import clyvasync.Clyvasync.security.filter.XSSFilter;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 
@@ -40,39 +44,33 @@ public class SecurityConfig {
 //    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 //    private final JwtBlacklistFilter jwtBlacklistFilter;
 //    private final IpWhitelistFilter ipWhitelistFilter;
-//    private final RateLimitingFilter rateLimitingFilter;
-//    private final XSSFilter xssFilter;
+    private final RateLimitingFilter rateLimitingFilter;
+    private final XSSFilter xssFilter;
 //    private final ContentSecurityPolicyFilter contentSecurityPolicyFilter;
-//    private final RequestLoggingFilter requestLoggingFilter;
+    private final RequestLoggingFilter requestLoggingFilter;
 //    private final SecurityHeaderFilter securityHeaderFilter;
+    private final RefreshTokenCookieFilter refreshTokenCookieFilter;
 
 
     private final  CorsConfigurationSource corsConfigurationSource;
     private final CustomAuthenticationFailureHandler customAuthenticationFailureHandler;
 
-//    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-//                          JwtBlacklistFilter jwtBlacklistFilter,
-//                          IpWhitelistFilter ipWhitelistFilter,
-//                          RateLimitingFilter rateLimitingFilter,
-//                          XSSFilter xssFilter,
-//                          ContentSecurityPolicyFilter contentSecurityPolicyFilter,
-//                          RequestLoggingFilter requestLoggingFilter,
-//                          SecurityHeaderFilter securityHeaderFilter) {
-//        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-//        this.jwtBlacklistFilter = jwtBlacklistFilter;
-//        this.ipWhitelistFilter = ipWhitelistFilter;
-//        this.rateLimitingFilter = rateLimitingFilter;
-//        this.xssFilter = xssFilter;
-//        this.contentSecurityPolicyFilter = contentSecurityPolicyFilter;
-//        this.requestLoggingFilter = requestLoggingFilter;
-//        this.securityHeaderFilter = securityHeaderFilter;
-//    }
+
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                .csrf(csrf -> csrf.disable()) // Disable để test localhost cho dễ
+
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers
+                        // 1. Tắt hoàn toàn X-Frame-Options (Cái này gây ra lỗi Refused to display)
+                        .frameOptions(frame -> frame.disable())
+                        // 2. Cấu hình CSP để cho phép nhúng frame từ chính nó và Angular
+                        .contentSecurityPolicy(csp -> csp
+                                .policyDirectives("frame-ancestors 'self' https://localhost:4200")
+                        )
+                )
 
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -107,6 +105,15 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new CustomAuthenticationEntryPoint())
                 );
+        http.addFilterBefore(refreshTokenCookieFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // 2. Chặn Rate Limit ngay sau khi log (Tránh việc các request spam lọt vào trong)
+        http.addFilterAfter(rateLimitingFilter, RequestLoggingFilter.class); // Hoặc addFilterBefore Username...
+
+        // 3. Lọc XSS cho các Request Body/Param (Nếu Filter của bạn thiết kế theo chuẩn OncePerRequestFilter)
+        http.addFilterAfter(xssFilter, RateLimitingFilter.class);
+
 
         return http.build();
     }
@@ -136,5 +143,9 @@ public class SecurityConfig {
 
         jwtDecoder.setJwtValidator(withClockSkew);
         return jwtDecoder;
+    }
+    @Bean
+    public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
+        return new NimbusJwtEncoder(jwkSource);
     }
 }

@@ -6,21 +6,25 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
+import org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -61,7 +65,51 @@ public class AuthorizationServerConfig {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults()); // Bật OpenID Connect 1.0
+                .oidc(Customizer.withDefaults())
+                .tokenEndpoint(tokenEndpoint ->
+                        tokenEndpoint
+                                .accessTokenResponseHandler((request, response, authentication) -> {
+
+                                    if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
+
+                                        var accessToken = tokenAuth.getAccessToken();
+                                        var refreshToken = tokenAuth.getRefreshToken();
+
+                                        // 1️⃣ Set refresh token vào HttpOnly Cookie
+                                        // Trong accessTokenResponseHandler
+                                        if (refreshToken != null) {
+                                            // Sử dụng Lax để trình duyệt dễ chấp nhận hơn ở môi trường local
+                                            // Nếu FE là 4200 và BE là 8443, dùng Lax vẫn chạy tốt vì chúng cùng là 'localhost'
+                                            String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
+                                                    + "; HttpOnly"
+                                                    + "; Secure" // Vẫn để Secure vì bạn dùng HTTPS
+                                                    + "; Path=/"
+                                                    + "; Max-Age=" + (60 * 60 * 24 * 30)
+                                                    + "; SameSite=Lax"; // Đổi None -> Lax
+
+                                            response.addHeader("Set-Cookie", cookieValue);
+                                            System.out.println("DEBUG: Đã ghi Set-Cookie vào Header thành công");
+                                        }
+
+                                        // 2️⃣ Trả access token về JSON cho FE
+                                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+
+                                        String json = """
+                    {
+                        "access_token": "%s",
+                        "token_type": "Bearer",
+                        "expires_in": %d
+                    }
+                    """.formatted(
+                                                accessToken.getTokenValue(),
+                                                accessToken.getExpiresAt().getEpochSecond()
+                                                        - accessToken.getIssuedAt().getEpochSecond()
+                                        );
+
+                                        response.getWriter().write(json);
+                                    }
+                                })
+                );
 
         http
                 .exceptionHandling((exceptions) -> exceptions
@@ -70,13 +118,11 @@ public class AuthorizationServerConfig {
                                 new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
                         )
                 )
-                // Resource Server dùng để bảo vệ chính endpoint /userinfo (nếu có)
-                .oauth2ResourceServer((resourceServer) -> resourceServer
-                        .jwt(Customizer.withDefaults()));
+
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();
     }
-
     /**
      * CHAIN 2: Xác thực người dùng (Form Login)
      * Xử lý việc hiển thị Form Login và lưu trữ Session để tiếp tục luồng OAuth2.
@@ -87,32 +133,41 @@ public class AuthorizationServerConfig {
     public RegisteredClientRepository registeredClientRepository() {
         RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("my-client-frontend")
-                // Nếu dùng PKCE trên Frontend (Angular), ClientSecret có thể để trống hoặc fix cứng
                 .clientSecret(passwordEncoder.encode("secret-khong-ma-hoa"))
                 .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+
+                // Đảm bảo chỉ khai báo Grant Type một lần cho rõ ràng
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                // Redirect URI phải khớp 100% với Frontend
+
                 .redirectUri("https://localhost:4200/callback")
+                .redirectUri("https://localhost:4200/assets/silent-refresh.html")
                 .postLogoutRedirectUri("https://localhost:4200/callback")
+
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .scope(OidcScopes.EMAIL)
-                // Bật PKCE (Proof Key for Code Exchange) - Tiêu chuẩn bảo mật cho SPA/Mobile
+                .scope("offline_access") // Scope quan trọng để lấy Refresh Token
+
                 .clientSettings(ClientSettings.builder()
                         .requireProofKey(true)
-                        .requireAuthorizationConsent(false) // Tắt trang yêu cầu đồng ý (Consent) cho nhanh
+                        .requireAuthorizationConsent(false)
                         .build())
+                .clientSettings(ClientSettings.builder()
+                        .requireProofKey(true)
+                        .requireAuthorizationConsent(false)
+                        .build())
+
+                // CHỈ GỌI tokenSettings MỘT LẦN DUY NHẤT
                 .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofHours(1))
-                        .refreshTokenTimeToLive(Duration.ofDays(30))
-                        .reuseRefreshTokens(true)
+                        .accessTokenTimeToLive(Duration.ofMinutes(60)) // Access token 1 tiếng
+                        .refreshTokenTimeToLive(Duration.ofDays(30))   // Refresh token 30 ngày
+                        .reuseRefreshTokens(true)                      // Cho phép dùng lại mã cũ hoặc false nếu muốn rotation
                         .build())
                 .build();
 
         return new InMemoryRegisteredClientRepository(oidcClient);
     }
-
     /**
      * Đưa thêm ID và Role vào JWT Token
      */
