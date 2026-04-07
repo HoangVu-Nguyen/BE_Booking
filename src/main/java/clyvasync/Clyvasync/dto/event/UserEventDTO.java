@@ -9,4 +9,5 @@ public class UserEventDTO {
     private String email;
     private String fullName;
     private String code;
+    private String type;
 }

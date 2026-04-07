@@ -12,6 +12,7 @@ import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.enums.auth.RoleName;
 import clyvasync.Clyvasync.enums.cache.RedisKeyType;
 import clyvasync.Clyvasync.enums.media.RingtoneType;
+import clyvasync.Clyvasync.enums.otp.OtpType;
 import clyvasync.Clyvasync.event.auth.UserRegisteredEvent;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -198,7 +199,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 6. Bắn Event nội bộ & Ném vào RabbitMQ cho Worker gửi mail
         eventPublisher.publishEvent(new UserRegisteredEvent(savedUser));
-        UserEventDTO eventPayload = new UserEventDTO(savedUser.getEmail(), savedUser.getFullName(), otp);
+        UserEventDTO eventPayload = new UserEventDTO(savedUser.getEmail(), savedUser.getFullName(), otp,OtpType.ACTIVATION.name());
         authProducer.sendRegisterEvent(eventPayload);
 
         log.info("Đăng ký thành công (Chờ xác thực OTP) cho email: {}", email);
@@ -239,37 +240,57 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void resendVerification(ResendVerificationRequest request) {
         String email = request.getEmail().trim().toLowerCase();
+        OtpType type = request.getType(); // Lấy Enum
 
-        // 1. Chống Spam (Fail-fast)
         if (cacheService.isSpamming(email, RedisKeyType.SEND_EMAIL_LIMIT)) {
-            log.warn("Yêu cầu gửi lại OTP quá nhanh: {}", email);
             throw new AppException(ResultCode.PLEASE_WAIT_BEFORE_RESENDING);
         }
 
-        // 2. Tìm User
         User user = userService.findOptionalByEmail(email)
                 .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
 
-        // 3. Nếu User đã kích hoạt rồi thì chửi
-        if (user.isActive()) {
-            throw new AppException(ResultCode.USER_ALREADY_ACTIVE);
+        if (type == OtpType.ACTIVATION) {
+            if (user.isActive()) throw new AppException(ResultCode.USER_ALREADY_ACTIVE);
+        } else if (type == OtpType.RECOVERY) {
+            if (!user.isActive()) throw new AppException(ResultCode.USER_NOT_ACTIVE);
         }
 
-        // 4. Sinh OTP mới, lưu Redis và Set Rate Limit
         String otp = otpService.generateOtp();
         cacheService.saveOtp(email, otp, RedisKeyType.VERIFY_ACCOUNT);
         cacheService.setProcessLimit(email, RedisKeyType.SEND_EMAIL_LIMIT);
 
-        // 5. Ném vào RabbitMQ để Worker gửi mail
-        UserEventDTO eventPayload = new UserEventDTO(user.getEmail(), user.getFullName(), otp);
+
+        UserEventDTO eventPayload = new UserEventDTO(user.getEmail(), user.getFullName(), otp, type.name());
         authProducer.sendRegisterEvent(eventPayload);
 
-        log.info("Đã gửi lại 1UP (OTP) thành công cho: {}", email);
+        log.info("Đã gửi lại OTP (Type: {}) thành công cho: {}", type.name(), email);
     }
 
     @Override
+    @Transactional
     public void forgotPassword(String email) {
+        String cleanEmail = email.trim().toLowerCase();
 
+        // 1. Kiểm tra User tồn tại
+        User user = userService.findOptionalByEmail(cleanEmail)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+        // 2. Chống spam gửi mail
+        if (cacheService.isSpamming(cleanEmail, RedisKeyType.SEND_EMAIL_LIMIT)) {
+            throw new AppException(ResultCode.PLEASE_WAIT_BEFORE_RESENDING);
+        }
+
+        // 3. Tạo mã OTP khôi phục (Dùng chung Type VERIFY_ACCOUNT hoặc tạo Type mới FORGOT_PASSWORD)
+        String otp = otpService.generateOtp();
+        cacheService.saveOtp(cleanEmail, otp, RedisKeyType.VERIFY_ACCOUNT);
+        cacheService.setProcessLimit(cleanEmail, RedisKeyType.SEND_EMAIL_LIMIT);
+
+        // 4. Bắn vào RabbitMQ để gửi mail "Khôi phục mật khẩu"
+        // Gợi ý: Bạn có thể tạo một Event riêng hoặc dùng chung RegisterEvent với template mail khác
+        UserEventDTO eventPayload = new UserEventDTO(user.getEmail(), user.getFullName(), otp,OtpType.RECOVERY.name());
+        authProducer.sendRegisterEvent(eventPayload);
+
+        log.info("Yêu cầu khôi phục mật khẩu cho email: {}", cleanEmail);
     }
 
     @Override
@@ -279,12 +300,56 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void verifyPasswordResetOtp(String otp, String email) {
+        String cleanEmail = email.trim().toLowerCase();
 
+        userService.findOptionalByEmail(cleanEmail)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+        String storedOtp = cacheService.getOtp(cleanEmail, RedisKeyType.VERIFY_ACCOUNT);
+        if (ObjectUtils.isEmpty(storedOtp)) {
+            throw new AppException(ResultCode.OTP_EXPIRED);
+        }
+
+        if (!storedOtp.equals(otp)) {
+            throw new AppException(ResultCode.OTP_INVALID);
+        }
+
+        log.info("Xác thực mã OTP khôi phục hợp lệ cho email: {}", cleanEmail);
     }
 
     @Override
+    @Transactional
     public void resetPassword(String email, String newPassword, String otp) {
+        String cleanEmail = email.trim().toLowerCase();
 
+        User user = userService.findOptionalByEmail(cleanEmail)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+
+        String storedOtp = cacheService.getOtp(cleanEmail, RedisKeyType.VERIFY_ACCOUNT);
+        if (ObjectUtils.isEmpty(storedOtp)) {
+            throw new AppException(ResultCode.OTP_EXPIRED);
+        }
+        if (!storedOtp.equals(otp)) {
+            throw new AppException(ResultCode.OTP_INVALID);
+        }
+
+        if (!passwordService.isStrongPassword(newPassword)) {
+            throw new AppException(ResultCode.PASSWORD_TOO_WEAK);
+        }
+
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new AppException(ResultCode.PASSWORD_NOT_MATCH);
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(LocalDateTime.now());
+        userService.save(user);
+
+        cacheService.delete(RedisKeyType.VERIFY_ACCOUNT.getFullKey(cleanEmail));
+        refreshTokenService.revokeAllUserSessions(cleanEmail);
+
+        log.info("STAGE CLEARED: Đã đặt lại mật khẩu thành công cho email: {}", cleanEmail);
     }
 
     @Override

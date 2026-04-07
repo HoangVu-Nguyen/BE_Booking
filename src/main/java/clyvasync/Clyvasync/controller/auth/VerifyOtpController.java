@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.auth;
 
 import clyvasync.Clyvasync.dto.request.ResendVerificationRequest;
 import clyvasync.Clyvasync.dto.request.VerifyAccountRequest;
+import clyvasync.Clyvasync.enums.otp.OtpType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.service.auth.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -17,58 +18,60 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequiredArgsConstructor
 @Slf4j
 public class VerifyOtpController {
-
     private final AuthService authService;
 
-    // Hiển thị giao diện OTP
     @GetMapping("/verify-otp")
-    public String showVerifyPage(@RequestParam String email, Model model) {
+    public String showVerifyPage(@RequestParam String email,
+                                 @RequestParam(defaultValue = "ACTIVATION") OtpType type, // Đổi thành Enum
+                                 Model model) {
         model.addAttribute("email", email);
+        model.addAttribute("type", type.name()); // Trả về dạng String cho HTML dễ dùng
         return "verify-otp";
     }
 
-    // Xử lý nút A (CONFIRM)
     @PostMapping("/verify-otp")
-    public String verifyAccount(@RequestParam String email,
-                                @RequestParam String code,
-                                Model model,
-                                RedirectAttributes redirectAttributes) {
+    public String processOtp(@RequestParam String email,
+                             @RequestParam String code,
+                             @RequestParam OtpType type, // Hứng Enum
+                             Model model, RedirectAttributes redirectAttributes) {
         try {
-            // Khởi tạo request theo cấu trúc của bạn
-            VerifyAccountRequest request = new VerifyAccountRequest();
-            request.setEmail(email);
-            request.setCode(code);
-
-            // Gọi hàm xử lý đã có trong Service
-            authService.verifyAccount(request);
-
-            // Xác thực thành công -> Đá về trang Login
-            redirectAttributes.addAttribute("success", "STAGE CLEARED! Vui lòng đăng nhập.");
-            return "redirect:/login";
-
+            // Thay vì equals string, giờ xài thẳng Enum
+            if (type == OtpType.RECOVERY) {
+                authService.verifyPasswordResetOtp(code, email);
+                redirectAttributes.addAttribute("email", email);
+                redirectAttributes.addAttribute("otp", code);
+                return "redirect:/reset-password";
+            } else {
+                VerifyAccountRequest request = new VerifyAccountRequest();
+                request.setEmail(email);
+                request.setCode(code);
+                authService.verifyAccount(request);
+                redirectAttributes.addFlashAttribute("success", "STAGE CLEARED! Vui lòng đăng nhập.");
+                return "redirect:/login";
+            }
         } catch (AppException e) {
-            log.warn("Lỗi OTP: {}", e.getResultCode().name());
             model.addAttribute("error", e.getResultCode().name());
             model.addAttribute("email", email);
+            model.addAttribute("type", type.name());
             return "verify-otp";
         }
     }
 
-    // Xử lý nút RESEND LIFE (1UP)
     @PostMapping("/resend-otp")
-    public String resendOtp(@RequestParam String email, RedirectAttributes redirectAttributes) {
+    public String resendOtp(@RequestParam String email,
+                            @RequestParam(defaultValue = "ACTIVATION") OtpType type,
+                            RedirectAttributes redirectAttributes) {
         try {
             ResendVerificationRequest request = new ResendVerificationRequest();
             request.setEmail(email);
+            request.setType(type);
             authService.resendVerification(request);
-
             redirectAttributes.addFlashAttribute("success", "1UP! Đã gửi mã bí mật mới vào hòm thư.");
         } catch (AppException e) {
             redirectAttributes.addFlashAttribute("error", e.getResultCode().name());
         }
-
-        // SỬA DÒNG NÀY TƯƠNG TỰ
         redirectAttributes.addAttribute("email", email);
+        redirectAttributes.addAttribute("type", type.name());
         return "redirect:/verify-otp";
     }
 }

@@ -55,6 +55,7 @@
         <!-- FORM XÁC NHẬN OTP -->
         <form id="otpForm" th:action="@{/verify-otp}" method="post" class="space-y-8">
             <!-- Data ngầm gửi về Server -->
+            <input type="hidden" name="type" th:value="${type}">
             <input type="hidden" name="email" th:value="${email}">
             <input type="hidden" name="code" id="finalCode">
 
@@ -80,6 +81,7 @@
         <!-- FORM GỬI LẠI OTP (Tách biệt để không dính chung với form ở trên) -->
         <form th:action="@{/resend-otp}" method="post" class="text-center mt-6">
             <input type="hidden" name="email" th:value="${email}">
+            <input type="hidden" name="type" th:value="${type}">
             <button type="submit" class="inline-block group bg-transparent border-none cursor-pointer">
                     <span class="font-headline text-[10px] font-bold text-green-700 uppercase tracking-widest group-hover:text-[#ff0000] transition-colors">
                         [ RESEND LIFE (1UP) ]

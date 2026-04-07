@@ -1,10 +1,12 @@
 package clyvasync.Clyvasync.config;
 
+import clyvasync.Clyvasync.security.custom.CustomAuthenticationFailureHandler;
 import clyvasync.Clyvasync.security.encoder.PepperedPasswordEncoder;
 import clyvasync.Clyvasync.security.entrypoint.CustomAuthenticationEntryPoint;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +34,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 @Order(2)
+@RequiredArgsConstructor
 public class SecurityConfig {
 
 //    private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -43,8 +46,9 @@ public class SecurityConfig {
 //    private final RequestLoggingFilter requestLoggingFilter;
 //    private final SecurityHeaderFilter securityHeaderFilter;
 
-    @Autowired
-    private CorsConfigurationSource corsConfigurationSource;
+
+    private final  CorsConfigurationSource corsConfigurationSource;
+    private final CustomAuthenticationFailureHandler customAuthenticationFailureHandler;
 
 //    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
 //                          JwtBlacklistFilter jwtBlacklistFilter,
@@ -75,7 +79,7 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login","/register","/verify-otp", "/error", "/oauth2/**", "/.well-known/**").permitAll()
+                        .requestMatchers("/login","/register","/resend-otp","/verify-otp", "/forgot-password" ,"/reset-password","/error", "/oauth2/**", "/.well-known/**").permitAll()
                         .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
 
                         // Cho phép các API của mày (Resource Server mode)
@@ -90,6 +94,7 @@ public class SecurityConfig {
                 .formLogin(form -> form
                                 .loginPage("/login") // Mày dùng trang login tự chế hoặc mặc định
                                 .loginProcessingUrl("/login")
+                        .failureHandler(customAuthenticationFailureHandler)
                                 .permitAll()
 
                 )

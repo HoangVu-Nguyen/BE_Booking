@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.controller.auth;
 
 import clyvasync.Clyvasync.dto.request.RegisterRequest;
+import clyvasync.Clyvasync.enums.otp.OtpType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.service.auth.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class RegisterController {
             // Hãy Redirect người dùng sang trang nhập mã OTP.
             // Truyền theo email lên URL để trang OTP biết đang xác thực cho ai
             redirectAttributes.addAttribute("email", request.getEmail());
+            redirectAttributes.addAttribute("type", OtpType.ACTIVATION.name());
             return "redirect:/verify-otp";
 
         } catch (AppException e) {
