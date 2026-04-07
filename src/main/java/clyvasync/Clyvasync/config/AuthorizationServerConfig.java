@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.core.http.converter.OAuth2AccessToken
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -54,6 +55,7 @@ import java.util.stream.Collectors;
 public class AuthorizationServerConfig {
 
     private final PasswordEncoder passwordEncoder;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate; // Thêm JdbcTemplate
 
     /**
      * CHAIN 1: Giao thức OAuth2
@@ -65,109 +67,97 @@ public class AuthorizationServerConfig {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults())
-                .tokenEndpoint(tokenEndpoint ->
-                        tokenEndpoint
-                                .accessTokenResponseHandler((request, response, authentication) -> {
+                .oidc(Customizer.withDefaults()) // <--- ĐÓNG CHẤM PHẨY Ở ĐÂY ĐỂ NGẮT CHUỖI BUILDER
 
-                                    if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
+        // TẠM THỜI COMMENT TOÀN BỘ CUSTOM HANDLER ĐỂ XEM SPRING CÓ TỰ ĐẺ RA REFRESH TOKEN KHÔNG
 
-                                        var accessToken = tokenAuth.getAccessToken();
-                                        var refreshToken = tokenAuth.getRefreshToken();
+            .tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseHandler((request, response, authentication) -> {
+                if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
+                    var accessToken = tokenAuth.getAccessToken();
+                    var refreshToken = tokenAuth.getRefreshToken();
 
-                                        // 1️⃣ Set refresh token vào HttpOnly Cookie
-                                        // Trong accessTokenResponseHandler
-                                        if (refreshToken != null) {
-                                            // Sử dụng Lax để trình duyệt dễ chấp nhận hơn ở môi trường local
-                                            // Nếu FE là 4200 và BE là 8443, dùng Lax vẫn chạy tốt vì chúng cùng là 'localhost'
-                                            String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
-                                                    + "; HttpOnly"
-                                                    + "; Secure" // Vẫn để Secure vì bạn dùng HTTPS
-                                                    + "; Path=/"
-                                                    + "; Max-Age=" + (60 * 60 * 24 * 30)
-                                                    + "; SameSite=Lax"; // Đổi None -> Lax
+                    // Set refresh token vào HttpOnly Cookie nếu có
+                    if (refreshToken != null) {
+                        String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
+                                + "; HttpOnly"
+                                + "; Secure"
+                                + "; Path=/"
+                                + "; Max-Age=" + (60 * 60 * 24 * 30)
+                                + "; SameSite=Lax";
 
-                                            response.addHeader("Set-Cookie", cookieValue);
-                                            System.out.println("DEBUG: Đã ghi Set-Cookie vào Header thành công");
-                                        }
-
-                                        // 2️⃣ Trả access token về JSON cho FE
-                                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-
-                                        String json = """
-                    {
-                        "access_token": "%s",
-                        "token_type": "Bearer",
-                        "expires_in": %d
+                        response.addHeader("Set-Cookie", cookieValue);
+                        System.out.println("DEBUG: Đã ghi Set-Cookie vào Header thành công");
                     }
-                    """.formatted(
-                                                accessToken.getTokenValue(),
-                                                accessToken.getExpiresAt().getEpochSecond()
-                                                        - accessToken.getIssuedAt().getEpochSecond()
-                                        );
 
-                                        response.getWriter().write(json);
-                                    }
-                                })
-                );
+                    // Trả access token về JSON cho FE
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
-        http
-                .exceptionHandling((exceptions) -> exceptions
-                        .defaultAuthenticationEntryPointFor(
+                    String refreshTokenValue = (refreshToken != null) ? refreshToken.getTokenValue() : null;
+                    long expiresIn = accessToken.getExpiresAt().getEpochSecond() - accessToken.getIssuedAt().getEpochSecond();
+
+                    String json = """
+                            {
+                                "access_token": "%s",
+                                "token_type": "Bearer",
+                                %s
+                                "expires_in": %d
+                            }
+                            """.formatted(
+                            accessToken.getTokenValue(),
+                            (refreshTokenValue != null)
+                                    ? "\"refresh_token\": \"%s\",".formatted(refreshTokenValue) + "\n"
+                                    : "",
+                            expiresIn
+                    );
+
+                    response.getWriter().write(json);
+                }
+            }));
+
+
+        http.exceptionHandling((exceptions) ->
+                        exceptions.defaultAuthenticationEntryPointFor(
                                 new LoginUrlAuthenticationEntryPoint("/login"),
                                 new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
-                        )
-                )
-
+                        ))
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();
     }
+
     /**
      * CHAIN 2: Xác thực người dùng (Form Login)
      * Xử lý việc hiển thị Form Login và lưu trữ Session để tiếp tục luồng OAuth2.
      */
 
-
     @Bean
     public RegisteredClientRepository registeredClientRepository() {
-        RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("my-client-frontend")
-                .clientSecret(passwordEncoder.encode("secret-khong-ma-hoa"))
-                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+        JdbcRegisteredClientRepository registeredClientRepository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
-                // Đảm bảo chỉ khai báo Grant Type một lần cho rõ ràng
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-
-                .redirectUri("https://localhost:4200/callback")
-                .redirectUri("https://localhost:4200/assets/silent-refresh.html")
-                .postLogoutRedirectUri("https://localhost:4200/callback")
-
-                .scope(OidcScopes.OPENID)
-                .scope(OidcScopes.PROFILE)
-                .scope(OidcScopes.EMAIL)
-                .scope("offline_access") // Scope quan trọng để lấy Refresh Token
-
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(false)
-                        .build())
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(false)
-                        .build())
-
-                // CHỈ GỌI tokenSettings MỘT LẦN DUY NHẤT
-                .tokenSettings(TokenSettings.builder()
-                        .accessTokenTimeToLive(Duration.ofMinutes(60)) // Access token 1 tiếng
-                        .refreshTokenTimeToLive(Duration.ofDays(30))   // Refresh token 30 ngày
-                        .reuseRefreshTokens(true)                      // Cho phép dùng lại mã cũ hoặc false nếu muốn rotation
-                        .build())
-                .build();
-
-        return new InMemoryRegisteredClientRepository(oidcClient);
+        // Kiểm tra nếu chưa có client thì mới lưu vào để tránh lỗi duplicate khi restart
+        if (registeredClientRepository.findByClientId("clyvasync-client") == null) {
+            RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId("clyvasync-client")
+                    .clientSecret(passwordEncoder.encode("secret-khong-ma-hoa"))
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                    .redirectUri("https://localhost:4200/callback")
+                    .scope(OidcScopes.OPENID)
+                    .scope(OidcScopes.PROFILE)
+                    .scope(OidcScopes.EMAIL)
+                    .scope("offline_access")
+                    .clientSettings(ClientSettings.builder().requireProofKey(true).requireAuthorizationConsent(true).build())
+                    .tokenSettings(TokenSettings.builder()
+                            .accessTokenTimeToLive(Duration.ofMinutes(60))
+                            .refreshTokenTimeToLive(Duration.ofDays(30))
+                            .reuseRefreshTokens(true).build())
+                    .build();
+            registeredClientRepository.save(oidcClient);
+        }
+        return registeredClientRepository;
     }
+
     /**
      * Đưa thêm ID và Role vào JWT Token
      */
@@ -176,13 +166,11 @@ public class AuthorizationServerConfig {
         return context -> {
             Authentication auth = context.getPrincipal();
 
-            // Nhồi Roles vào Access Token
             Set<String> authorities = auth.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toSet());
             context.getClaims().claim("roles", authorities);
 
-            // Nhồi ID người dùng từ CustomUserDetails vào Access Token
             Object principal = auth.getPrincipal();
             if (principal instanceof CustomUserDetails userDetails) {
                 context.getClaims().claim("user_id", userDetails.getId());
