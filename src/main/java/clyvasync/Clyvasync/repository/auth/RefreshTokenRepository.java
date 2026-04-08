@@ -1,6 +1,6 @@
 package clyvasync.Clyvasync.repository.auth;
 
-import clyvasync.Clyvasync.entity.auth.RefreshToken;
+import clyvasync.Clyvasync.modules.auth.entity.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

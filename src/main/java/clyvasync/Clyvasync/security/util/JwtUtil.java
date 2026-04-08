@@ -1,7 +1,7 @@
 package clyvasync.Clyvasync.security.util;
 
 import clyvasync.Clyvasync.config.JwtProperties;
-import clyvasync.Clyvasync.entity.auth.Role;
+import clyvasync.Clyvasync.modules.auth.entity.Role;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;

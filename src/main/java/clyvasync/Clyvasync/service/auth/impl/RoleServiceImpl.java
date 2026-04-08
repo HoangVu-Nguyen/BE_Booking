@@ -1,9 +1,9 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
-import clyvasync.Clyvasync.entity.auth.Role;
 import clyvasync.Clyvasync.enums.auth.RoleName;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.auth.entity.Role;
 import clyvasync.Clyvasync.repository.auth.RoleRepository;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import lombok.RequiredArgsConstructor;

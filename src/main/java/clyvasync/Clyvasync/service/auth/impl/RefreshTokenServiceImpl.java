@@ -2,11 +2,12 @@ package clyvasync.Clyvasync.service.auth.impl;
 
 import clyvasync.Clyvasync.dto.request.RefreshTokenRequest;
 import clyvasync.Clyvasync.dto.response.TokenResponse;
-import clyvasync.Clyvasync.entity.auth.RefreshToken;
-import clyvasync.Clyvasync.entity.auth.User;
-import clyvasync.Clyvasync.entity.auth.UserDevice;
+
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.auth.entity.RefreshToken;
+import clyvasync.Clyvasync.modules.auth.entity.User;
+import clyvasync.Clyvasync.modules.auth.entity.UserDevice;
 import clyvasync.Clyvasync.repository.auth.RefreshTokenRepository;
 import clyvasync.Clyvasync.repository.auth.UserDeviceRepository;
 import clyvasync.Clyvasync.security.util.JwtUtil;

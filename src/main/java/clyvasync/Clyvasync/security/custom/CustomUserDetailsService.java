@@ -2,7 +2,7 @@ package clyvasync.Clyvasync.security.custom;
 
 
 
-import clyvasync.Clyvasync.entity.auth.User;
+import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.service.auth.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;

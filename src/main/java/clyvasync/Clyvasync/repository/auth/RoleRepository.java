@@ -1,7 +1,7 @@
 package clyvasync.Clyvasync.repository.auth;
 
-import clyvasync.Clyvasync.entity.auth.Role;
 import clyvasync.Clyvasync.enums.auth.RoleName;
+import clyvasync.Clyvasync.modules.auth.entity.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

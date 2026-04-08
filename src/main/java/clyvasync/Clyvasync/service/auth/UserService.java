@@ -1,6 +1,6 @@
 package clyvasync.Clyvasync.service.auth;
 
-import clyvasync.Clyvasync.entity.auth.User;
+import clyvasync.Clyvasync.modules.auth.entity.User;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

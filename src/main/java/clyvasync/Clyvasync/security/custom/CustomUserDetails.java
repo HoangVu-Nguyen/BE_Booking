@@ -1,7 +1,7 @@
 package clyvasync.Clyvasync.security.custom;
 
 
-import clyvasync.Clyvasync.entity.auth.User;
+import clyvasync.Clyvasync.modules.auth.entity.User;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

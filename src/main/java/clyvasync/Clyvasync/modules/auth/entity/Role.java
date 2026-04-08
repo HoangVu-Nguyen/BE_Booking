@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.entity.auth;
+package clyvasync.Clyvasync.modules.auth.entity;
 
 import clyvasync.Clyvasync.enums.auth.RoleName;
 import jakarta.persistence.*;

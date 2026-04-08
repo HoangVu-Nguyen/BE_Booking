@@ -1,9 +1,9 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
 import clyvasync.Clyvasync.dto.response.UserLoginHistoryResponse;
-import clyvasync.Clyvasync.entity.auth.UserDevice;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.auth.entity.UserDevice;
 import clyvasync.Clyvasync.repository.auth.UserDeviceRepository;
 import clyvasync.Clyvasync.security.util.JwtUtil;
 import clyvasync.Clyvasync.service.auth.RefreshTokenService;

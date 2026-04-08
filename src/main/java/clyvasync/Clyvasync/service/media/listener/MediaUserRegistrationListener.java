@@ -1,23 +1,21 @@
 package clyvasync.Clyvasync.service.media.listener;
 
-import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.enums.media.RingtoneType;
 import clyvasync.Clyvasync.event.auth.UserRegisteredEvent;
+import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
-import clyvasync.Clyvasync.service.media.RingtoneService;
+import clyvasync.Clyvasync.service.media.IRingtoneService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MediaUserRegistrationListener {
 
-    private final RingtoneService ringtoneService;
+    private final IRingtoneService ringtoneService;
     private final UserRepository userRepository;
 
     @EventListener

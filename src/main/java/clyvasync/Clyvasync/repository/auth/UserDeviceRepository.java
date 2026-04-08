@@ -1,7 +1,8 @@
 package clyvasync.Clyvasync.repository.auth;
 
-import clyvasync.Clyvasync.entity.auth.RefreshToken;
-import clyvasync.Clyvasync.entity.auth.UserDevice;
+
+import clyvasync.Clyvasync.modules.auth.entity.RefreshToken;
+import clyvasync.Clyvasync.modules.auth.entity.UserDevice;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

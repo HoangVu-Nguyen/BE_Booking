@@ -1,8 +1,9 @@
-package clyvasync.Clyvasync.entity.auth;
+package clyvasync.Clyvasync.modules.auth.entity;
 
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 @Entity

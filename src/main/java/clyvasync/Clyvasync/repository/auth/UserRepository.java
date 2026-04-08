@@ -1,6 +1,6 @@
 package clyvasync.Clyvasync.repository.auth;
 
-import clyvasync.Clyvasync.entity.auth.User;
+import clyvasync.Clyvasync.modules.auth.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

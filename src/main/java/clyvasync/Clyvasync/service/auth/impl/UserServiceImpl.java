@@ -1,8 +1,8 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
-import clyvasync.Clyvasync.entity.auth.User;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
 import lombok.RequiredArgsConstructor;

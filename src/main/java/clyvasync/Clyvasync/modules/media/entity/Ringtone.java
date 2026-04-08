@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.entity.media;
+package clyvasync.Clyvasync.modules.media.entity;
 
 import clyvasync.Clyvasync.enums.media.RingtoneType;
 import jakarta.persistence.*;

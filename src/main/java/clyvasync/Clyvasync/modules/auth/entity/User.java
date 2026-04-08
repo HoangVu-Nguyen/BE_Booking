@@ -1,6 +1,6 @@
-package clyvasync.Clyvasync.entity.auth;
+package clyvasync.Clyvasync.modules.auth.entity;
 
-import clyvasync.Clyvasync.entity.media.Ringtone;
+import clyvasync.Clyvasync.modules.media.entity.Ringtone;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

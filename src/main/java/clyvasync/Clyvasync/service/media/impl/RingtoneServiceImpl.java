@@ -1,12 +1,12 @@
 package clyvasync.Clyvasync.service.media.impl;
 
-import clyvasync.Clyvasync.entity.media.Ringtone;
 import clyvasync.Clyvasync.enums.media.RingtoneType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.infrastructure.storage.FileStorageService;
+import clyvasync.Clyvasync.modules.media.entity.Ringtone;
 import clyvasync.Clyvasync.repository.media.RingtoneRepository;
-import clyvasync.Clyvasync.service.media.RingtoneService;
+import clyvasync.Clyvasync.service.media.IRingtoneService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,7 +17,7 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 @Service
-public class RingtoneServiceImpl implements RingtoneService {
+public class RingtoneServiceImpl implements IRingtoneService {
     private final RingtoneRepository ringtoneRepository;
     private final FileStorageService fileStorageService;
 
@@ -54,7 +54,7 @@ public class RingtoneServiceImpl implements RingtoneService {
     }
 
     @Override
-    public Ringtone getRingtoneByType(RingtoneType type) {
+    public clyvasync.Clyvasync.modules.media.entity.Ringtone getRingtoneByType(RingtoneType type) {
         return ringtoneRepository.findRingtoneByType(type);
     }
 }
