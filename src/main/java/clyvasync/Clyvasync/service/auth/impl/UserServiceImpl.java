@@ -1,13 +1,22 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
+import clyvasync.Clyvasync.constant.NameConstants;
+import clyvasync.Clyvasync.dto.response.UserHeaderResponse;
+import clyvasync.Clyvasync.dto.response.UserPhotoResponse;
+import clyvasync.Clyvasync.enums.media.ImageType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
+import clyvasync.Clyvasync.repository.projection.UserNameProjection;
 import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.media.IUserPhotoService;
+import com.alicp.jetcache.anno.CacheType;
+import com.alicp.jetcache.anno.Cached;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +25,7 @@ import java.util.Optional;
 @Service
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    private final IUserPhotoService userPhotoService;
     @Override
     public User getUserByEmail(String email) {
         log.debug("Đang truy vấn thông tin user với email: {}", email);
@@ -60,6 +70,25 @@ public class UserServiceImpl implements UserService {
     @Override
     public User save(User user) {
         return userRepository.save(user);
+    }
+    @Cached(name = "userHeaderCache-", key = "#userId", cacheType = CacheType.BOTH, expire = 600)
+    @Override
+    public UserHeaderResponse getHeaderInfo(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new AppException(ResultCode.USER_NOT_FOUND);
+        }
+
+        UserNameProjection user = userRepository.findProjectedById(userId).orElse(null);
+
+        String username = (user != null) ? user.getUsername() : NameConstants.NAME_DEFAULT;
+
+        UserPhotoResponse photoResponse = userPhotoService.getCurrentPhoto(userId, ImageType.AVATAR);
+
+        return UserHeaderResponse.builder()
+                .id(userId)
+                .username(username)
+                .photoUrl(photoResponse.getPhotoUrl())
+                .build();
     }
 //
 //    @Override

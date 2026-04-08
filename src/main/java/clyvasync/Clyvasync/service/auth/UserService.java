@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.auth;
 
+import clyvasync.Clyvasync.dto.response.UserHeaderResponse;
 import clyvasync.Clyvasync.modules.auth.entity.User;
 import org.springframework.stereotype.Service;
 
@@ -124,4 +125,5 @@ public interface UserService {
 //    Map<Long, UserDTO> findUsersSummaryMapByIds(List<Long> ids);
 //
 //    Optional<UserDTO> findUserSummaryById(Long userId);
+ UserHeaderResponse getHeaderInfo(Long userId);
 }

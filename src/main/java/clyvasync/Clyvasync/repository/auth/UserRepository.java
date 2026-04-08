@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.repository.auth;
 
 import clyvasync.Clyvasync.modules.auth.entity.User;
+import clyvasync.Clyvasync.repository.projection.UserNameProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,4 +19,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u.username FROM User u WHERE u.id = :userId")
     Optional<String> findUsernameById(@Param("userId") Long userId);
+    Optional<UserNameProjection> findProjectedById(Long id);
 }
