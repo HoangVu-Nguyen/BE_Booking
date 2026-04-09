@@ -71,48 +71,48 @@ public class AuthorizationServerConfig {
 
         // TẠM THỜI COMMENT TOÀN BỘ CUSTOM HANDLER ĐỂ XEM SPRING CÓ TỰ ĐẺ RA REFRESH TOKEN KHÔNG
 
-            .tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseHandler((request, response, authentication) -> {
-                if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
-                    var accessToken = tokenAuth.getAccessToken();
-                    var refreshToken = tokenAuth.getRefreshToken();
+                .tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseHandler((request, response, authentication) -> {
+                    if (authentication instanceof OAuth2AccessTokenAuthenticationToken tokenAuth) {
+                        var accessToken = tokenAuth.getAccessToken();
+                        var refreshToken = tokenAuth.getRefreshToken();
 
-                    // Set refresh token vào HttpOnly Cookie nếu có
-                    if (refreshToken != null) {
-                        String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
-                                + "; HttpOnly"
-                                + "; Secure"
-                                + "; Path=/"
-                                + "; Max-Age=" + (60 * 60 * 24 * 30)
-                                + "; SameSite=Lax";
+                        // 1. LẤY ID TOKEN TỪ ADDITIONAL PARAMETERS
+                        String idTokenValue = "";
+                        if (tokenAuth.getAdditionalParameters().containsKey("id_token")) {
+                            idTokenValue = tokenAuth.getAdditionalParameters().get("id_token").toString();
+                        }
 
-                        response.addHeader("Set-Cookie", cookieValue);
-                        System.out.println("DEBUG: Đã ghi Set-Cookie vào Header thành công");
+                        // 2. Set refresh token vào HttpOnly Cookie (Giữ nguyên logic của bạn)
+                        if (refreshToken != null) {
+                            String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
+                                    + "; HttpOnly; Secure; Path=/; Max-Age=" + (60 * 60 * 24 * 30) + "; SameSite=Lax";
+                            response.addHeader("Set-Cookie", cookieValue);
+                        }
+
+                        // 3. XÂY DỰNG JSON TRẢ VỀ CÓ ID_TOKEN
+                        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                        long expiresIn = accessToken.getExpiresAt().getEpochSecond() - accessToken.getIssuedAt().getEpochSecond();
+
+                        StringBuilder json = new StringBuilder();
+                        json.append("{");
+                        json.append("\"access_token\": \"").append(accessToken.getTokenValue()).append("\",");
+
+                        // Thêm id_token vào đây
+                        if (!idTokenValue.isEmpty()) {
+                            json.append("\"id_token\": \"").append(idTokenValue).append("\",");
+                        }
+
+                        if (refreshToken != null) {
+                            json.append("\"refresh_token\": \"").append(refreshToken.getTokenValue()).append("\",");
+                        }
+
+                        json.append("\"token_type\": \"Bearer\",");
+                        json.append("\"expires_in\": ").append(expiresIn);
+                        json.append("}");
+
+                        response.getWriter().write(json.toString());
                     }
-
-                    // Trả access token về JSON cho FE
-                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-
-                    String refreshTokenValue = (refreshToken != null) ? refreshToken.getTokenValue() : null;
-                    long expiresIn = accessToken.getExpiresAt().getEpochSecond() - accessToken.getIssuedAt().getEpochSecond();
-
-                    String json = """
-                            {
-                                "access_token": "%s",
-                                "token_type": "Bearer",
-                                %s
-                                "expires_in": %d
-                            }
-                            """.formatted(
-                            accessToken.getTokenValue(),
-                            (refreshTokenValue != null)
-                                    ? "\"refresh_token\": \"%s\",".formatted(refreshTokenValue) + "\n"
-                                    : "",
-                            expiresIn
-                    );
-
-                    response.getWriter().write(json);
-                }
-            }));
+                }));
 
 
         http.exceptionHandling((exceptions) ->
@@ -142,9 +142,9 @@ public class AuthorizationServerConfig {
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                    .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                     .redirectUri("https://localhost:4200/callback")
-                    .postLogoutRedirectUri("https://localhost:4200")
-                    .postLogoutRedirectUri("https://localhost:4200/")
+                    .postLogoutRedirectUri("https://localhost:4200/login")
                     .scope(OidcScopes.OPENID)
                     .scope(OidcScopes.PROFILE)
                     .scope(OidcScopes.EMAIL)
