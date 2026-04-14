@@ -16,7 +16,7 @@ services:
     networks:
       - backend
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${USERNAME_RSQL} -d clyvasync" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${USERNAME_RSQL} -d homestay_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -56,7 +56,7 @@ services:
         condition: service_healthy
 
     environment:
-      DBMSRSQL_CONNECTION: jdbc:postgresql://my-postgresF:5432/clyvasync
+      DBMSRSQL_CONNECTION: jdbc:postgresql://my-postgresF:5432/homestay_db
       USERNAME_RSQL: ${USERNAME_RSQL}
       PASSWORD_RSQL: ${PASSWORD_RSQL}
       RABBITMQ_CONNECTION: rabbitmq
