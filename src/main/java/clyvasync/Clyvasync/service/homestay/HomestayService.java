@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.homestay;
 
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
+import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,4 +37,5 @@ public interface HomestayService {
     void updateStatus(Long id, String status, Long ownerId);
 
     void updateAverageRating(Long id, BigDecimal newRating);
+    HomestayDetailResponse getHomestayDetail(Long id);
 }

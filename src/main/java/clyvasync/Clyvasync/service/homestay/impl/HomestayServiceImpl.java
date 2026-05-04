@@ -1,12 +1,18 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
+import clyvasync.Clyvasync.dto.response.AmenityResponse;
+import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.mapper.homestay.AmenityMapper;
 import clyvasync.Clyvasync.mapper.homestay.HomestayMapper;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
+import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
+import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
+import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +33,9 @@ public class HomestayServiceImpl implements HomestayService {
 
     private final HomestayRepository homestayRepository;
     private final HomestayMapper homestayMapper;
+    private final HomestayImageRepository imageRepository;
+    private final AmenityRepository amenityRepository;
+    private final AmenityMapper amenityMapper;
 
     @Override
     @Transactional
@@ -124,4 +133,31 @@ public class HomestayServiceImpl implements HomestayService {
 
         homestayRepository.save(homestay);
     }
+
+    @Override
+    public HomestayDetailResponse getHomestayDetail(Long id) {
+        Homestay homestay = homestayRepository.findById(id)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+        List<String> imageUrls = imageRepository.findByHomestayIdOrderByDisplayOrderAsc(id)
+                .stream()
+                .map(HomestayImage::getImageUrl)
+                .toList();
+        List<AmenityResponse> amenities = amenityMapper.toAmenityResponseList(amenityRepository.findAllByHomestayId(id));
+        return HomestayDetailResponse.builder()
+                .id(homestay.getId())
+                .name(homestay.getName())
+                .description(homestay.getDescription())
+                .address(homestay.getAddress())
+                .city(homestay.getCity())
+                .latitude(homestay.getLatitude())
+                .longitude(homestay.getLongitude())
+                .basePrice(homestay.getBasePrice())
+                .averageRating(homestay.getAverageRating())
+                .reviewCount(homestay.getReviewCount())
+                .ownerId(homestay.getOwnerId())
+                .imageUrls(imageUrls)
+                .amenities(amenities)
+                .build();
+    }
+
 }
