@@ -1,0 +1,27 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  neo4j:
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  spicedb:
+    ports:
+      - "50051:50051"
+      - "9090:9090"
+
+  app:
+    profiles:
+      - "manual"
