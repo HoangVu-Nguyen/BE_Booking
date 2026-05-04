@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.response.AmenityResponse;
 import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
+import clyvasync.Clyvasync.dto.response.ReviewResponse;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -15,6 +16,7 @@ import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.homestay.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +38,7 @@ public class HomestayServiceImpl implements HomestayService {
     private final HomestayImageRepository imageRepository;
     private final AmenityRepository amenityRepository;
     private final AmenityMapper amenityMapper;
+    private final ReviewService reviewService;
 
     @Override
     @Transactional
@@ -136,13 +139,26 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     public HomestayDetailResponse getHomestayDetail(Long id) {
+        // 1. Lấy thông tin cơ bản Homestay
         Homestay homestay = homestayRepository.findById(id)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+
+        // 2. Lấy danh sách ảnh Homestay
         List<String> imageUrls = imageRepository.findByHomestayIdOrderByDisplayOrderAsc(id)
                 .stream()
                 .map(HomestayImage::getImageUrl)
                 .toList();
-        List<AmenityResponse> amenities = amenityMapper.toAmenityResponseList(amenityRepository.findAllByHomestayId(id));
+
+        // 3. Lấy danh sách tiện nghi
+        List<AmenityResponse> amenities = amenityMapper.toAmenityResponseList(
+                amenityRepository.findAllByHomestayId(id)
+        );
+
+        // 4. Gọi ReviewService để lấy danh sách review (đã bao gồm ảnh khách chụp và tên khách)
+        // Bạn có thể giới hạn lấy 5-10 cái mới nhất tại đây
+        List<ReviewResponse> reviews = reviewService.getReviewsByHomestay(id);
+
+        // 5. Build Response hoàn chỉnh
         return HomestayDetailResponse.builder()
                 .id(homestay.getId())
                 .name(homestay.getName())
@@ -157,6 +173,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .ownerId(homestay.getOwnerId())
                 .imageUrls(imageUrls)
                 .amenities(amenities)
+                .reviews(reviews)
                 .build();
     }
 

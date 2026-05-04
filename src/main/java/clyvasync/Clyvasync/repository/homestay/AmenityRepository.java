@@ -7,6 +7,10 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface AmenityRepository extends JpaRepository<Amenity,Long> {
-    @Query("SELECT a FROM Amenity a JOIN homestay_amenities ha ON a.id = ha.amenityId WHERE ha.homestayId = :homestayId")
-    List<Amenity> findAllByHomestayId(@Param("homestayId") Long homestayId);}
+public interface AmenityRepository extends JpaRepository<Amenity, Long> {
+    @Query(value = "SELECT a.* FROM amenities a " +
+            "JOIN homestay_amenities ha ON a.id = ha.amenity_id " +
+            "WHERE ha.homestay_id = :homestayId",
+            nativeQuery = true)
+    List<Amenity> findAllByHomestayId(@Param("homestayId") Long homestayId);
+}

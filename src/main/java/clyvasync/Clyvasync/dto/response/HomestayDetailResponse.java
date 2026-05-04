@@ -3,11 +3,13 @@ package clyvasync.Clyvasync.dto.response;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
 public class HomestayDetailResponse {
     private Long id;
@@ -20,10 +22,8 @@ public class HomestayDetailResponse {
     private BigDecimal basePrice;
     private BigDecimal averageRating;
     private Integer reviewCount;
-
     private List<String> imageUrls;
-
     private List<AmenityResponse> amenities;
-
     private Long ownerId;
+    private List<ReviewResponse> reviews;
 }

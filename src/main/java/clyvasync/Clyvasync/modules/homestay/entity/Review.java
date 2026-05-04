@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.modules.booking.entity;
+package clyvasync.Clyvasync.modules.homestay.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
