@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.controller.homestay;
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
@@ -37,8 +38,8 @@ public class HomestayController {
 
 
     @GetMapping("/{id}")
-    public ApiResponse<HomestayResponse> getHomestayById(@PathVariable Long id) {
-        return ApiResponse.success(homestayService.getById(id));
+    public ApiResponse<HomestayDetailResponse> getHomestayById(@PathVariable Long id) {
+        return ApiResponse.success(homestayService.getHomestayDetail(id));
     }
 
 
