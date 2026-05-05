@@ -22,7 +22,7 @@ public class HomestayDetailResponse {
     private BigDecimal basePrice;
     private BigDecimal averageRating;
     private Integer reviewCount;
-    private List<String> imageUrls;
+    private List<String> images;
     private List<AmenityResponse> amenities;
     private Long ownerId;
     private List<ReviewResponse> reviews;

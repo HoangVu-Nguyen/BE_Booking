@@ -155,7 +155,7 @@ public class HomestayServiceImpl implements HomestayService {
         );
 
 
-        List<ReviewResponse> reviews = reviewService.getReviewsByHomestay(id);
+
 
         // 5. Build Response hoàn chỉnh
         return HomestayDetailResponse.builder()
@@ -170,9 +170,8 @@ public class HomestayServiceImpl implements HomestayService {
                 .averageRating(homestay.getAverageRating())
                 .reviewCount(homestay.getReviewCount())
                 .ownerId(homestay.getOwnerId())
-                .imageUrls(imageUrls)
+                .images(imageUrls)
                 .amenities(amenities)
-                .reviews(reviews)
                 .build();
     }
 
