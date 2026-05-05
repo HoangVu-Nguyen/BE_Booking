@@ -153,7 +153,8 @@ public class SecurityConfig {
         NimbusJwtDecoder jwtDecoder = (NimbusJwtDecoder) org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
         OAuth2TokenValidator<Jwt> withClockSkew = new DelegatingOAuth2TokenValidator<>(
                 new JwtTimestampValidator(java.time.Duration.ofSeconds(60)),
-                new JwtIssuerValidator("https://localhost:8443")
+//                new JwtIssuerValidator("https://localhost:8443")
+        new JwtIssuerValidator("https://vcebook.io.vn")
         );
         jwtDecoder.setJwtValidator(withClockSkew);
         return jwtDecoder;

@@ -23,7 +23,7 @@ public class CorsConfig {
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
-        configuration.setAllowedOrigins(List.of("https://localhost:4200"));
+        configuration.setAllowedOrigins(List.of("https://localhost:4200","https://clyvasync.com"));
         UrlBasedCorsConfigurationSource urlBasedSource = new UrlBasedCorsConfigurationSource();
         urlBasedSource.registerCorsConfiguration("/**", configuration);
 

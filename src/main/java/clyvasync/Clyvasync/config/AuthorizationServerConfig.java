@@ -186,7 +186,8 @@ public class AuthorizationServerConfig {
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-                .issuer("https://localhost:8443")
+                //.issuer("https://localhost:8443")
+                .issuer("https://vcebook.io.vn")
                 .build();
     }
 
