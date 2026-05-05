@@ -154,8 +154,7 @@ public class HomestayServiceImpl implements HomestayService {
                 amenityRepository.findAllByHomestayId(id)
         );
 
-        // 4. Gọi ReviewService để lấy danh sách review (đã bao gồm ảnh khách chụp và tên khách)
-        // Bạn có thể giới hạn lấy 5-10 cái mới nhất tại đây
+
         List<ReviewResponse> reviews = reviewService.getReviewsByHomestay(id);
 
         // 5. Build Response hoàn chỉnh

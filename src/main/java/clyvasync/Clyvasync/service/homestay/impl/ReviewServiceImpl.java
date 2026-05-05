@@ -40,11 +40,25 @@ public class ReviewServiceImpl implements ReviewService {
 
         return rawData.stream().map(m -> {
             Long rId = ((Number) m.get("id")).longValue();
+
+            // FIX TẠI ĐÂY: Xử lý Instant từ Hibernate 6
+            Object createdAtObj = m.get("created_at");
+            java.time.LocalDateTime createdAt;
+
+            if (createdAtObj instanceof java.time.Instant) {
+                createdAt = java.time.LocalDateTime.ofInstant((java.time.Instant) createdAtObj, java.time.ZoneId.systemDefault());
+            } else if (createdAtObj instanceof java.sql.Timestamp) {
+                createdAt = ((java.sql.Timestamp) createdAtObj).toLocalDateTime();
+            } else {
+                // Fallback hoặc gán giá trị mặc định nếu cần
+                createdAt = java.time.LocalDateTime.now();
+            }
+
             return ReviewResponse.builder()
                     .id(rId)
                     .rating((Integer) m.get("rating"))
                     .comment((String) m.get("comment"))
-                    .createdAt(((Timestamp) m.get("created_at")).toLocalDateTime())
+                    .createdAt(createdAt) // Sử dụng biến createdAt đã xử lý ở trên
                     .userId(((Number) m.get("user_id")).longValue())
                     .fullName((String) m.get("fullName"))
                     .avatarUrl((String) m.get("avatarUrl"))
