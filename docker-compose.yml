@@ -110,7 +110,7 @@ services:
   # --- BACKEND APP ---
   app:
     # QUAN TRỌNG: Dùng image thay vì build
-    image: ${IMAGE_NAME}:${BUILD_TAG}
+    image: ${IMAGE_NAME}:${BUILD_NUMBER}
     container_name: clyvasync-be
     restart: always
     depends_on:
