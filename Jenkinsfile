@@ -9,7 +9,7 @@ pipeline {
 
         TARGET_USER     = "ubuntu"
         TARGET_IP       = "3.236.101.255"
-        TARGET_DIR      = "/home/ubuntu/clyvasync"
+        TARGET_DIR      = "/home/ubuntu/app/clyvasync"
         SSH_KEY_ID      = "ec2-server-key"
     }
 
