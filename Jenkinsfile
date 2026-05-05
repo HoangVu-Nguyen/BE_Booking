@@ -9,7 +9,6 @@ pipeline {
         SSH_KEY_ID  = "ec2-server-key" // ID SSH Key bạn lưu trong Jenkins Credentials
     }
 
-
     stages {
         stage('Checkout') {
             steps {
