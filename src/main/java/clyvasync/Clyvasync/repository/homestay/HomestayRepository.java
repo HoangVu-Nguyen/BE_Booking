@@ -24,22 +24,25 @@ public interface HomestayRepository extends JpaRepository<Homestay, Long> {
     @Query(
             value = "SELECT h FROM Homestay h WHERE h.deletedAt IS NULL " +
                     "AND h.status = 'AVAILABLE' " +
-                    "AND (:city IS NULL OR LOWER(h.city) LIKE :city) " +
+                    "AND (:city IS NULL OR LOWER(h.city) LIKE LOWER(CAST(:city AS string))) " +
                     "AND (:minPrice IS NULL OR h.basePrice >= :minPrice) " +
                     "AND (:maxPrice IS NULL OR h.basePrice <= :maxPrice) " +
-                    "AND (:guests IS NULL OR h.maxGuests >= :guests)",
-            // THÊM DÒNG NÀY ĐỂ FIX LỖI:
+                    "AND (:guests IS NULL OR h.maxGuests >= :guests) " +
+                    "AND (:minRating IS NULL OR h.averageRating >= :minRating)", // Lọc theo cột average_rating có sẵn
             countQuery = "SELECT count(h) FROM Homestay h WHERE h.deletedAt IS NULL " +
                     "AND h.status = 'AVAILABLE' " +
-                    "AND (:city IS NULL OR LOWER(h.city) LIKE :city) " +
+                    "AND (:city IS NULL OR LOWER(h.city) LIKE LOWER(CAST(:city AS string))) " +
                     "AND (:minPrice IS NULL OR h.basePrice >= :minPrice) " +
                     "AND (:maxPrice IS NULL OR h.basePrice <= :maxPrice) " +
-                    "AND (:guests IS NULL OR h.maxGuests >= :guests)"
+                    "AND (:guests IS NULL OR h.maxGuests >= :guests) " +
+                    "AND (:minRating IS NULL OR h.averageRating >= :minRating)"
     )
     Page<Homestay> searchHomestays(
             @Param("city") String city,
             @Param("minPrice") BigDecimal minPrice,
             @Param("maxPrice") BigDecimal maxPrice,
             @Param("guests") Integer guests,
-            Pageable pageable);
+            @Param("minRating") Double minRating,
+            Pageable pageable
+    );
 }

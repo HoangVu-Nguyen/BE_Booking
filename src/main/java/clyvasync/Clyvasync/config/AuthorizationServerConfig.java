@@ -8,6 +8,7 @@ import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -56,6 +57,17 @@ public class AuthorizationServerConfig {
 
     private final PasswordEncoder passwordEncoder;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate; // Thêm JdbcTemplate
+    @Value("${app.oauth2.client-id}")
+    private String clientId;
+
+    @Value("${app.oauth2.client-secret}")
+    private String clientSecret;
+
+    @Value("${app.oauth2.redirect-uri}")
+    private String redirectUri;
+
+    @Value("${app.oauth2.post-logout-uri}")
+    private String postLogoutUri;
 
     /**
      * CHAIN 1: Giao thức OAuth2
@@ -134,18 +146,17 @@ public class AuthorizationServerConfig {
     public RegisteredClientRepository registeredClientRepository() {
         JdbcRegisteredClientRepository registeredClientRepository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
-        // Kiểm tra nếu chưa có client thì mới lưu vào để tránh lỗi duplicate khi restart
-        if (registeredClientRepository.findByClientId("clyvasync-client-key") == null) {
+        if (registeredClientRepository.findByClientId(clientId) == null) {
             RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                    .clientId("clyvasync-client-key")
+                    .clientId(clientId)
+                    .clientSecret(passwordEncoder.encode(clientSecret))
                     .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-                    .clientSecret(passwordEncoder.encode("secret-khong-ma-hoa"))
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                     .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                    .redirectUri("https://clyvasync.com/callback")
-                    .postLogoutRedirectUri("https://clyvasync.com/login")
+                    .redirectUri(redirectUri)
+                    .postLogoutRedirectUri(postLogoutUri)
                     .scope(OidcScopes.OPENID)
                     .scope(OidcScopes.PROFILE)
                     .scope(OidcScopes.EMAIL)
@@ -187,8 +198,8 @@ public class AuthorizationServerConfig {
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-                //.issuer("https://localhost:8443")
-                .issuer("https://vcebook.io.vn")
+                .issuer("https://localhost:8443")
+                //.issuer("https://vcebook.io.vn")
                 .build();
     }
 

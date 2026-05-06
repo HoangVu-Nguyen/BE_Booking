@@ -28,6 +28,7 @@ public interface HomestayService {
             BigDecimal minPrice,
             BigDecimal maxPrice,
             Integer guests,
+            Double minRating,
             Pageable pageable
     );
 

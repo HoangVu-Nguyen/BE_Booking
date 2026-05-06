@@ -11,11 +11,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/homestays")
@@ -30,9 +32,11 @@ public class HomestayController {
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Integer guests,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @RequestParam(required = false) Double minRating,
+            @PageableDefault(size = 10, sort = "averageRating", direction = Sort.Direction.DESC) Pageable pageable ) {
 
-        Page<HomestayResponse> result = homestayService.searchHomestays(city, minPrice, maxPrice, guests, pageable);
+        Page<HomestayResponse> result = homestayService.searchHomestays(city, minPrice, maxPrice, guests,minRating, pageable);
+        System.out.println(result.get().collect(Collectors.toSet()));
         return ApiResponse.success(result);
     }
 

@@ -92,14 +92,14 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<HomestayResponse> searchHomestays(String city, BigDecimal minPrice, BigDecimal maxPrice, Integer guests, Pageable pageable) {
+    public Page<HomestayResponse> searchHomestays(String city, BigDecimal minPrice, BigDecimal maxPrice, Integer guests, Double minRating, Pageable pageable) {
 
         // Tiền xử lý: Thêm % và chuyển thành CHỮ THƯỜNG ngay tại Java
         String searchCity = (city != null && !city.trim().isEmpty())
                 ? "%" + city.trim().toLowerCase() + "%"
                 : null;
 
-        return homestayRepository.searchHomestays(searchCity, minPrice, maxPrice, guests, pageable)
+        return homestayRepository.searchHomestays(searchCity, minPrice, maxPrice, guests,minRating, pageable)
                 .map(homestayMapper::toHomestayResponse);
     }
 
