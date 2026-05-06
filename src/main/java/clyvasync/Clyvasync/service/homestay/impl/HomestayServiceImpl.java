@@ -139,17 +139,14 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     public HomestayDetailResponse getHomestayDetail(Long id) {
-        // 1. Lấy thông tin cơ bản Homestay
         Homestay homestay = homestayRepository.findById(id)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
 
-        // 2. Lấy danh sách ảnh Homestay
         List<String> imageUrls = imageRepository.findByHomestayIdOrderByDisplayOrderAsc(id)
                 .stream()
                 .map(HomestayImage::getImageUrl)
                 .toList();
 
-        // 3. Lấy danh sách tiện nghi
         List<AmenityResponse> amenities = amenityMapper.toAmenityResponseList(
                 amenityRepository.findAllByHomestayId(id)
         );
@@ -157,7 +154,6 @@ public class HomestayServiceImpl implements HomestayService {
 
 
 
-        // 5. Build Response hoàn chỉnh
         return HomestayDetailResponse.builder()
                 .id(homestay.getId())
                 .name(homestay.getName())

@@ -43,7 +43,6 @@ pipeline {
 
         stage('Local Cleanup') {
             steps {
-                // Giải phóng ổ cứng 20GB vừa nâng cấp cho Jenkins
                 sh "docker image prune -a -f"
             }
         }
