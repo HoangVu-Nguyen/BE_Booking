@@ -62,36 +62,6 @@ public class SecurityConfig {
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     // ==============================================================================
-    // 1. FILTER CHAIN CHO OAUTH2 / OIDC (Bao gồm Endpoint /connect/logout)
-    // ==============================================================================
-    @Bean
-    @Order(1) // Đặt ưu tiên cao nhất
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-
-        // Kích hoạt OpenID Connect 1.0 (Bao gồm Logout Endpoint)
-        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(oidc -> oidc
-                        .logoutEndpoint(Customizer.withDefaults())
-                );
-
-        http
-                // Nếu chưa đăng nhập mà truy cập endpoint của Auth Server, đá về trang login
-                .exceptionHandling(exceptions -> exceptions
-                        .defaultAuthenticationEntryPointFor(
-                                new LoginUrlAuthenticationEntryPoint("/login"),
-                                new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
-                        )
-                )
-                // Chấp nhận truy cập bằng JWT (dành cho UserInfo endpoint)
-                .oauth2ResourceServer(resourceServer -> resourceServer
-                        .jwt(Customizer.withDefaults())
-                );
-
-        return http.build();
-    }
-
-    // ==============================================================================
     // 2. FILTER CHAIN CHO WEB APP VÀ API (Resource Server)
     // ==============================================================================
     @Bean

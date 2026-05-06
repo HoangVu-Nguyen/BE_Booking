@@ -8,7 +8,7 @@ pipeline {
         DOCKER_HUB_CREDS = 'docker-hub-credentials'
 
         TARGET_USER     = "ubuntu"
-        TARGET_IP       = "44.201.71.189"
+        TARGET_IP       = "3.215.186.135"
         TARGET_DIR      = "/home/ubuntu/app/clyvasync"
         SSH_KEY_ID      = "ec2-server-key"
     }
