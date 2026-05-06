@@ -135,9 +135,9 @@ public class AuthorizationServerConfig {
         JdbcRegisteredClientRepository registeredClientRepository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
         // Kiểm tra nếu chưa có client thì mới lưu vào để tránh lỗi duplicate khi restart
-        if (registeredClientRepository.findByClientId("clyvasync-client-") == null) {
+        if (registeredClientRepository.findByClientId("clyvasync-client-key") == null) {
             RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                    .clientId("clyvasync-client")
+                    .clientId("clyvasync-client-key")
                     .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
                     .clientSecret(passwordEncoder.encode("secret-khong-ma-hoa"))
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
