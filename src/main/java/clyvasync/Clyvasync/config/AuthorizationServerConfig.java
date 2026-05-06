@@ -138,6 +138,7 @@ public class AuthorizationServerConfig {
         if (registeredClientRepository.findByClientId("clyvasync-client") == null) {
             RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId("clyvasync-client")
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
                     .clientSecret(passwordEncoder.encode("secret-khong-ma-hoa"))
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
