@@ -42,8 +42,8 @@ public class HomestayController {
 
 
     @GetMapping("/{id}")
-    public ApiResponse<HomestayDetailResponse> getHomestayById(@PathVariable Long id) {
-        return ApiResponse.success(homestayService.getHomestayDetail(id));
+    public ApiResponse<HomestayDetailResponse> getHomestayById(@CurrentUserId Long userId,@PathVariable Long id) {
+        return ApiResponse.success(homestayService.getHomestayDetail(userId,id));
     }
 
 

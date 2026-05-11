@@ -26,4 +26,5 @@ public class HomestayDetailResponse {
     private List<AmenityResponse> amenities;
     private Long ownerId;
     private List<ReviewResponse> reviews;
+    private List<TourResponse>  tours;
 }

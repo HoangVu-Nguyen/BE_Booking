@@ -1,10 +1,7 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
-import clyvasync.Clyvasync.dto.response.AmenityResponse;
-import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
-import clyvasync.Clyvasync.dto.response.HomestayResponse;
-import clyvasync.Clyvasync.dto.response.ReviewResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -15,8 +12,10 @@ import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
 import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
+import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.homestay.ReviewService;
+import clyvasync.Clyvasync.service.tour.TourService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +38,8 @@ public class HomestayServiceImpl implements HomestayService {
     private final AmenityRepository amenityRepository;
     private final AmenityMapper amenityMapper;
     private final ReviewService reviewService;
+    private final TourService tourService;
+    private final BookingService bookingService;
 
     @Override
     @Transactional
@@ -138,7 +139,7 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
-    public HomestayDetailResponse getHomestayDetail(Long id) {
+    public HomestayDetailResponse getHomestayDetail(Long currentUserId,Long id) {
         Homestay homestay = homestayRepository.findById(id)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
 
@@ -150,8 +151,14 @@ public class HomestayServiceImpl implements HomestayService {
         List<AmenityResponse> amenities = amenityMapper.toAmenityResponseList(
                 amenityRepository.findAllByHomestayId(id)
         );
+        boolean isGuest = bookingService.existsActiveBooking(currentUserId, id);
 
-
+        List<TourResponse> tours;
+        if (isGuest) {
+            tours = tourService.getToursByHomestayId(id);
+        } else {
+            tours = tourService.getExternalToursByHomestayId(id);
+        }
 
 
         return HomestayDetailResponse.builder()
@@ -168,6 +175,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .ownerId(homestay.getOwnerId())
                 .images(imageUrls)
                 .amenities(amenities)
+                . tours(tours)
                 .build();
     }
 

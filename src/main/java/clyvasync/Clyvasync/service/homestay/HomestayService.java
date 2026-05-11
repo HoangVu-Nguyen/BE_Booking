@@ -38,5 +38,5 @@ public interface HomestayService {
     void updateStatus(Long id, String status, Long ownerId);
 
     void updateAverageRating(Long id, BigDecimal newRating);
-    HomestayDetailResponse getHomestayDetail(Long id);
+    HomestayDetailResponse getHomestayDetail(Long currentUserId,Long id);
 }
