@@ -21,6 +21,7 @@ public class RoomResponse {
     private Integer bedCount;
     private Integer quantity;
     private String imageUrl;
+    private int availableQuantity;
 
     private List<AmenityHighlightResponse> highlights;
 

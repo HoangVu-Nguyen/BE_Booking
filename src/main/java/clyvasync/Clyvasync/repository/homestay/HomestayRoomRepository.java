@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.homestay;
 
+import clyvasync.Clyvasync.dto.projection.RoomAvailabilityProjection;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
@@ -27,20 +28,27 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
     GROUP BY r.homestayId
 """)
     List<HomestayRoomSummary> getRoomSummaries(@Param("homestayIds") List<Long> homestayIds);
-    @Query("""
-        SELECT r FROM HomestayRoom r 
-        WHERE r.homestayId = :homestayId 
-          AND r.status = 'ACTIVE' 
-          AND r.maxGuests >= :guests
-          AND r.id NOT IN (
-              SELECT bd.roomId FROM BookingDetail bd 
-              JOIN Booking b ON b.id = bd.bookingId
-              WHERE b.status IN ('CONFIRMED', 'PENDING')
-                AND bd.checkInDate < :checkOut 
-                AND bd.checkOutDate > :checkIn
-          )
-    """)
-    List<HomestayRoom> findAvailableRooms(
+    @Query(value = """
+SELECT temp.id AS id, temp.availableQty AS availableQty FROM (
+    SELECT r.id, 
+           (r.quantity - COALESCE(booked.total_booked, 0)) as availableQty
+    FROM homestay_rooms r
+    LEFT JOIN (
+        SELECT bd.room_id, SUM(bd.quantity) as total_booked
+        FROM booking_details bd
+        JOIN bookings b ON b.id = bd.booking_id
+        WHERE b.status IN ('CONFIRMED', 'PENDING')
+          AND bd.check_in_date < :checkOut 
+          AND bd.check_out_date > :checkIn
+        GROUP BY bd.room_id
+    ) booked ON r.id = booked.room_id
+    WHERE r.homestay_id = :homestayId 
+      AND r.status = 'ACTIVE' 
+      AND r.max_guests >= :guests
+) temp
+WHERE temp.availableQty > 0
+""", nativeQuery = true)
+    List<RoomAvailabilityProjection> findAvailableRoomsProjections(
             @Param("homestayId") Long homestayId,
             @Param("checkIn") LocalDate checkIn,
             @Param("checkOut") LocalDate checkOut,

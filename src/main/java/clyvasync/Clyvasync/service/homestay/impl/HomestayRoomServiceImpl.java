@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
+import clyvasync.Clyvasync.dto.projection.RoomAvailabilityProjection;
 import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
 import clyvasync.Clyvasync.dto.response.RatePlanResponse;
 import clyvasync.Clyvasync.dto.response.RoomResponse;
@@ -36,27 +37,49 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
 
     @Override
     public List<RoomResponse> getAllRoomsByHomestay(Long homestayId) {
+        // Khi xem tất cả phòng (không chọn ngày), availableQuantity chính là quantity gốc
         List<HomestayRoom> rooms = roomRepository.findAllByHomestayIdAndStatus(homestayId, RoomStatus.ACTIVE);
-        return processRoomResponses(rooms);
+
+        Map<Long, Integer> availableCountMap = rooms.stream()
+                .collect(Collectors.toMap(HomestayRoom::getId, HomestayRoom::getQuantity));
+
+        return processRoomResponses(rooms, availableCountMap);
     }
 
     @Override
     public List<RoomResponse> findAvailableRooms(Long homestayId, LocalDate checkIn, LocalDate checkOut, int guests) {
-        // Tìm phòng trống theo thời gian và số khách
-        List<HomestayRoom> availableRooms = roomRepository.findAvailableRooms(homestayId, checkIn, checkOut, guests);
-        return processRoomResponses(availableRooms);
-    }
+        // 1. Lấy danh sách Projection (chỉ chứa ID và số lượng trống)
+        List<RoomAvailabilityProjection> projections = roomRepository.findAvailableRoomsProjections(homestayId, checkIn, checkOut, guests);
 
+        if (projections.isEmpty()) return List.of();
+
+        // 2. Tạo Map số lượng trống từ Projection (Trực tiếp lấy getId() sẽ không bao giờ Null)
+        Map<Long, Integer> availableCountMap = projections.stream()
+                .collect(Collectors.toMap(
+                        RoomAvailabilityProjection::getId,
+                        RoomAvailabilityProjection::getAvailableQty
+                ));
+
+        // 3. Trích xuất danh sách ID
+        List<Long> roomIds = projections.stream()
+                .map(RoomAvailabilityProjection::getId)
+                .toList();
+
+        // 4. Lấy danh sách Entity Room bằng findAllById (Chỉ tốn đúng 1 câu lệnh SELECT ... WHERE id IN (...))
+        List<HomestayRoom> rooms = roomRepository.findAllById(roomIds);
+
+        // 5. Đưa vào hàm xử lý chung của bác
+        return processRoomResponses(rooms, availableCountMap);
+    }
     /**
-     * Hàm dùng chung để lắp ghép dữ liệu Highlights, RatePlans và Benefits
-     * Giúp tránh lặp code và đảm bảo tính nhất quán dữ liệu
+     * Hàm dùng chung để lắp ghép dữ liệu bổ trợ và gán availableQuantity
      */
-    private List<RoomResponse> processRoomResponses(List<HomestayRoom> rooms) {
+    private List<RoomResponse> processRoomResponses(List<HomestayRoom> rooms, Map<Long, Integer> availableCountMap) {
         if (rooms.isEmpty()) return List.of();
 
         List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
 
-        // 1. Lấy dữ liệu bổ trợ (Batch fetching để tránh N+1)
+        // Batch fetching dữ liệu liên quan (Mapping mềm)
         List<RoomRatePlan> ratePlans = roomRatePlanService.getAllRoomRatePlans(roomIds);
         List<Long> ratePlanIds = ratePlans.stream().map(RoomRatePlan::getId).toList();
 
@@ -66,7 +89,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
         Map<Long, List<String>> benefitsMap =
                 ratePlanBenefitMappingService.findBenefitsByPlanIds(ratePlanIds);
 
-        // 2. Map RatePlans sang DTO kèm theo Benefits (tích xanh)
+        // Map RatePlans sang DTO
         Map<Long, List<RatePlanResponse>> ratePlanResponseMap = ratePlans.stream()
                 .collect(Collectors.groupingBy(
                         RoomRatePlan::getRoomId,
@@ -80,11 +103,15 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
                                 Collectors.toList())
                 ));
 
-        // 3. Lắp ghép vào RoomResponse cuối cùng
+        // Build Response cuối cùng
         return rooms.stream().map(room -> {
             RoomResponse response = roomMapper.toRoomResponse(room);
             response.setHighlights(highlightsMap.getOrDefault(room.getId(), List.of()));
             response.setRatePlans(ratePlanResponseMap.getOrDefault(room.getId(), List.of()));
+
+            // Gán con số khả dụng thực tế
+            response.setAvailableQuantity(availableCountMap.getOrDefault(room.getId(), 0));
+
             return response;
         }).toList();
     }
