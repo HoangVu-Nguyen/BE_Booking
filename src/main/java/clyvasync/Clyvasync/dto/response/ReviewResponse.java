@@ -22,5 +22,5 @@ public class ReviewResponse {
     private Long userId;
     private String fullName;   // Từ users.full_name (Để hiển thị tên khách hàng)
     private String avatarUrl;  // Từ user_photos (Nếu bạn muốn hiển thị ảnh đại diện khách)
-    private List<String> guestPhotos;
+    private List<String> imageUrls;
 }

@@ -11,30 +11,10 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface TourMapper {
-    @Mapping(target = "primaryImageUrl", source = "images", qualifiedByName = "getPrimaryImage")
-    @Mapping(target = "hoverImageUrl", source = "images", qualifiedByName = "getHoverImage") // Thêm dòng này
-    TourResponse toResponse(Tour tour);
+    @Mapping(target = "primaryImageUrl", source = "primary")
+    @Mapping(target = "hoverImageUrl", source = "hover")
+    @Mapping(target = "id", source = "entity.id")
+    @Mapping(target = "name", source = "entity.name")
+    TourResponse toResponse(Tour entity, String primary, String hover);
 
-    @Named("getPrimaryImage")
-    default String getPrimaryImage(List<TourImage> images) {
-        if (images == null || images.isEmpty()) return null;
-        return images.stream()
-                .filter(img -> Boolean.TRUE.equals(img.getIsPrimary()))
-                .map(TourImage::getImageUrl)
-                .findFirst()
-                .orElse(images.get(0).getImageUrl());
-    }
-
-    @Named("getHoverImage")
-    default String getHoverImage(List<TourImage> images) {
-        if (images == null || images.size() < 2) return null;
-
-        return images.stream()
-                .filter(img -> !Boolean.TRUE.equals(img.getIsPrimary()))
-                .map(TourImage::getImageUrl)
-                .findFirst()
-                .orElse(images.get(1).getImageUrl());
-    }    List<TourResponse> tourResponses(List<Tour> tours);
-    Tour toEntity(TourResponse tourResponse);
-    List<Tour> toEntity(List<TourResponse> tourResponses);
 }

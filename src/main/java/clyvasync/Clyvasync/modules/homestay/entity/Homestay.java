@@ -13,70 +13,58 @@ import java.util.Set;
 
 @Entity
 @Table(name = "homestays")
-@Getter
-@Setter
-@NoArgsConstructor
+@Getter @Setter
 public class Homestay {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "owner_id", nullable = false)
+    private Long ownerId;
+
+    @Column(name = "category_id")
+    private Integer categoryId;
+
+    @Column(name = "location_id")
+    private Integer locationId;
+
+    @Column(nullable = false)
     private String name;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    private String address;
-    private String city;
-    @Column(name = "latitude", precision = 10, scale = 8)
-    private java.math.BigDecimal latitude;
+    @Column(name = "address_detail", nullable = false)
+    private String addressDetail;
 
-    @Column(name = "longitude", precision = 11, scale = 8)
-    private java.math.BigDecimal longitude;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
 
-
+    @Column(name = "base_price", nullable = false)
     private BigDecimal basePrice;
+
+    @Column(name = "max_guests")
     private Integer maxGuests;
+
+    @Column(name = "num_bedrooms")
     private Integer numBedrooms;
+
+    @Column(name = "num_bathrooms")
     private Integer numBathrooms;
+
 
     @Enumerated(EnumType.STRING)
     private HomestayStatus status = HomestayStatus.AVAILABLE;
-
-
-    @Column(name = "owner_id", nullable = false)
-    private Long ownerId;
-
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "homestay_id") // Hibernate sẽ dùng cột homestay_id ở bảng homestay_images để JOIN
-    private List<HomestayImage> images;
-
-    @ElementCollection
-    @CollectionTable(
-            name = "homestay_amenities",
-            joinColumns = @JoinColumn(name = "homestay_id")
-    )
-    @Column(name = "amenity_id")
-    private Set<Long> amenityIds;
-
-    @Version
-    private Integer version;
-
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt = LocalDateTime.now();
     @Column(name = "average_rating", precision = 3, scale = 2)
     private BigDecimal averageRating = BigDecimal.ZERO;
 
     @Column(name = "review_count")
     private Integer reviewCount = 0;
+    @Version
+    private Integer version;
 
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

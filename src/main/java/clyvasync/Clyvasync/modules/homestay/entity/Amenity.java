@@ -13,9 +13,11 @@ import lombok.Setter;
 public class Amenity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(unique = true)
     private String name;
     private String iconName;
+    @Column(name = "group_name", length = 50)
+    private String groupName;
 }

@@ -1,26 +1,25 @@
 package clyvasync.Clyvasync.modules.homestay.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 @Entity
-@Table(name = "homestay_price_calendar")
+@Table(name = "homestay_amenities")
 @Getter
 @Setter
 @NoArgsConstructor
-public class HomestayPrice {
+@AllArgsConstructor
+public class HomestayAmenity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(name = "homestay_id")
     private Long homestayId;
 
-    private java.time.LocalDate calendarDate;
-    private BigDecimal price;
-    private Boolean isAvailable = true;
+    @Column(name = "amenity_id")
+    private Integer amenityId;
 }

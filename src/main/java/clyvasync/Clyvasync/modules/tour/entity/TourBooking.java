@@ -13,8 +13,7 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "tour_bookings")
-@Getter
-@Setter
+@Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -27,18 +26,19 @@ public class TourBooking {
     @Column(name = "booking_code", nullable = false, unique = true, length = 20)
     private String bookingCode;
 
-    // Quan hệ cứng với Tour (Vì cùng nằm trong module Tour/Booking)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tour_id", nullable = false)
-    private Tour tour;
+    // PHẲNG HÓA: Chỉ lưu ID, không dùng Object Tour
+    @Column(name = "tour_id", nullable = false)
+    private Long tourId;
 
-    // LIÊN KẾT MỀM sang User Module
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    // LIÊN KẾT MỀM sang Homestay Booking Module (Có thể null)
     @Column(name = "homestay_booking_id")
     private Long homestayBookingId;
+
+    // ID của khung giờ khởi hành cụ thể
+    @Column(name = "availability_id", nullable = false)
+    private Long availabilityId;
 
     @Column(name = "tour_date", nullable = false)
     private LocalDate tourDate;
@@ -56,10 +56,12 @@ public class TourBooking {
     @Column(name = "payment_status")
     private PaymentStatus paymentStatus;
 
+    @Column(name = "special_requests", columnDefinition = "TEXT")
+    private String specialRequests;
+
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
 
-    // Optimistic Locking
     @Version
     @Column(nullable = false)
     private Integer version;

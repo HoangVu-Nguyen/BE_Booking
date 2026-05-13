@@ -33,7 +33,7 @@ public class ReviewController {
             @PathVariable Long homestayId,
             @PageableDefault(
                     size = 4,
-                    sort = "created_at",
+                    sort = "createdAt",
                     direction = Sort.Direction.DESC
             ) Pageable pageable) {
 

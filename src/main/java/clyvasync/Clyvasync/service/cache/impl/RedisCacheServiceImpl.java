@@ -2,12 +2,14 @@ package clyvasync.Clyvasync.service.cache.impl;
 
 import clyvasync.Clyvasync.enums.cache.RedisKeyType;
 import clyvasync.Clyvasync.service.cache.CacheService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -16,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 public class RedisCacheServiceImpl implements CacheService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void save(String key, Object value, Duration ttl) {
@@ -124,4 +127,24 @@ public class RedisCacheServiceImpl implements CacheService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));
     }
 
+    @Override
+    public <T> T get(String key, Class<T> clazz) {
+        Object value = redisTemplate.opsForValue().get(key);
+        if (value == null) return null;
+
+        return objectMapper.convertValue(value, clazz);
+    }
+
+    @Override
+    public <T> List<T> multiGet(List<String> keys, Class<T> clazz) {
+        if (keys == null || keys.isEmpty()) return List.of();
+
+        List<Object> rawValues = redisTemplate.opsForValue().multiGet(keys);
+
+        if (rawValues == null) return List.of();
+
+        return rawValues.stream()
+                .map(value -> value != null ? objectMapper.convertValue(value, clazz) : null)
+                .toList();
+    }
 }

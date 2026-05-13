@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.homestay;
 
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
+import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
 import org.springframework.data.domain.Page;
@@ -23,14 +24,7 @@ public interface HomestayService {
     HomestayResponse getById(Long id);
 
 
-    Page<HomestayResponse> searchHomestays(
-            String city,
-            BigDecimal minPrice,
-            BigDecimal maxPrice,
-            Integer guests,
-            Double minRating,
-            Pageable pageable
-    );
+    Page<HomestayResponse> searchHomestays(HomestaySearchRequest filters, Pageable pageable);
 
     List<HomestayResponse> getByOwnerId(Long ownerId);
 

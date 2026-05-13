@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.dto.response;
 
+import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,16 +16,30 @@ public class HomestayDetailResponse {
     private Long id;
     private String name;
     private String description;
-    private String address;
-    private String city;
-    private BigDecimal latitude;
-    private BigDecimal longitude;
+    private String addressDetail;
     private BigDecimal basePrice;
+
+    // Thông tin quy mô
+    private Integer maxGuests;
+    private Integer numBedrooms;
+    private Integer numBathrooms;
+
+    private Double latitude;
+    private Double longitude;
+
+    private String categoryName;
+    private String cityName;
+    private HomestayStatus status;
+
+    private List<String> imageUrls;
+
+    private List<AmenityResponse> amenities;
+
+    private OwnerResponse owner;
+
     private BigDecimal averageRating;
     private Integer reviewCount;
-    private List<String> images;
-    private List<AmenityResponse> amenities;
-    private Long ownerId;
     private List<ReviewResponse> reviews;
     private List<TourResponse>  tours;
+    private List<RoomResponse> rooms;
 }

@@ -9,4 +9,5 @@ import java.util.List;
 public interface ReviewService {
     List<ReviewResponse> getReviewsByHomestay(Long homestayId);
     PageResponse<ReviewResponse> getReviewsByHomestay(Long homestayId, Pageable pageable);
+    List<ReviewResponse> getReviewsByHomestayId(Long homestayId);
 }

@@ -4,6 +4,7 @@ package clyvasync.Clyvasync.service.cache;
 import clyvasync.Clyvasync.enums.cache.RedisKeyType;
 
 import java.time.Duration;
+import java.util.List;
 
 public interface CacheService {
     void save(String key, Object value, Duration ttl);
@@ -23,5 +24,6 @@ public interface CacheService {
      boolean isAccountLocked(String email) ;
     long increment(String key, long timeoutInSeconds);
     boolean hasKey(String key);
-
+    <T> T get(String key, Class<T> clazz);
+    <T> List<T> multiGet(List<String> keys, Class<T> clazz);
 }

@@ -1,8 +1,10 @@
 package clyvasync.Clyvasync.service.auth.impl;
 
 import clyvasync.Clyvasync.constant.NameConstants;
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.dto.response.UserHeaderResponse;
 import clyvasync.Clyvasync.dto.response.UserPhotoResponse;
+import clyvasync.Clyvasync.enums.cache.RedisKeyType;
 import clyvasync.Clyvasync.enums.media.ImageType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -10,23 +12,34 @@ import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
 import clyvasync.Clyvasync.repository.projection.UserNameProjection;
 import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.cache.CacheService;
 import clyvasync.Clyvasync.service.media.IUserPhotoService;
 import com.alicp.jetcache.anno.CacheType;
 import com.alicp.jetcache.anno.Cached;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
+import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
+
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final IUserPhotoService userPhotoService;
+    private final CacheService cacheService;
+
+
+
     @Override
+    @Transactional(readOnly = true)
     public User getUserByEmail(String email) {
         log.debug("Đang truy vấn thông tin user với email: {}", email);
         return userRepository.findByEmail(email).orElseThrow(()-> new AppException(ResultCode.USER_NOT_FOUND));
@@ -46,6 +59,44 @@ public class UserServiceImpl implements UserService {
     public boolean existsById(Long userId) {
         return false;
     }
+
+    @Override
+    @Cacheable(value = "user_info", key = "#userId")
+    public OwnerResponse getOwnerInfo(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(()-> new AppException(ResultCode.USER_NOT_FOUND));
+        return OwnerResponse.builder().id(userId).isVerified(user.isActive()).joinedAt(user.getCreatedAt()).phoneNumber(user.getPhoneNumber()).fullName(user.getUsername()).avatar(userPhotoService.getCurrentPhoto(userId,ImageType.AVATAR).getPhotoUrl()).build();
+    }
+
+    @Override
+    public Map<Long, OwnerResponse> getOwnerInfos(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) return Map.of();
+
+        List<Long> distinctIds = userIds.stream().distinct().toList();
+        Map<Long, OwnerResponse> resultMap = new HashMap<>();
+        List<Long> missingIds = new ArrayList<>();
+
+        for (Long id : distinctIds) {
+            OwnerResponse cachedUser = cacheService.get(RedisKeyType.USER_INFO.getPrefix() + id, OwnerResponse.class);
+            if (cachedUser != null) {
+                resultMap.put(id, cachedUser);
+            } else {
+                missingIds.add(id);
+            }
+        }
+        if (!missingIds.isEmpty()) {
+            List<User> usersFromDb = userRepository.findAllById(missingIds);
+            Map<Long, String> userPhotoResponses = userPhotoService.getAvatarsMapByIds(missingIds);
+
+            usersFromDb.forEach(user -> {
+                OwnerResponse response = mapToResponse(user, userPhotoResponses.get(user.getId()));
+                resultMap.put(user.getId(), response);
+                cacheService.save(RedisKeyType.USER_INFO.getPrefix() + user.getId(), response, Duration.ofHours(1));
+            });
+        }
+
+        return resultMap;
+    }
+
 
     @Override
     public Optional<User> findByEmailWithCache(String email) {
@@ -200,4 +251,14 @@ public class UserServiceImpl implements UserService {
 //    public Optional<UserDTO> findUserSummaryById(Long userId) {
 //        return null;
 //    }
+private OwnerResponse mapToResponse(User user, String avatarUrl) {
+    return OwnerResponse.builder()
+            .id(user.getId())
+            .fullName(user.getUsername())
+            .avatar(avatarUrl)
+            .isVerified(user.isActive())
+            .joinedAt(user.getCreatedAt())
+            .phoneNumber(user.getPhoneNumber())
+            .build();
+}
 }

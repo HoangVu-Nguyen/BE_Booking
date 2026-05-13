@@ -1,10 +1,12 @@
 package clyvasync.Clyvasync.service.auth;
 
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.dto.response.UserHeaderResponse;
 import clyvasync.Clyvasync.modules.auth.entity.User;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 @Service
 public interface UserService {
@@ -18,6 +20,8 @@ public interface UserService {
     Optional<User> findOptionalByEmail(String email);
 
     boolean existsById(Long userId);
+    OwnerResponse getOwnerInfo(Long userId);
+    Map<Long, OwnerResponse> getOwnerInfos(List<Long> userIds);
 
     /**
      * Tìm User (ưu tiên lấy từ Cache, nếu không có mới gọi DB).

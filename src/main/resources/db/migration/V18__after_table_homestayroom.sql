@@ -1,0 +1,1 @@
+ALTER TABLE homestay_rooms ADD COLUMN check_in_time VARCHAR(50) DEFAULT '14:00 PM';

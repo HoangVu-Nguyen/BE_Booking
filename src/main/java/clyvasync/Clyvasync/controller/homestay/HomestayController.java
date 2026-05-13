@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.homestay;
 
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
+import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
 import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
@@ -33,13 +34,17 @@ public class HomestayController {
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) Integer guests,
             @RequestParam(required = false) Double minRating,
-            @PageableDefault(size = 10, sort = "averageRating", direction = Sort.Direction.DESC) Pageable pageable ) {
+            @RequestParam(required = false) Long categoryId,
+            @PageableDefault(size = 10, sort = "averageRating", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        HomestaySearchRequest filters = new HomestaySearchRequest(
+                city, minPrice, maxPrice, guests, minRating, null, categoryId
+        );
 
-        Page<HomestayResponse> result = homestayService.searchHomestays(city, minPrice, maxPrice, guests,minRating, pageable);
-        System.out.println(result.get().collect(Collectors.toSet()));
+        Page<HomestayResponse> result = homestayService.searchHomestays(filters, pageable);
+
         return ApiResponse.success(result);
     }
-
 
     @GetMapping("/{id}")
     public ApiResponse<HomestayDetailResponse> getHomestayById(@CurrentUserId Long userId,@PathVariable Long id) {

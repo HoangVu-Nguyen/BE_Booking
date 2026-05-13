@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.dto.response.TourImageResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 public interface TourImageService {
     List<TourImageResponse> uploadImages(Long tourId, List<MultipartFile> files);
@@ -16,4 +17,5 @@ public interface TourImageService {
 
     /** Lấy danh sách ảnh của 1 Tour */
     List<TourImageResponse> getImagesByTourId(Long tourId);
+    Map<Long, List<String>> getImagesForTours(List<Long> tourIds);
 }

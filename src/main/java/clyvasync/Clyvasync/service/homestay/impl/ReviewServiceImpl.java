@@ -1,11 +1,15 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.dto.response.PageResponse;
 import clyvasync.Clyvasync.dto.response.ReviewResponse;
+import clyvasync.Clyvasync.mapper.homestay.ReviewMapper;
 import clyvasync.Clyvasync.modules.homestay.entity.Review;
 import clyvasync.Clyvasync.modules.homestay.entity.ReviewImage;
 import clyvasync.Clyvasync.repository.homestay.ReviewImageRepository;
 import clyvasync.Clyvasync.repository.homestay.ReviewRepository;
+import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.homestay.ReviewImageService;
 import clyvasync.Clyvasync.service.homestay.ReviewService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,152 +32,83 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
-    private final ReviewImageRepository reviewImageRepository;
+    private final ReviewImageService reviewImageService;
+    private final ReviewMapper reviewMapper;
+    private final UserService userService;
 
     @Override
     public List<ReviewResponse> getReviewsByHomestay(Long homestayId) {
-        List<Map<String, Object>> rawData = reviewRepository.findReviewsWithUserInfo(homestayId);
-
-        if (rawData.isEmpty()) return Collections.emptyList();
-
-        List<Long> reviewIds = rawData.stream()
-                .map(m -> ((Number) m.get("id")).longValue())
-                .toList();
-
-        List<ReviewImage> allImages = reviewImageRepository.findAllByReviewIdIn(reviewIds);
-        Map<Long, List<String>> imagesMap = allImages.stream()
-                .collect(Collectors.groupingBy(
-                        ReviewImage::getReviewId,
-                        Collectors.mapping(ReviewImage::getImageUrl, Collectors.toList())
-                ));
-
-        return rawData.stream().map(m -> {
-            Long rId = ((Number) m.get("id")).longValue();
-
-            // FIX TẠI ĐÂY: Xử lý Instant từ Hibernate 6
-            Object createdAtObj = m.get("created_at");
-            java.time.LocalDateTime createdAt;
-
-            if (createdAtObj instanceof java.time.Instant) {
-                createdAt = java.time.LocalDateTime.ofInstant((java.time.Instant) createdAtObj, java.time.ZoneId.systemDefault());
-            } else if (createdAtObj instanceof java.sql.Timestamp) {
-                createdAt = ((java.sql.Timestamp) createdAtObj).toLocalDateTime();
-            } else {
-                // Fallback hoặc gán giá trị mặc định nếu cần
-                createdAt = java.time.LocalDateTime.now();
-            }
-
-            return ReviewResponse.builder()
-                    .id(rId)
-                    .rating((Integer) m.get("rating"))
-                    .comment((String) m.get("comment"))
-                    .createdAt(createdAt) // Sử dụng biến createdAt đã xử lý ở trên
-                    .userId(((Number) m.get("user_id")).longValue())
-                    .fullName((String) m.get("fullName"))
-                    .avatarUrl((String) m.get("avatarUrl"))
-                    .guestPhotos(imagesMap.getOrDefault(rId, Collections.emptyList()))
-                    .build();
-        }).toList();
+        return null;
     }
 
     @Override
-    @Transactional(readOnly = true)
     public PageResponse<ReviewResponse> getReviewsByHomestay(Long homestayId, Pageable pageable) {
-        log.info("Fetching reviews for homestay ID: {} with pageable: {}", homestayId, pageable);
+        log.info("Lấy danh sách review phân trang cho homestay: {}", homestayId);
 
-        // 1. Lấy dữ liệu phân trang từ Repository (Native Query trả về Map)
-        Page<Map<String, Object>> rawDataPage = reviewRepository.findReviewsWithUserInfo(homestayId, pageable);
+        Page<Review> reviewPage = reviewRepository.findAllByHomestayId(homestayId, pageable);
+        List<Review> reviews = reviewPage.getContent();
 
-        if (rawDataPage.isEmpty()) {
+        if (reviews.isEmpty()) {
             return PageResponse.<ReviewResponse>builder()
-                    .content(Collections.emptyList())
-                    .totalElements(0)
-                    .totalPages(0)
-                    .last(true)
+                    .content(List.of())
+                    .totalElements(reviewPage.getTotalElements())
+                    .totalPages(reviewPage.getTotalPages())
                     .build();
         }
 
-        // 2. Thu thập tất cả Review IDs để lấy ảnh trong 1 lần gọi (Tránh N+1 Query)
-        List<Long> reviewIds = rawDataPage.getContent().stream()
-                .map(m -> ((Number) m.get("id")).longValue())
-                .distinct()
-                .toList();
+        List<Long> reviewIds = reviews.stream().map(Review::getId).toList();
+        List<Long> userIds = reviews.stream().map(Review::getGuestId).distinct().toList();
 
-        // 3. Lấy ảnh và nhóm theo Review ID
-        Map<Long, List<String>> imagesMap = fetchImagesMap(reviewIds);
+        Map<Long, List<String>> imagesMap = reviewImageService.getImagesForReviews(reviewIds);
+        Map<Long, OwnerResponse> usersMap = userService.getOwnerInfos(userIds);
 
-        // 4. Map dữ liệu sang DTO
-        List<ReviewResponse> content = rawDataPage.getContent().stream()
-                .map(m -> mapToReviewResponse(m, imagesMap))
-                .toList();
+        List<ReviewResponse> content = reviews.stream().map(entity -> {
+            ReviewResponse response = reviewMapper.toReviewResponse(entity);
 
-        // 5. Tính toán Rating trung bình (Tùy chọn: Có thể lấy từ bảng Homestay để tối ưu hơn)
-        double averageRating = content.stream()
-                .mapToInt(ReviewResponse::getRating)
-                .average()
-                .orElse(0.0);
+            response.setImageUrls(imagesMap.getOrDefault(entity.getId(), List.of()));
+
+            OwnerResponse userInfo = usersMap.get(entity.getGuestId());
+            if (userInfo != null) {
+                response.setFullName(userInfo.getFullName());
+                response.setAvatarUrl(userInfo.getAvatar());
+                response.setUserId(userInfo.getId());
+            }
+
+            return response;
+        }).toList();
 
         return PageResponse.<ReviewResponse>builder()
                 .content(content)
-                .totalElements(rawDataPage.getTotalElements())
-                .totalPages(rawDataPage.getTotalPages())
-                .size(rawDataPage.getSize())
-                .number(rawDataPage.getNumber())
-                .last(rawDataPage.isLast())
-                .averageRating(averageRating) // Thêm field này vào PageResponse nếu cần
+                .totalElements(reviewPage.getTotalElements())
+                .totalPages(reviewPage.getTotalPages())
+                .size(reviewPage.getSize())
+                .number(reviewPage.getNumber())
                 .build();
     }
-    /**
-     * Map dữ liệu từ Map SQL sang ReviewResponse DTO
-     */
-    private ReviewResponse mapToReviewResponse(Map<String, Object> m, Map<Long, List<String>> imagesMap) {
-        Long rId = ((Number) m.get("id")).longValue();
+    @Override
+    public List<ReviewResponse> getReviewsByHomestayId(Long homestayId) {
+        List<Review> reviews = reviewRepository.findAllByHomestayId(homestayId);
+        if (reviews.isEmpty()) return List.of();
 
-        return ReviewResponse.builder()
-                .id(rId)
-                .rating(((Number) m.get("rating")).intValue())
-                .comment((String) m.get("comment"))
-                .createdAt(convertToLocalDateTime(m.get("created_at")))
-                .userId(((Number) m.get("user_id")).longValue())
-                .fullName((String) m.get("fullName"))
-                .avatarUrl((String) m.get("avatarUrl"))
-                .guestPhotos(imagesMap.getOrDefault(rId, Collections.emptyList()))
-                .build();
-    }
+        List<Long> reviewIds = reviews.stream().map(Review::getId).toList();
+        List<Long> userIds = reviews.stream().map(Review::getGuestId).distinct().toList();
 
-    /**
-     * Xử lý convert Time đa dạng từ các phiên bản Hibernate/Database khác nhau
-     */
-    private LocalDateTime convertToLocalDateTime(Object obj) {
-        if (obj == null) return LocalDateTime.now();
+        Map<Long, List<String>> imagesMap = reviewImageService.getImagesForReviews(reviewIds);
+        Map<Long, OwnerResponse> usersMap = userService.getOwnerInfos(userIds);
 
-        if (obj instanceof Instant instant) {
-            return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
-        }
-        if (obj instanceof java.sql.Timestamp timestamp) {
-            return timestamp.toLocalDateTime();
-        }
-        if (obj instanceof LocalDateTime localDateTime) {
-            return localDateTime;
-        }
+        return reviews.stream().map(entity -> {
+            ReviewResponse response = reviewMapper.toReviewResponse(entity);
 
-        log.warn("Unknown date type: {}. Returning current time.", obj.getClass().getName());
-        return LocalDateTime.now();
-    }
+            response.setImageUrls(imagesMap.getOrDefault(entity.getId(), List.of()));
 
-    /**
-     * Lấy danh sách ảnh theo ID và Grouping
-     */
-    private Map<Long, List<String>> fetchImagesMap(List<Long> reviewIds) {
-        try {
-            return reviewImageRepository.findAllByReviewIdIn(reviewIds).stream()
-                    .collect(Collectors.groupingBy(
-                            ReviewImage::getReviewId,
-                            Collectors.mapping(ReviewImage::getImageUrl, Collectors.toList())
-                    ));
-        } catch (Exception e) {
-            log.error("Error fetching review images for IDs: {}", reviewIds, e);
-            return Collections.emptyMap();
-        }
+            OwnerResponse userInfo = usersMap.get(entity.getGuestId());
+            if (userInfo != null) {
+                response.setFullName(userInfo.getFullName());
+                response.setAvatarUrl(userInfo.getAvatar());
+                response.setUserId(userInfo.getId());
+            }
+
+            return response;
+        }).toList();
     }
 }

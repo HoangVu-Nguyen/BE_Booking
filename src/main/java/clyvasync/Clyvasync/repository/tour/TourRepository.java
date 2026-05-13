@@ -13,23 +13,10 @@ import java.util.List;
 
 @Repository
 public interface TourRepository extends JpaRepository<Tour,Long> {
-    List<Tour> findByHomestayId(Long homestayId);
+    List<Tour> findAllByHomestayIdAndStatus(Long homestayId, TourStatus status);
 
-     List<Tour> findByHomestayIdAndStatus(Long homestayId, TourStatus status);
-    @Query("SELECT DISTINCT t FROM Tour t LEFT JOIN FETCH t.images " +
-            "WHERE t.homestayId = :homestayId AND t.allowExternalGuests = true AND t.status = 'ACTIVE'")
-    List<Tour> findExternalTours(@Param("homestayId") Long homestayId);
+    // Nếu sau này bác muốn lấy theo lô cho trang Search Homestay
+    List<Tour> findAllByHomestayIdInAndStatus(List<Long> homestayIds, TourStatus status);
 
-    @Query("SELECT t FROM Tour t WHERE " +
-            "(:query IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :query, '%'))) AND " +
-            "(:homestayId IS NULL OR t.homestayId = :homestayId) AND " +
-            "(t.status = :status) AND " +
-            "(t.allowExternalGuests = true)")
-    Page<Tour> searchTours(@Param("query") String query,
-                           @Param("homestayId") Long homestayId,
-                           @Param("status") TourStatus status,
-                           Pageable pageable);
-    @Query(value = "SELECT DISTINCT t FROM Tour t LEFT JOIN FETCH t.images",
-            countQuery = "SELECT count(t) FROM Tour t")
-    Page<Tour> findAllTours(Pageable pageable);
+
 }
