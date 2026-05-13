@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.modules.homestay.entity;
+package clyvasync.Clyvasync.modules.room;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

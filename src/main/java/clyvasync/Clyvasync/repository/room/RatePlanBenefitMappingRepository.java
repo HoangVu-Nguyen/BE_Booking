@@ -1,6 +1,6 @@
-package clyvasync.Clyvasync.repository.homestay;
+package clyvasync.Clyvasync.repository.room;
 
-import clyvasync.Clyvasync.modules.homestay.entity.RatePlanBenefitMapping;
+import clyvasync.Clyvasync.modules.room.RatePlanBenefitMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

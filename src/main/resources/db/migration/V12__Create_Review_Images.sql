@@ -2,7 +2,6 @@ CREATE TABLE review_images (
                                id BIGSERIAL PRIMARY KEY,
                                review_id BIGINT NOT NULL,
                                image_url TEXT NOT NULL,
-
                                display_order INT DEFAULT 0,
                                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 

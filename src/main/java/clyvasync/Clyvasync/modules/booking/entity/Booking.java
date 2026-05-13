@@ -1,49 +1,48 @@
-package clyvasync.Clyvasync.modules.booking.entity;
+package clyvasync.Clyvasync.modules.homestay.entity;
 
-
-import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "bookings")
-@Getter @Setter
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Booking {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "booking_code", unique = true, nullable = false)
+    @Column(name = "booking_code", nullable = false, unique = true, length = 20)
     private String bookingCode;
-
-    @Column(name = "homestay_id", nullable = false)
-    private Long homestayId;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "check_in_date", nullable = false)
-    private LocalDate checkInDate;
+    @Column(name = "homestay_id", nullable = false)
+    private Long homestayId; // Mapping mềm
 
-    @Column(name = "check_out_date", nullable = false)
-    private LocalDate checkOutDate;
-
-    @Column(name = "guest_count")
-    private Integer guestCount;
-
-    @Column(name = "total_price", nullable = false)
+    @Column(name = "total_price", precision = 19, scale = 2, nullable = false)
     private BigDecimal totalPrice;
 
-    @Column(name = "tax_fee")
-    private BigDecimal taxFee;
+    @Builder.Default
+    @Column(name = "tax_fee", precision = 19, scale = 2)
+    private BigDecimal taxFee = BigDecimal.ZERO;
 
-    @Column(name = "status")
-    private String status = "PENDING"; // PENDING, CONFIRMED, CANCELLED, COMPLETED
+    @Builder.Default
+    @Column(length = 50)
+    private String status = "PENDING";
 
-    @Column(name = "payment_status")
+    @Builder.Default
+    @Column(name = "payment_status", length = 50)
     private String paymentStatus = "UNPAID";
 
     @Column(name = "special_requests", columnDefinition = "TEXT")
@@ -53,8 +52,14 @@ public class Booking {
     private String cancellationReason;
 
     @Version
-    private Integer version;
+    @Column(nullable = false)
+    private Integer version = 0;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 }

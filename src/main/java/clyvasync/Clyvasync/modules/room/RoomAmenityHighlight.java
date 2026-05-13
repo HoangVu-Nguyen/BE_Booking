@@ -1,8 +1,7 @@
-package clyvasync.Clyvasync.modules.homestay.entity;
+package clyvasync.Clyvasync.modules.room;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
 @Entity
 @Table(name = "room_amenity_highlights")
 @Data @Builder
@@ -22,4 +21,3 @@ public class RoomAmenityHighlight {
     private String displayValue; // '150 Mbps', 'King Size'
 }
 
-// File bổ trợ cho Khóa chính tổ hợp (Composite Key)

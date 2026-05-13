@@ -2,19 +2,22 @@ package clyvasync.Clyvasync.modules.homestay.entity;
 
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "homestays")
-@Getter @Setter
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Homestay {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,6 +25,7 @@ public class Homestay {
     @Column(name = "owner_id", nullable = false)
     private Long ownerId;
 
+    // Chỉ lưu ID để Mapping mềm (Tự query tay khi cần)
     @Column(name = "category_id")
     private Integer categoryId;
 
@@ -37,34 +41,35 @@ public class Homestay {
     @Column(name = "address_detail", nullable = false)
     private String addressDetail;
 
+    @Column(precision = 10, scale = 8)
     private BigDecimal latitude;
+
+    @Column(precision = 11, scale = 8)
     private BigDecimal longitude;
 
-    @Column(name = "base_price", nullable = false)
-    private BigDecimal basePrice;
-
-    @Column(name = "max_guests")
-    private Integer maxGuests;
-
-    @Column(name = "num_bedrooms")
-    private Integer numBedrooms;
-
-    @Column(name = "num_bathrooms")
-    private Integer numBathrooms;
-
-
     @Enumerated(EnumType.STRING)
+    @Column(length = 50)
     private HomestayStatus status = HomestayStatus.AVAILABLE;
+
     @Column(name = "average_rating", precision = 3, scale = 2)
     private BigDecimal averageRating = BigDecimal.ZERO;
 
     @Column(name = "review_count")
     private Integer reviewCount = 0;
-    @Version
-    private Integer version;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    @Version
+    @Column(nullable = false)
+    private Integer version = 0;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
+
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private OffsetDateTime deletedAt;
+
 }

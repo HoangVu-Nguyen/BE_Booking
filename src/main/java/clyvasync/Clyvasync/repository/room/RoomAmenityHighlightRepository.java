@@ -1,8 +1,8 @@
-package clyvasync.Clyvasync.repository.homestay;
+package clyvasync.Clyvasync.repository.room;
 
 import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
-import clyvasync.Clyvasync.modules.homestay.entity.RoomAmenityHighlight;
-import clyvasync.Clyvasync.modules.homestay.entity.RoomAmenityHighlightId; // Import cái ID class
+import clyvasync.Clyvasync.modules.room.RoomAmenityHighlight;
+import clyvasync.Clyvasync.modules.room.RoomAmenityHighlightId; // Import cái ID class
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

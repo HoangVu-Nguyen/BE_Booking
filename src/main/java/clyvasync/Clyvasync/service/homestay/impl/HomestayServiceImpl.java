@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.homestay.impl;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.*;
+import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -96,19 +97,6 @@ public class HomestayServiceImpl implements HomestayService {
                 predicates.add(cb.in(root.get("locationId")).value(locationSubquery));
             }
 
-            // 2. Lọc theo khoảng giá
-            if (filters.minPrice() != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("basePrice"), filters.minPrice()));
-            }
-            if (filters.maxPrice() != null) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("basePrice"), filters.maxPrice()));
-            }
-
-            // 3. Lọc theo số khách
-            if (filters.guests() != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("maxGuests"), filters.guests()));
-            }
-
             // 4. Lọc theo Rating (Check null trong Entity trước khi dùng)
             if (filters.minRating() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("averageRating"), filters.minRating()));
@@ -132,7 +120,9 @@ public class HomestayServiceImpl implements HomestayService {
         List<Long> ids = homestays.stream().map(Homestay::getId).toList();
         List<Integer> locationIds = homestays.stream().map(Homestay::getLocationId).distinct().toList();
         List<Integer> categoryIds = homestays.stream().map(Homestay::getCategoryId).distinct().toList();
-
+        List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(ids);
+        Map<Long, HomestayRoomSummary> roomSummaryMap = summaries.stream()
+                .collect(Collectors.toMap(HomestayRoomSummary::getHomestayId, s -> s));
         Map<Long, List<AmenityResponse>> amenitiesMap = amenityService.getAmenitiesForHomestays(ids);
         Map<Long, List<String>> imagesMap = homestayImageService.getImagesForHomestays(ids);
         Map<Integer, String> locationsMap = locationService.getLocationNamesMap(locationIds);
@@ -145,9 +135,20 @@ public class HomestayServiceImpl implements HomestayService {
             response.setCategoryName(categoriesMap.get(entity.getCategoryId()));
             response.setAmenities(amenitiesMap.getOrDefault(entity.getId(), List.of()));
             response.setAverageRating(BigDecimal.valueOf(entity.getAverageRating() != null ? entity.getAverageRating().doubleValue() : 0.0));
-
+            HomestayRoomSummary summary = roomSummaryMap.get(entity.getId());
+            if (summary != null) {
+                response.setBasePrice(summary.getMinPrice());
+                response.setMaxGuests(summary.getMaxGuestsInRoom());
+                response.setNumBedrooms(summary.getTotalRooms());
+                response.setNumBathrooms(summary.getTotalRooms());
+            } else {
+                response.setBasePrice(BigDecimal.ZERO);
+                response.setMaxGuests(0);
+                response.setNumBedrooms(0);
+            }
             return response;
         });
+
     }
 
 
@@ -191,10 +192,6 @@ public class HomestayServiceImpl implements HomestayService {
                 .name(homestay.getName())
                 .description(homestay.getDescription())
                 .addressDetail(homestay.getAddressDetail())
-                .basePrice(homestay.getBasePrice())
-                .maxGuests(homestay.getMaxGuests())
-                .numBedrooms(homestay.getNumBedrooms())
-                .numBathrooms(homestay.getNumBathrooms())
                 .latitude(homestay.getLatitude() != null ? homestay.getLatitude().doubleValue() : null)
                 .longitude(homestay.getLongitude() != null ? homestay.getLongitude().doubleValue() : null)
                 .status(homestay.getStatus())
@@ -209,5 +206,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .tours(tourService.getToursByHomestayId(homestay.getId()))
                 .rooms(rooms)
                 .build();
+
+
     }
 }

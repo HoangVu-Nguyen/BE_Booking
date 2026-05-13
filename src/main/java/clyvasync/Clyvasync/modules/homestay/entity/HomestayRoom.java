@@ -1,40 +1,70 @@
 package clyvasync.Clyvasync.modules.homestay.entity;
 
+import clyvasync.Clyvasync.enums.room.RoomStatus;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "homestay_rooms")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class HomestayRoom {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "homestay_id", nullable = false)
-    private Long homestayId; // Chỉ dùng ID, không dùng Entity Homestay
+    private Long homestayId;
 
+    @Column(nullable = false)
     private String name;
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    private String tag;         // 'Master Suite', 'Rare Find'
-    private String area;        // '45 m²'
+    @Column(length = 50)
+    private String tag;
+
+    @Column(length = 50)
+    private String area;
+
+    @Column(length = 50)
     private String floor;
+
+    @Column(length = 50)
     private String wing;
 
-    @Column(name = "check_in_time")
-    private String checkInTime;
+    @Builder.Default
+    @Column(name = "max_guests", nullable = false)
+    private Integer maxGuests = 2;
 
-    private Integer maxGuests;
-    private Integer bedCount;
-    private Integer quantity;
+    @Builder.Default
+    @Column(name = "bed_count", nullable = false)
+    private Integer bedCount = 1;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer quantity = 1;
+
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
-    private String status;
+
+    @Enumerated(EnumType.STRING)
+    private RoomStatus status = RoomStatus.AVAILABLE;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 }
