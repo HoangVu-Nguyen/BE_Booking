@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.math.BigDecimal;
@@ -168,7 +169,7 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
-    public HomestayDetailResponse getHomestayDetail(Long currentUserId, Long id) {
+    public HomestayDetailResponse getHomestayDetail(Long currentUserId, Long id, LocalDate checkIn, LocalDate checkOut, Integer guests) {
         log.info("Getting homestay detail for user {} with ID {}", currentUserId, id);
 
         Homestay homestay = homestayRepository.findById(id)
@@ -184,7 +185,15 @@ public class HomestayServiceImpl implements HomestayService {
         String categoryName = categoryService.getCategoryNamesMap(List.of(homestay.getCategoryId()))
                 .get(homestay.getCategoryId());
         List<ReviewResponse> reviews = reviewService.getReviewsByHomestayId(id);
-        List<RoomResponse> rooms = homestayRoomService.getAllRoomsByHomestay(id);
+        List<RoomResponse> rooms;
+        if (checkIn != null && checkOut != null) {
+            // Nếu khách đã chọn ngày, chỉ hiện phòng còn trống
+            int guestCount = (guests != null) ? guests : 1;
+            rooms = homestayRoomService.findAvailableRooms(id, checkIn, checkOut, guestCount);
+        } else {
+            // Nếu khách vào xem chung, hiện tất cả phòng để họ tham khảo
+            rooms = homestayRoomService.getAllRoomsByHomestay(id);
+        }
 
 
         return HomestayDetailResponse.builder()

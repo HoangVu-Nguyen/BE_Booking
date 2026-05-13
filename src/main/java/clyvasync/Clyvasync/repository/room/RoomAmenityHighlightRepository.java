@@ -22,4 +22,11 @@ public interface RoomAmenityHighlightRepository extends JpaRepository<RoomAmenit
         WHERE h.roomId IN :roomIds
     """)
     List<AmenityHighlightResponse> findAllHighlightsByRoomIds(@Param("roomIds") List<Long> roomIds);
+    @Query("""
+    SELECT rah.roomId, a.iconName, a.name, rah.displayValue 
+    FROM RoomAmenityHighlight rah 
+    JOIN Amenity a ON rah.amenityId = a.id 
+    WHERE rah.roomId IN :roomIds
+""")
+    List<Object[]> findHighlightsByRoomIds(@Param("roomIds") List<Long> roomIds);
 }

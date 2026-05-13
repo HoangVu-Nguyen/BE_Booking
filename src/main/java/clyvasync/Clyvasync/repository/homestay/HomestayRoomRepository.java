@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.repository.homestay;
 
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
+import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -45,4 +46,6 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
             @Param("checkOut") LocalDate checkOut,
             @Param("guests") int guests
     );
+
+    List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, RoomStatus status);
 }

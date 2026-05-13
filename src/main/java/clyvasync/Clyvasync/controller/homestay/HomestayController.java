@@ -6,7 +6,9 @@ import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
 import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
+import clyvasync.Clyvasync.dto.response.RoomResponse;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
+import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,9 +16,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +30,7 @@ import java.util.stream.Collectors;
 public class HomestayController {
 
     private final HomestayService homestayService;
+    private final HomestayRoomService homestayRoomService;
 
     @GetMapping("/search")
     public ApiResponse<Page<HomestayResponse>> searchHomestays(
@@ -45,10 +50,16 @@ public class HomestayController {
 
         return ApiResponse.success(result);
     }
-
     @GetMapping("/{id}")
-    public ApiResponse<HomestayDetailResponse> getHomestayById(@CurrentUserId Long userId,@PathVariable Long id) {
-        return ApiResponse.success(homestayService.getHomestayDetail(userId,id));
+    public ApiResponse<HomestayDetailResponse> getHomestayById(
+            @CurrentUserId Long userId,
+            @PathVariable Long id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
+            @RequestParam(required = false, defaultValue = "1") Integer guests
+    ) {
+        // Truyền thêm các tham số lọc vào service để lấy danh sách phòng chính xác
+        return ApiResponse.success(homestayService.getHomestayDetail(userId, id, checkIn, checkOut, guests));
     }
 
 
@@ -91,5 +102,14 @@ public class HomestayController {
             @CurrentUserId Long ownerId) {
         homestayService.updateStatus(id, status, ownerId);
         return ApiResponse.success(null);
+    }
+    @GetMapping("/{id}/available-rooms")
+    public ApiResponse<List<RoomResponse>> getAvailableRooms(
+            @PathVariable Long id,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
+            @RequestParam(defaultValue = "1") Integer guests
+    ) {
+        return ApiResponse.success(homestayRoomService.findAvailableRooms(id, checkIn, checkOut, guests));
     }
 }

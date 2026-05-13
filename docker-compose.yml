@@ -18,16 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-  neo4j:
-    image: neo4j:5.20
-    container_name: neo4j
-    restart: always
-    environment:
-      NEO4J_AUTH: ${USERNAME_NSQL}/${PASSWORD_NSQL}
-    volumes:
-      - neo4jdata:/data
-    networks:
-      - clyvasync-net
 
   redis:
     image: redis:latest
@@ -120,8 +110,7 @@ services:
         condition: service_started
       redis:
         condition: service_started
-      neo4j:
-        condition: service_started
+
     env_file: .env
     environment:
       SPRING_DATASOURCE_URL: ${DBMSRSQL_CONNECTION}
@@ -143,4 +132,3 @@ volumes:
   pgdata:
   rabbitmqdata:
   redisdata:
-  neo4jdata:

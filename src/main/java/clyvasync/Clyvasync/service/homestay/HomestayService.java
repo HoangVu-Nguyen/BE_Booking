@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 @Service
 public interface HomestayService {
@@ -32,5 +33,5 @@ public interface HomestayService {
     void updateStatus(Long id, String status, Long ownerId);
 
     void updateAverageRating(Long id, BigDecimal newRating);
-    HomestayDetailResponse getHomestayDetail(Long currentUserId,Long id);
+    HomestayDetailResponse getHomestayDetail(Long currentUserId, Long id, LocalDate checkIn, LocalDate checkOut, Integer guests);
 }

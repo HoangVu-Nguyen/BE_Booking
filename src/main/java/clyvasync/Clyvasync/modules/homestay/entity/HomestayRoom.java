@@ -58,7 +58,7 @@ public class HomestayRoom {
     private String imageUrl;
 
     @Enumerated(EnumType.STRING)
-    private RoomStatus status = RoomStatus.AVAILABLE;
+    private RoomStatus status = RoomStatus.ACTIVE;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
