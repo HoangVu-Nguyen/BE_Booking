@@ -3,13 +3,11 @@ package clyvasync.Clyvasync.controller.homestay;
 
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
-import clyvasync.Clyvasync.dto.response.ApiResponse;
-import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
-import clyvasync.Clyvasync.dto.response.HomestayResponse;
-import clyvasync.Clyvasync.dto.response.RoomResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.tour.TourService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -31,6 +29,7 @@ public class HomestayController {
 
     private final HomestayService homestayService;
     private final HomestayRoomService homestayRoomService;
+    private final TourService tourService;
 
     @GetMapping("/search")
     public ApiResponse<Page<HomestayResponse>> searchHomestays(
@@ -104,12 +103,21 @@ public class HomestayController {
         return ApiResponse.success(null);
     }
     @GetMapping("/{id}/available-rooms")
-    public ApiResponse<List<RoomResponse>> getAvailableRooms(
-            @PathVariable Long id,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
-            @RequestParam(defaultValue = "1") Integer guests
+    public ApiResponse<BookingAvailabilityResponse> getHomestayAvailability( // Đổi kiểu trả về
+                                                                             @PathVariable Long id,
+                                                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+                                                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
+                                                                             @RequestParam(defaultValue = "1") Integer guests
     ) {
-        return ApiResponse.success(homestayRoomService.findAvailableRooms(id, checkIn, checkOut, guests));
+        List<RoomResponse> availableRooms = homestayRoomService.findAvailableRooms(id, checkIn, checkOut, guests);
+
+        List<TourResponse> suggestedTours = tourService.getAvailableToursForBookingDates(id, checkIn, checkOut);
+
+        BookingAvailabilityResponse responseData = BookingAvailabilityResponse.builder()
+                .rooms(availableRooms)
+                .suggestedTours(suggestedTours)
+                .build();
+
+        return ApiResponse.success(responseData);
     }
 }

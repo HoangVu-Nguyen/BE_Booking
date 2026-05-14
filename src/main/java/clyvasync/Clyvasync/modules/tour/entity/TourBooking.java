@@ -48,6 +48,9 @@ public class TourBooking {
 
     @Column(name = "total_price", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalPrice;
+    @Column(name = "loyalty_points_earned", nullable = false)
+    @Builder.Default
+    private Integer loyaltyPointsEarned = 0;
 
     @Enumerated(EnumType.STRING)
     private TourBookingStatus status;

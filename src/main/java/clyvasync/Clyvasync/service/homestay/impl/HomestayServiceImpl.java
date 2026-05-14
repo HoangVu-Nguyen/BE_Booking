@@ -54,7 +54,6 @@ public class HomestayServiceImpl implements HomestayService {
     private final TourService tourService;
     private final UserService userService;
     private final HomestayRoomService homestayRoomService;
-    private final BookingService bookingService;
 
     @Override
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
@@ -73,7 +72,7 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     public HomestayResponse getById(Long id) {
-        return null;
+        return homestayMapper.toResponse(homestayRepository.findById(id).orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND)));
     }
 
     @Override
@@ -212,7 +211,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .amenities(amenities)
                 .owner(userService.getOwnerInfo(homestay.getOwnerId()))
                 .reviews(reviews)
-                .tours(tourService.getToursByHomestayId(homestay.getId()))
+                .tours(tourService.getAvailableToursForBookingDates(homestay.getId(), checkIn, checkOut))
                 .rooms(rooms)
                 .build();
 

@@ -30,4 +30,5 @@ public class TourController {
     public ApiResponse<TourDetailResponse> getTourById(@PathVariable Long id) {
         return ApiResponse.success(tourService.getTourById(id));
     }
+
 }

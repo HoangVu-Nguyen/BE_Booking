@@ -6,6 +6,8 @@ import clyvasync.Clyvasync.dto.response.RatePlanResponse;
 import clyvasync.Clyvasync.dto.response.RoomResponse;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.mapper.room.RoomMapper;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.room.RatePlanBenefitMapping;
@@ -119,5 +121,10 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     @Override
     public List<HomestayRoomSummary> getRoomSummaries(List<Long> homestayIds) {
         return roomRepository.getRoomSummaries(homestayIds);
+    }
+
+    @Override
+    public HomestayRoom getRoomById(Long roomId) {
+        return roomRepository.findById(roomId).orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
     }
 }

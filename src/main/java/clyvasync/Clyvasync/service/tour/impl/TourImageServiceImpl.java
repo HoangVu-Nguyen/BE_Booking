@@ -1,6 +1,8 @@
 package clyvasync.Clyvasync.service.tour.impl;
 
 import clyvasync.Clyvasync.dto.response.TourImageResponse;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.repository.tour.TourImageRepository;
 import clyvasync.Clyvasync.service.tour.TourImageService;
@@ -45,5 +47,10 @@ public class TourImageServiceImpl implements TourImageService {
                 TourImage::getTourId,
                 Collectors.mapping(TourImage::getImageUrl, Collectors.toList())
         ));
+    }
+
+    @Override
+    public TourImage getPrimaryImageUrl(Long tourId) {
+        return tourImageRepository.findFirstByTourIdAndIsPrimaryTrue(tourId).orElseThrow(()->new AppException(ResultCode.TOUR_IMAGE_NOT_FOUND));
     }
 }

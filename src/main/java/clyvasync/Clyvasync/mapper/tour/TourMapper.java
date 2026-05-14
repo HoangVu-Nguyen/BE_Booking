@@ -16,5 +16,6 @@ public interface TourMapper {
     @Mapping(target = "id", source = "entity.id")
     @Mapping(target = "name", source = "entity.name")
     TourResponse toResponse(Tour entity, String primary, String hover);
+    List<TourResponse> toResponse(List<Tour> entityList);
 
 }

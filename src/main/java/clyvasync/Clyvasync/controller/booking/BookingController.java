@@ -1,6 +1,10 @@
 package clyvasync.Clyvasync.controller.booking;
 
+import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
+import clyvasync.Clyvasync.dto.response.BookingInitResponse;
+import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +27,23 @@ public class BookingController {
         List<LocalDate> blockedDates = bookingService.getUnavailableDates(homestayId, month, year);
 
         return ApiResponse.success(blockedDates);
+    }
+    @PostMapping("/init")
+    public ApiResponse<BookingInitResponse> initBooking(
+            @RequestBody BookingInitRequest request,
+            @CurrentUserId Long userId) {
+
+        BookingInitResponse response = bookingService.initBooking(request, userId);
+
+        return ApiResponse.success(response);
+    }
+
+    @GetMapping("/{bookingCode}")
+    public ApiResponse<BookingDetailsResponse> getBookingDetails(@PathVariable String bookingCode) {
+
+        BookingDetailsResponse response = bookingService.getBookingDetailsByCode(bookingCode);
+
+        return ApiResponse.success(response);
     }
 
 }

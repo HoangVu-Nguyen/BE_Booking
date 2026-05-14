@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.tour;
 import clyvasync.Clyvasync.dto.request.BookTourRequest;
 import clyvasync.Clyvasync.dto.response.TourBookingResponse;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
+import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -44,4 +45,6 @@ public interface TourBookingService {
 
     /** Chủ Homestay xem danh sách khách đã đặt Tour của mình (Để chuẩn bị đón khách) */
     Page<TourBookingResponse> getBookingsForHomestayOwner(Long ownerId, Pageable pageable);
+    TourBooking save(TourBooking tourBooking);
+    TourBooking findByHomestayBookingId(Long homestayBookingId);
 }

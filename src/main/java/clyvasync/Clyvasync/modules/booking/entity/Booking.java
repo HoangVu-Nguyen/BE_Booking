@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.modules.homestay.entity;
+package clyvasync.Clyvasync.modules.booking.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -50,10 +50,21 @@ public class Booking {
 
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
+    @Column(name = "loyalty_points_earned", nullable = false)
+    @Builder.Default
+    private Integer loyaltyPointsEarned = 0;
 
     @Version
     @Column(nullable = false)
     private Integer version = 0;
+    @Column(name = "guest_name")
+    private String guestName;
+
+    @Column(name = "guest_email")
+    private String guestEmail;
+
+    @Column(name = "guest_phone", length = 20)
+    private String guestPhone;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
