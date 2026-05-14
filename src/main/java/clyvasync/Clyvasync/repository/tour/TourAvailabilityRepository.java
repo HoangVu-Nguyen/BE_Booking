@@ -14,4 +14,12 @@ public interface TourAvailabilityRepository extends JpaRepository<TourAvailabili
     WHERE ta.id = :availabilityId AND ta.remainingSlots >= :slots AND ta.isActive = true
     """)
     int deductTourSlots(@Param("availabilityId") Long availabilityId, @Param("slots") int slots);
+    @Modifying
+    @Query("""
+    UPDATE TourAvailability ta 
+    SET ta.remainingSlots = ta.remainingSlots + :slots
+    WHERE ta.id = :availabilityId
+    """)
+    int releaseTourSlots(@Param("availabilityId") Long availabilityId,
+                         @Param("slots") int slots);
 }

@@ -5,11 +5,13 @@ import com.alicp.jetcache.anno.config.EnableMethodCache;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableMethodCache(basePackages = "clyvasync.Clyvasync") // Thay bằng package của bạn
 @EnableCreateCacheAnnotation
 @EnableCaching
+@EnableScheduling
 public class ClyvasyncApplication {
 
 	public static void main(String[] args) {
