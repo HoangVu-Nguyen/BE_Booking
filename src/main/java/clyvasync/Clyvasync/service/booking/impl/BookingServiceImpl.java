@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.service.booking.impl;
 
 import clyvasync.Clyvasync.constant.ImageConstants;
 import clyvasync.Clyvasync.dto.detail.PolicyDetail;
+import clyvasync.Clyvasync.dto.detail.TourBookingItemDetail;
 import clyvasync.Clyvasync.dto.detail.TourDetail;
 import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
@@ -44,6 +45,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -114,12 +116,11 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingInitResponse initBooking(BookingInitRequest request, Long userId) {
+        System.out.println(request);
 
-        // 1. TÍNH SỐ ĐÊM LƯU TRÚ
+        // 1. TÍNH SỐ ĐÊM & KHÓA PHÒNG (Giữ nguyên)
         long nights = java.time.temporal.ChronoUnit.DAYS.between(request.getCheckInDate(), request.getCheckOutDate());
-        if (nights <= 0) {
-            throw new AppException(ResultCode.INVALID_DATE_RANGE); // Thêm lỗi khoảng ngày không hợp lệ nếu cần
-        }
+        if (nights <= 0) throw new AppException(ResultCode.INVALID_DATE_RANGE);
 
         int roomRowsUpdated = roomCalendarService.lockRoomRange(
                 request.getRoomId(),
@@ -127,21 +128,32 @@ public class BookingServiceImpl implements BookingService {
                 request.getCheckOutDate(),
                 request.getRoomQuantity()
         );
+        if (roomRowsUpdated != nights) throw new AppException(ResultCode.ROOM_NOT_AVAILABLE);
 
-        if (roomRowsUpdated != nights) {
-            throw new AppException(ResultCode.ROOM_NOT_AVAILABLE);
-        }
+        // 2. KHÓA SLOT CHO TOÀN BỘ DANH SÁCH TOUR
+        BigDecimal totalTourPrice = BigDecimal.ZERO;
 
-        if (request.getTourId() != null) {
-            int tourRowsUpdated = tourAvailabilityService.deductTourSlots(
-                    request.getAvailabilityId(),
-                    request.getParticipantCount()
-            );
-            if (tourRowsUpdated == 0) {
-                throw new AppException(ResultCode.TOUR_NOT_AVAILABLE);
+        // Check nếu khách có chọn tour
+        if (request.getTours() != null && !request.getTours().isEmpty()) {
+            for (TourBookingItemDetail tourItem : request.getTours()) {
+                int tourRowsUpdated = tourAvailabilityService.deductTourSlots(
+                        tourItem.getAvailabilityId(),
+                        tourItem.getParticipantCount()
+                );
+
+                // Nếu bất kỳ tour nào hết chỗ -> Rollback toàn bộ (kể cả phòng)
+                if (tourRowsUpdated == 0) {
+                    throw new AppException(ResultCode.TOUR_NOT_AVAILABLE);
+                }
+
+                // Tính giá cho từng tour để cộng dồn
+                Tour tour = tourService.findTourById(tourItem.getTourId());
+                BigDecimal itemTotal = tour.getPricePerPerson().multiply(BigDecimal.valueOf(tourItem.getParticipantCount()));
+                totalTourPrice = totalTourPrice.add(itemTotal);
             }
         }
 
+        // 3. TÍNH TOÁN TỔNG TIỀN HÓA ĐƠN
         String bookingCode = "BK-" + System.currentTimeMillis() % 1000000 + "-" + generateRandomString();
         RoomRatePlan ratePlan = roomRatePlanService.getById(request.getRatePlanId());
 
@@ -149,17 +161,12 @@ public class BookingServiceImpl implements BookingService {
                 .multiply(BigDecimal.valueOf(nights))
                 .multiply(BigDecimal.valueOf(request.getRoomQuantity()));
 
-        BigDecimal tourTotal = BigDecimal.ZERO;
-        if (request.getTourId() != null) {
-            Tour tour = tourService.findTourById(request.getTourId());
-            tourTotal = tour.getPricePerPerson().multiply(BigDecimal.valueOf(request.getParticipantCount()));
-        }
-
-        BigDecimal totalPrice = roomSubtotal.add(tourTotal);
+        BigDecimal totalPrice = roomSubtotal.add(totalTourPrice);
         BigDecimal taxFee = totalPrice.multiply(new BigDecimal("0.10"));
         BigDecimal finalGrandTotal = totalPrice.add(taxFee);
         int expectedPoints = finalGrandTotal.multiply(new BigDecimal("0.01")).intValue();
 
+        // 4. LƯU BOOKING TỔNG
         Booking booking = Booking.builder()
                 .bookingCode(bookingCode)
                 .userId(userId)
@@ -169,17 +176,15 @@ public class BookingServiceImpl implements BookingService {
                 .status(BookingStatus.DRAFT.name())
                 .paymentStatus(PaymentStatus.UNPAID.name())
                 .loyaltyPointsEarned(expectedPoints)
+                .guestName(request.getGuestName())
+                .guestEmail(request.getEmail())
+                .guestPhone(request.getPhone())
+                .specialRequests(request.getSpecialRequests())
                 .build();
-
-        if (request.getSpecialRequests() != null) {
-            booking.setSpecialRequests(request.getSpecialRequests());
-        }
-        if (request.getGuestName() != null) booking.setGuestName(request.getGuestName());
-        if (request.getEmail() != null) booking.setGuestEmail(request.getEmail());
-        if (request.getPhone() != null) booking.setGuestPhone(request.getPhone());
 
         booking = bookingRepository.save(booking);
 
+        // 5. LƯU CHI TIẾT PHÒNG
         BookingDetail detail = BookingDetail.builder()
                 .bookingId(booking.getId())
                 .roomId(request.getRoomId())
@@ -191,27 +196,29 @@ public class BookingServiceImpl implements BookingService {
                 .unitPrice(ratePlan.getPrice())
                 .subtotal(roomSubtotal)
                 .build();
-
         bookingDetailService.save(detail);
 
-        if (request.getTourId() != null) {
-            String tourBookingCode = "TR-" + bookingCode.substring(3);
+        // 6. LƯU CHI TIẾT TỪNG TOUR VÀO BẢNG TOUR_BOOKINGS
+        if (request.getTours() != null) {
+            for (TourBookingItemDetail tourItem : request.getTours()) {
+                Tour tour = tourService.findTourById(tourItem.getTourId());
+                BigDecimal itemTotal = tour.getPricePerPerson().multiply(BigDecimal.valueOf(tourItem.getParticipantCount()));
 
-            TourBooking tourBooking = TourBooking.builder()
-                    .bookingCode(tourBookingCode)
-                    .tourId(request.getTourId())
-                    .userId(userId)
-                    .homestayBookingId(booking.getId())
-                    .availabilityId(request.getAvailabilityId())
-                    .tourDate(request.getTourDate())
-                    .participantCount(request.getParticipantCount())
-                    .totalPrice(tourTotal)
-                    .status(TourBookingStatus.DRAFT) // Trạng thái DRAFT đồng bộ với phòng
-                    .paymentStatus(PaymentStatus.UNPAID)
-                    .loyaltyPointsEarned(0)
-                    .build();
+                TourBooking tourBooking = TourBooking.builder()
+                        .bookingCode("TR-" + generateRandomString()) // Code riêng cho từng tour
+                        .tourId(tourItem.getTourId())
+                        .userId(userId)
+                        .homestayBookingId(booking.getId())
+                        .availabilityId(tourItem.getAvailabilityId())
+                        .tourDate(tourItem.getTourDate())
+                        .participantCount(tourItem.getParticipantCount())
+                        .totalPrice(itemTotal)
+                        .status(TourBookingStatus.DRAFT)
+                        .paymentStatus(PaymentStatus.UNPAID)
+                        .build();
 
-            tourBookingService.save(tourBooking);
+                tourBookingService.save(tourBooking);
+            }
         }
 
         return new BookingInitResponse(bookingCode, booking.getId());
@@ -225,36 +232,45 @@ public class BookingServiceImpl implements BookingService {
         BookingDetail detail = bookingDetailService.findBookingDetailByBookingId(booking.getId());
         HomestayResponse homestayResponse = homestayService.getById(booking.getHomestayId());
         HomestayRoom homestayRoom = roomService.getRoomById(detail.getRoomId());
-        long totalNights = java.time.temporal.ChronoUnit.DAYS.between(detail.getCheckInDate(), detail.getCheckOutDate());
-        TourBooking tourBooking = tourBookingService.findByHomestayBookingId(booking.getId());
-        TourDetail tourDetailDto = null;
-        BigDecimal tourSubtotal = BigDecimal.ZERO;
-        if (tourBooking != null) {
-            tourSubtotal = tourBooking.getTotalPrice();
-
-            var tourCore = tourService.findTourById(tourBooking.getTourId());
-
-
-            TourImage tourPrimaryImage = tourImageService.getPrimaryImageUrl(tourBooking.getTourId());
-
-            tourDetailDto = TourDetail.builder()
-                    .tourBookingId(tourBooking.getId())
-                    .tourBookingCode(tourBooking.getBookingCode())
-                    .tourName(tourCore.getName())
-                    .tourImage(tourPrimaryImage != null ? tourPrimaryImage.getImageUrl() : ImageConstants.TOUR_DEFAULT)
-                    .tourDate(tourBooking.getTourDate())
-                    .participantCount(tourBooking.getParticipantCount())
-                    .build();
-        }
         HomestayPolicy homestayPolicy = homestayPolicyService.getHomestayPolicyByHomestayId(booking.getHomestayId());
-        PolicyDetail policyDto = PolicyDetail.builder()
-                .checkInTime(homestayPolicy.getCheckInTime())
-                .checkOutTime(homestayPolicy.getCheckOutTime())
-                .lateCheckInInstruction(homestayPolicy.getLateCheckInInstruction())
-                .allowsPets(homestayPolicy.getAllowsPets())
-                .allowsSmoking(homestayPolicy.getAllowsSmoking())
-                .allowsParties(homestayPolicy.getAllowsParties())
-                .build();
+
+        List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
+        List<TourDetail> tourDetails = List.of();
+        BigDecimal tourSubtotal = BigDecimal.ZERO;
+
+        if (!tourBookings.isEmpty()) {
+            // GOM TẤT CẢ ID TOUR LẠI (Batching)
+            List<Long> tourIds = tourBookings.stream().map(TourBooking::getTourId).distinct().toList();
+
+            // CHỈ 1 QUERY lấy toàn bộ thông tin Tour lõi lên Map (Map<Id, Tour>)
+            Map<Long, Tour> tourMap = tourService.findAllByIds(tourIds).stream()
+                    .collect(Collectors.toMap(Tour::getId, t -> t));
+
+            // CHỈ 1 QUERY lấy toàn bộ ảnh đại diện Tour lên Map (Map<TourId, ImageUrl>)
+            Map<Long, String> tourImageMap = tourImageService.getPrimaryImagesByTourIds(tourIds);
+
+            // Map sang DTO từ bộ nhớ (In-memory mapping - Không đụng vào DB nữa)
+            tourDetails = tourBookings.stream().map(tb -> {
+                Tour tourCore = tourMap.get(tb.getTourId());
+                return TourDetail.builder()
+                        .tourBookingId(tb.getId())
+                        .tourBookingCode(tb.getBookingCode())
+                        .tourName(tourCore != null ? tourCore.getName() : "N/A")
+                        .tourImage(tourImageMap.getOrDefault(tb.getTourId(), ImageConstants.TOUR_DEFAULT))
+                        .tourDate(tb.getTourDate())
+                        .participantCount(tb.getParticipantCount())
+                        .totalPrice(tb.getTotalPrice())
+                        .build();
+            }).toList();
+
+            // Tính tổng tiền Tour từ mảng đã lấy
+            tourSubtotal = tourDetails.stream()
+                    .map(TourDetail::getTotalPrice)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+
+        // 4. ĐÓNG GÓI RESPONSE
+        long totalNights = java.time.temporal.ChronoUnit.DAYS.between(detail.getCheckInDate(), detail.getCheckOutDate());
 
         return BookingDetailsResponse.builder()
                 .bookingId(booking.getId())
@@ -263,7 +279,6 @@ public class BookingServiceImpl implements BookingService {
                 .paymentStatus(booking.getPaymentStatus())
                 .specialRequests(booking.getSpecialRequests())
                 .loyaltyPointsEarned(booking.getLoyaltyPointsEarned())
-
                 .homestayId(homestayResponse.getId())
                 .homestayName(homestayResponse.getName())
                 .homestayAddress(homestayResponse.getAddressDetail())
@@ -276,13 +291,25 @@ public class BookingServiceImpl implements BookingService {
                 .roomQuantity(detail.getQuantity())
                 .guestCount(detail.getGuestCount())
 
-                .tour(tourDetailDto)
-                .policy(policyDto)
+                .tours(tourDetails) // Trả về mảng Tour
+                .policy(mapToPolicyDto(homestayPolicy))
 
                 .roomSubtotal(detail.getSubtotal())
                 .tourSubtotal(tourSubtotal)
                 .taxFee(booking.getTaxFee())
                 .grandTotal(booking.getTotalPrice())
+                .build();
+    }
+
+    // Hàm phụ để code nhìn gọn hơn
+    private PolicyDetail mapToPolicyDto(HomestayPolicy policy) {
+        return PolicyDetail.builder()
+                .checkInTime(policy.getCheckInTime())
+                .checkOutTime(policy.getCheckOutTime())
+                .lateCheckInInstruction(policy.getLateCheckInInstruction())
+                .allowsPets(policy.getAllowsPets())
+                .allowsSmoking(policy.getAllowsSmoking())
+                .allowsParties(policy.getAllowsParties())
                 .build();
     }
 

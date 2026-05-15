@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.scheduler;
 
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.type.TourBookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
@@ -34,7 +35,6 @@ public class BookingExpirationScheduler {
     @Scheduled(fixedDelay = 60000)
     @Transactional
     public void releaseExpiredBookings() {
-        // Mốc thời gian tối đa: Hiện tại trừ đi 15 phút
         java.time.OffsetDateTime expirationThreshold = java.time.OffsetDateTime.now()
                 .minus(15, java.time.temporal.ChronoUnit.MINUTES);
 
@@ -46,8 +46,7 @@ public class BookingExpirationScheduler {
         log.info("[Clyvasync Lock] Phát hiện {} đơn hàng nháp quá hạn 15 phút. Tiến hành giải phóng...", expiredBookings.size());
 
         for (Booking booking : expiredBookings) {
-            // 1. Chuyển trạng thái sang CANCELLED
-            booking.setStatus("CANCELLED");
+            booking.setStatus(BookingStatus.CANCELLED.name());
             bookingRepository.save(booking);
 
             bookingDetailRepository.findById(booking.getId()).ifPresent(detail -> {

@@ -34,4 +34,5 @@ public interface TourService {
     Page<TourResponse> getAllTours(Pageable pageable);
     List<TourResponse> getAvailableToursForBookingDates(Long homestayId, LocalDate checkIn, LocalDate checkOut);
     Tour findTourById(Long tourId);
+    List<Tour> findAllByIds(List<Long> tourIds);
 }

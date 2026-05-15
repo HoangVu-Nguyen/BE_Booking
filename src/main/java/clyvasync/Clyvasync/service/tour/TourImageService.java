@@ -20,5 +20,6 @@ public interface TourImageService {
     List<TourImageResponse> getImagesByTourId(Long tourId);
     Map<Long, List<String>> getImagesForTours(List<Long> tourIds);
     TourImage getPrimaryImageUrl(Long tourId);
+    Map<Long, String> getPrimaryImagesByTourIds(List<Long> tourIds);
 
 }

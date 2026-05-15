@@ -53,4 +53,9 @@ public class TourImageServiceImpl implements TourImageService {
     public TourImage getPrimaryImageUrl(Long tourId) {
         return tourImageRepository.findFirstByTourIdAndIsPrimaryTrue(tourId).orElseThrow(()->new AppException(ResultCode.TOUR_IMAGE_NOT_FOUND));
     }
+
+    @Override
+    public Map<Long, String> getPrimaryImagesByTourIds(List<Long> tourIds) {
+        return Map.of();
+    }
 }

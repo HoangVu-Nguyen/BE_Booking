@@ -124,5 +124,10 @@ public class TourServiceImpl implements TourService {
     public Tour findTourById(Long tourId) {
         return tourRepository.findById(tourId).orElseThrow(() -> new AppException(ResultCode.TOUR_NOT_FOUND));
     }
+
+    @Override
+    public List<Tour> findAllByIds(List<Long> tourIds) {
+        return tourRepository.findAllById(tourIds);
+    }
 }
 

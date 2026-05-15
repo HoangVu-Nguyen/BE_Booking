@@ -7,6 +7,8 @@ import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 public interface TourBookingService {
     // ==========================================
     // LUỒNG ĐẶT TOUR
@@ -47,4 +49,5 @@ public interface TourBookingService {
     Page<TourBookingResponse> getBookingsForHomestayOwner(Long ownerId, Pageable pageable);
     TourBooking save(TourBooking tourBooking);
     TourBooking findByHomestayBookingId(Long homestayBookingId);
+    List<TourBooking> findAllByHomestayBookingId(Long homestayBookingId);
 }

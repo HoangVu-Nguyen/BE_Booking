@@ -13,6 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @AllArgsConstructor
 public class TourBookingServiceImpl implements TourBookingService {
@@ -60,5 +62,10 @@ public class TourBookingServiceImpl implements TourBookingService {
     @Override
     public TourBooking findByHomestayBookingId(Long homestayBookingId) {
         return tourBookingRepository.findByHomestayBookingId(homestayBookingId).orElse(null);
+    }
+
+    @Override
+    public List<TourBooking> findAllByHomestayBookingId(Long homestayBookingId) {
+        return tourBookingRepository.findAllByHomestayBookingId(homestayBookingId);
     }
 }

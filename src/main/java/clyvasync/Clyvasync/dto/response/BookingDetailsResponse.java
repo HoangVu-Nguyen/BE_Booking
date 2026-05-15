@@ -5,6 +5,7 @@ import clyvasync.Clyvasync.dto.detail.TourDetail;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @Builder
@@ -31,7 +32,7 @@ public class BookingDetailsResponse {
     private Integer roomQuantity;
     private Integer guestCount;
 
-    private TourDetail tour;
+    private List<TourDetail> tours;
 
     private BigDecimal roomSubtotal;
     private BigDecimal tourSubtotal;

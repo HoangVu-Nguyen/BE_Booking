@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
@@ -18,4 +19,5 @@ public  class TourDetail {
     private String tourImage;
     private LocalDate tourDate;
     private Integer participantCount;
+    private BigDecimal totalPrice;
 }

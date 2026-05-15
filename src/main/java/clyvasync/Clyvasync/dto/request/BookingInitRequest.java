@@ -1,8 +1,10 @@
 package clyvasync.Clyvasync.dto.request;
 
+import clyvasync.Clyvasync.dto.detail.TourBookingItemDetail;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class BookingInitRequest {
@@ -14,11 +16,7 @@ public class BookingInitRequest {
     private Integer roomQuantity;
     private Integer guestCount;
 
-    // Thông tin Tour đi kèm (Có thể null nếu khách không chọn Tour)
-    private Long tourId;
-    private Long availabilityId;
-    private LocalDate tourDate;
-    private Integer participantCount;
+    private List<TourBookingItemDetail> tours;
     private String guestName;
     private String email;
     private String phone;
