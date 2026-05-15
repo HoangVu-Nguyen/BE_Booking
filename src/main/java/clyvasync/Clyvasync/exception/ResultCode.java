@@ -164,7 +164,10 @@ public enum ResultCode {
     ROLE_INSUFFICIENT(13007, HttpStatus.FORBIDDEN),
     SPICEDB_READ_ERROR(13011, HttpStatus.INTERNAL_SERVER_ERROR),
     PERMISSION_REVC_FAILED(13012, HttpStatus.INTERNAL_SERVER_ERROR),
-    PERMISSION_SYNC_PENDING(13013, HttpStatus.ACCEPTED);
+    PERMISSION_SYNC_PENDING(13013, HttpStatus.ACCEPTED),
+
+
+    PAYMENT_METHOD_NOT_SUPPORTED(14001, HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final HttpStatusCode statusCode;

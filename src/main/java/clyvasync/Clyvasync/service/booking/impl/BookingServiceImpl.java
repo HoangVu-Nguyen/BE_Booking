@@ -301,6 +301,11 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
+    @Override
+    public Booking getBookingByCode(String bookingCode) {
+        return bookingRepository.findBookingByBookingCode(bookingCode).orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+    }
+
     // Hàm phụ để code nhìn gọn hơn
     private PolicyDetail mapToPolicyDto(HomestayPolicy policy) {
         return PolicyDetail.builder()

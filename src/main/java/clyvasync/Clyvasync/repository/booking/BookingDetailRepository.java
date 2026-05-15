@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface BookingDetailRepository extends JpaRepository <BookingDetail,Long> {
     @Query("""
@@ -23,4 +24,5 @@ public interface BookingDetailRepository extends JpaRepository <BookingDetail,Lo
             @Param("startOfMonth") LocalDate startOfMonth,
             @Param("endOfMonth") LocalDate endOfMonth
     );
+    Optional<BookingDetail> findBookingDetailByBookingId(Long bookingId);
 }

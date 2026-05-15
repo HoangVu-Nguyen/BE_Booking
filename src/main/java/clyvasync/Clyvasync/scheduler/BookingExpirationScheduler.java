@@ -39,17 +39,19 @@ public class BookingExpirationScheduler {
                 .minus(15, java.time.temporal.ChronoUnit.MINUTES);
 
         List<Booking> expiredBookings = bookingRepository
-                .findAllByStatusAndCreatedAtBefore("DRAFT", expirationThreshold);
+                .findAllByStatusAndCreatedAtBefore(BookingStatus.DRAFT.name(), expirationThreshold);
 
         if (expiredBookings.isEmpty()) return;
 
         log.info("[Clyvasync Lock] Phát hiện {} đơn hàng nháp quá hạn 15 phút. Tiến hành giải phóng...", expiredBookings.size());
 
         for (Booking booking : expiredBookings) {
+            // 1. Huỷ Booking tổng
             booking.setStatus(BookingStatus.CANCELLED.name());
             bookingRepository.save(booking);
 
-            bookingDetailRepository.findById(booking.getId()).ifPresent(detail -> {
+            // 2. Nhả phòng (Giữ nguyên logic cũ của bác)
+            bookingDetailRepository.findBookingDetailByBookingId(booking.getId()).ifPresent(detail -> {
                 roomCalendarRepository.unlockRoomRange(
                         detail.getRoomId(),
                         detail.getCheckInDate(),
@@ -58,18 +60,25 @@ public class BookingExpirationScheduler {
                 );
             });
 
-            tourBookingRepository.findByHomestayBookingId(booking.getId()).ifPresent(tourBooking -> {
+            // 3. XOÁ FULL DANH SÁCH TOUR ĐI KÈM
+            // Chỗ này mình dùng findAllBy... thay vì findBy...
+            List<TourBooking> tourBookings = tourBookingRepository.findAllByHomestayBookingId(booking.getId());
+
+            for (TourBooking tourBooking : tourBookings) {
                 if (TourBookingStatus.DRAFT.equals(tourBooking.getStatus())) {
+                    // Đổi trạng thái tour từng cái
                     tourBooking.setStatus(TourBookingStatus.CANCELLED);
                     tourBookingRepository.save(tourBooking);
 
+                    // Cộng lại slot cho từng tour tương ứng
                     tourAvailabilityRepository.releaseTourSlots(
                             tourBooking.getAvailabilityId(),
                             tourBooking.getParticipantCount()
                     );
+                    log.info("[Clyvasync Lock] Đã nhả slot cho Tour ID: {}", tourBooking.getTourId());
                 }
-            });
+            }
         }
-        log.info("[Clyvasync Lock] Đã dọn dẹp sạch sẽ tài nguyên đơn quá hạn.");
+        log.info("[Clyvasync Lock] Đã hoàn tất dọn dẹp toàn bộ phòng và tour cho các đơn quá hạn.");
     }
 }
