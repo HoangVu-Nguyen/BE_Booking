@@ -1,25 +1,18 @@
 package clyvasync.Clyvasync.config;
 
-
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
-@Configuration
 @Getter
+@Configuration
 public class VnpayConfig {
-
-    @Value("${vnpay.pay-url}")
-    private String vnp_PayUrl;
-
-    @Value("${vnpay.return-url}")
-    private String vnp_ReturnUrl;
 
     @Value("${vnpay.tmn-code}")
     private String vnp_TmnCode;
@@ -27,42 +20,73 @@ public class VnpayConfig {
     @Value("${vnpay.hash-secret}")
     private String secretKey;
 
-    @Value("${vnpay.api-url}")
-    private String vnp_ApiUrl;
+    @Value("${vnpay.pay-url}")
+    private String vnp_PayUrl;
 
+    @Value("${vnpay.return-url}")
+    private String vnp_ReturnUrl;
+
+    /**
+     * HMAC SHA512
+     */
     public String hmacSHA512(String data) {
         try {
             Mac hmac512 = Mac.getInstance("HmacSHA512");
-            SecretKeySpec secretKeySpec = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+
+            SecretKeySpec secretKeySpec =
+                    new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+
             hmac512.init(secretKeySpec);
-            byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(2 * result.length);
-            for (byte b : result) {
-                sb.append(String.format("%02x", b & 0xff));
+
+            byte[] bytes = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder hash = new StringBuilder();
+
+            for (byte b : bytes) {
+                hash.append(String.format("%02x", b & 0xff));
             }
-            return sb.toString();
-        } catch (Exception ex) {
-            return "";
+
+            return hash.toString();
+
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot generate HMAC SHA512", e);
         }
     }
 
+    /**
+     * Verify callback hash
+     */
     public String hashAllFields(Map<String, String> fields) {
+
         List<String> fieldNames = new ArrayList<>(fields.keySet());
+
         Collections.sort(fieldNames);
-        StringBuilder sb = new StringBuilder();
+
+        StringBuilder hashData = new StringBuilder();
+
         Iterator<String> itr = fieldNames.iterator();
+
         while (itr.hasNext()) {
+
             String fieldName = itr.next();
             String fieldValue = fields.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                sb.append(fieldName);
-                sb.append("=");
-                sb.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII));
+
+            if (fieldValue != null && !fieldValue.isEmpty()) {
+
+                hashData.append(fieldName);
+                hashData.append('=');
+
+                hashData.append(
+                        URLEncoder.encode(fieldValue, StandardCharsets.UTF_8)
+                                .replace("+", "%20")
+                );
+
                 if (itr.hasNext()) {
-                    sb.append("&");
+                    hashData.append('&');
                 }
             }
         }
-        return hmacSHA512(sb.toString());
+
+        return hmacSHA512(hashData.toString());
     }
 }
