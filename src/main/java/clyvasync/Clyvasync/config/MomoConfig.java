@@ -17,10 +17,12 @@ public class MomoConfig {
     @Value("${momo.secret-key}")
     private String secretKey;
 
-    @Value("${momo.endpoint}")
+    // Đổi tên biến map cho khớp với chuỗi momo.pay-url trong properties
+    @Value("${momo.pay-url}")
     private String endpoint;
 
-    @Value("${momo.redirect-url}")
+    // Đổi tên biến map cho khớp với chuỗi momo.return-url trong properties
+    @Value("${momo.return-url}")
     private String redirectUrl;
 
     @Value("${momo.ipn-url}")

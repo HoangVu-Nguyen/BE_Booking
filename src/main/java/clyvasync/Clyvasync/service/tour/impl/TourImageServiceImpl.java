@@ -56,6 +56,6 @@ public class TourImageServiceImpl implements TourImageService {
 
     @Override
     public Map<Long, String> getPrimaryImagesByTourIds(List<Long> tourIds) {
-        return Map.of();
+        return tourImageRepository.getPrimaryImagesByTourIds(tourIds);
     }
 }
