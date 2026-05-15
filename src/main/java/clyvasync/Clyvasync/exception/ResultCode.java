@@ -168,7 +168,9 @@ public enum ResultCode {
 
     INVALID_PAYMENT_SIGNATURE(14000, HttpStatus.BAD_REQUEST),
     PAYMENT_METHOD_NOT_SUPPORTED(14001, HttpStatus.BAD_REQUEST),
-    PAYMENT_CREATION_FAILED(14002, HttpStatus.INTERNAL_SERVER_ERROR);
+    PAYMENT_CREATION_FAILED(14002, HttpStatus.INTERNAL_SERVER_ERROR)  ,
+    PAYMENT_FAILED_OR_CANCELLED(14003, HttpStatus.BAD_REQUEST)
+            ;
 
     private final int code;
     private final HttpStatusCode statusCode;

@@ -163,6 +163,16 @@ public class MomoStrategy implements PaymentStrategy {
         return PaymentMethod.MOMO;
     }
 
+    @Override
+    public String extractBookingCode(Map<String, String> params) {
+        return "";
+    }
+
+    @Override
+    public ResponseEntity<?> buildIPNSuccessResponse(String message) {
+        return null;
+    }
+
     private String hmacSHA256(String data, String secretKey) throws Exception {
         Mac hmac256 = Mac.getInstance("HmacSHA256");
         SecretKeySpec secretKeySpec = new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
