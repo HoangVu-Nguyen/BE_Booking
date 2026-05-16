@@ -35,4 +35,5 @@ public interface TourService {
     List<TourResponse> getAvailableToursForBookingDates(Long homestayId, LocalDate checkIn, LocalDate checkOut);
     Tour findTourById(Long tourId);
     List<Tour> findAllByIds(List<Long> tourIds);
+    List<Tour> findByIdIn(List<Long> ids);
 }

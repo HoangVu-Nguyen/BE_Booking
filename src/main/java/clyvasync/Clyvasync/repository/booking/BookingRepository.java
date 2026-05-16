@@ -18,4 +18,5 @@ import java.util.Optional;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     Optional<Booking> findBookingByBookingCode(String bookingCode);
     List<Booking> findAllByStatusAndCreatedAtBefore(String status, OffsetDateTime createdAt);
+    List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
 }

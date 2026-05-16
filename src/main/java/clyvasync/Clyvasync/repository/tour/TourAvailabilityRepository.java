@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface TourAvailabilityRepository extends JpaRepository<TourAvailability, Long> {
     @Modifying
     @Query("""
@@ -22,4 +24,5 @@ public interface TourAvailabilityRepository extends JpaRepository<TourAvailabili
     """)
     int releaseTourSlots(@Param("availabilityId") Long availabilityId,
                          @Param("slots") int slots);
+    List<TourAvailability> findByIdIn(List<Long> ids);
 }

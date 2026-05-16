@@ -50,4 +50,5 @@ public interface TourBookingService {
     TourBooking save(TourBooking tourBooking);
     TourBooking findByHomestayBookingId(Long homestayBookingId);
     List<TourBooking> findAllByHomestayBookingId(Long homestayBookingId);
+    List<TourBooking> findByHomestayBookingIdIn(List<Long> homestayBookingIds);
 }

@@ -11,5 +11,6 @@ import java.util.Optional;
 public interface TourBookingRepository extends JpaRepository<TourBooking,Long> {
     Optional<TourBooking> findByHomestayBookingId(Long homestayBookingId);
     List<TourBooking> findAllByHomestayBookingId(Long homestayBookingId);
+    List<TourBooking> findByHomestayBookingIdIn(List<Long> homestayBookingIds);
 
 }

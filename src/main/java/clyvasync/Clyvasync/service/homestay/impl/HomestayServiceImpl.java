@@ -217,4 +217,9 @@ public class HomestayServiceImpl implements HomestayService {
 
 
     }
+
+    @Override
+    public List<Homestay> findByIdIn(List<Long> ids) {
+        return  homestayRepository.findByIdIn(ids);
+    }
 }

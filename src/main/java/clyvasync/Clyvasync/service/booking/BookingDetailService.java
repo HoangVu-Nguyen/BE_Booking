@@ -14,4 +14,5 @@ public interface BookingDetailService {
     );
     BookingDetail save(BookingDetail bookingDetail);
     BookingDetail findBookingDetailByBookingId(Long bookingId);
+    List<BookingDetail> findByBookingIdIn(List<Long> bookingIds);
 }

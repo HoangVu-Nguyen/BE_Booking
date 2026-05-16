@@ -14,4 +14,5 @@ public interface BookingService {
     BookingInitResponse initBooking(BookingInitRequest request, Long userId);
     BookingDetailsResponse getBookingDetailsByCode(String bookingCode);
     Booking getBookingByCode(String bookingCode);
+    List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
 }

@@ -35,5 +35,5 @@ public interface TourRepository extends JpaRepository<Tour,Long> {
             @Param("checkOut") LocalDate checkOut
     );
 
-
+    List<Tour> findByIdIn(List<Long> ids);
 }

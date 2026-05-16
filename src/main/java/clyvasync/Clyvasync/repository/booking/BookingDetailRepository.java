@@ -25,4 +25,5 @@ public interface BookingDetailRepository extends JpaRepository <BookingDetail,Lo
             @Param("endOfMonth") LocalDate endOfMonth
     );
     Optional<BookingDetail> findBookingDetailByBookingId(Long bookingId);
+    List<BookingDetail> findByBookingIdIn(List<Long> bookingIds);
 }

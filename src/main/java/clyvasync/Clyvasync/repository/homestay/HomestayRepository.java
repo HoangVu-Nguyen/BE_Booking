@@ -16,6 +16,6 @@ import java.util.Optional;
 
 @Repository
 public interface HomestayRepository extends JpaRepository<Homestay, Long>, JpaSpecificationExecutor<Homestay> {
-
+    List<Homestay> findByIdIn(List<Long> ids);
 
 }

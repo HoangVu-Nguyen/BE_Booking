@@ -129,5 +129,10 @@ public class TourServiceImpl implements TourService {
     public List<Tour> findAllByIds(List<Long> tourIds) {
         return tourRepository.findAllById(tourIds);
     }
+
+    @Override
+    public List<Tour> findByIdIn(List<Long> ids) {
+        return tourRepository.findByIdIn(ids);
+    }
 }
 
