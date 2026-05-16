@@ -129,7 +129,7 @@ public class UserServiceImpl implements UserService {
             throw new AppException(ResultCode.USER_NOT_FOUND);
         }
 
-        UserNameProjection user = userRepository.findProjectedById(userId).orElse(null);
+        UserNameProjection user = userRepository.findProjectedById(userId).orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
 
         String username = (user != null) ? user.getUsername() : NameConstants.NAME_DEFAULT;
 
@@ -139,6 +139,9 @@ public class UserServiceImpl implements UserService {
                 .id(userId)
                 .username(username)
                 .photoUrl(photoResponse.getPhotoUrl())
+                .createdAt(user.getCreatedAt())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
                 .build();
     }
 //
