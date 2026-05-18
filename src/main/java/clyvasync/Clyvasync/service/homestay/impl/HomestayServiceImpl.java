@@ -54,6 +54,7 @@ public class HomestayServiceImpl implements HomestayService {
     private final TourService tourService;
     private final UserService userService;
     private final HomestayRoomService homestayRoomService;
+    private final FavoriteService favoriteService;
 
     @Override
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
@@ -209,6 +210,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .categoryName(categoryName)
                 .imageUrls(images)
                 .amenities(amenities)
+                .isFavorite(favoriteService.existsHomestayFavoriteByHomestayId(homestay.getId()))
                 .owner(userService.getOwnerInfo(homestay.getOwnerId()))
                 .reviews(reviews)
                 .tours(tourService.getAvailableToursForBookingDates(homestay.getId(), checkIn, checkOut))

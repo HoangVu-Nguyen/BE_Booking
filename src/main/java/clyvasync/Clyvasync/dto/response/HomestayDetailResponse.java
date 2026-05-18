@@ -42,4 +42,5 @@ public class HomestayDetailResponse {
     private List<ReviewResponse> reviews;
     private List<TourResponse>  tours;
     private List<RoomResponse> rooms;
+    private boolean isFavorite;
 }
