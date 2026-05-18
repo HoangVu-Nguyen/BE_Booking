@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.trip;
 
 
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.dto.response.TripDetailResponse;
 import clyvasync.Clyvasync.dto.response.TripResponse;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
@@ -32,5 +33,9 @@ public class TripController {
             @PathVariable String bookingCode, @CurrentUserId Long currentUserId) {
 
         return ApiResponse.success(tripService.getTripDetail(bookingCode, currentUserId));
+    }
+    @GetMapping("/past-trips")
+    public ApiResponse<List<PastTripResponse>> getPastTrips(@CurrentUserId Long currentUserId) {
+        return ApiResponse.success(tripService.getPastTrips(currentUserId));
     }
 }

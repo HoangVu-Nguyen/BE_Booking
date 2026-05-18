@@ -1,5 +1,7 @@
 package clyvasync.Clyvasync.repository.booking;
 
+import clyvasync.Clyvasync.dto.response.PastTripResponse;
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,4 +22,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findAllByStatusAndCreatedAtBefore(String status, OffsetDateTime createdAt);
     List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
     Optional<Booking> findByBookingCodeAndUserId(String bookingCode, Long currentUserId);
+    @Query("SELECT new clyvasync.Clyvasync.dto.response.PastTripResponse(" +
+            "b.id, b.bookingCode, h.name, img.imageUrl, loc.cityName, " +
+            "TO_CHAR(b.updatedAt, 'Month, YYYY'), h.averageRating, " +
+            "CASE WHEN r.id IS NOT NULL THEN 'REVIEWED' ELSE 'NOT_REVIEWED' END) " +
+            "FROM Booking b " +
+            "JOIN Homestay h ON b.homestayId = h.id " +
+            "LEFT JOIN HomestayImage img ON h.id = img.homestayId AND img.isPrimary = true " +
+            "LEFT JOIN Location loc ON h.locationId = loc.id " +
+            "LEFT JOIN Review r ON b.id = r.bookingId " +
+            "WHERE b.userId = :userId AND b.status = 'COMPLETED' " +
+            "ORDER BY b.updatedAt DESC")
+    List<PastTripResponse> findPastTripsByUserId(@Param("userId") Long userId);
+    List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, String status);
 }

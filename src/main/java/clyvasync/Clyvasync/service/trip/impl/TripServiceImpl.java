@@ -9,10 +9,7 @@ import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
-import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
-import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
-import clyvasync.Clyvasync.modules.homestay.entity.HomestayPolicy;
-import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
+import clyvasync.Clyvasync.modules.homestay.entity.*;
 import clyvasync.Clyvasync.modules.tour.entity.Tour;
 import clyvasync.Clyvasync.modules.tour.entity.TourAvailability;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
@@ -20,10 +17,7 @@ import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
-import clyvasync.Clyvasync.service.homestay.HomestayImageService;
-import clyvasync.Clyvasync.service.homestay.HomestayPolicyService;
-import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
-import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.homestay.*;
 import clyvasync.Clyvasync.service.tour.TourAvailabilityService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.tour.TourImageService;
@@ -33,12 +27,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -57,6 +50,7 @@ public class TripServiceImpl implements TripService {
     private final HomestayRoomService homestayRoomService;
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
     private final HomestayPolicyService homestayPolicyService;
+    private final LocationService locationService;
 
 
     @Override
@@ -299,6 +293,76 @@ public class TripServiceImpl implements TripService {
                 .rooms(roomsBooked)
                 .tours(toursBooked)
                 .build();
+    }
+
+    @Override
+    public List<PastTripResponse> getPastTrips(Long userId) {
+        log.info("[TRIP SERVICE] Fetching real completed trips for user ID: {}", userId);
+
+        List<Booking> completedBookings = bookingService.findAllByUserIdAndStatusOrderByUpdatedAtDesc(userId, BookingStatus.CONFIRMED);
+
+        if (completedBookings.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> homestayIds = completedBookings.stream()
+                .map(Booking::getHomestayId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, Homestay> homestayMap = homestayService.findByIdIn(homestayIds).stream()
+                .collect(Collectors.toMap(Homestay::getId, homestay -> homestay));
+
+        List<Integer> locationIds = homestayMap.values().stream()
+                .map(Homestay::getLocationId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Integer, Location> locationMap = locationService.findAllByIds(locationIds).stream()
+                .collect(Collectors.toMap(Location::getId, location -> location));
+
+        // 5. Bốc tất cả ảnh đại diện (Primary Image) của danh sách Homestay này
+        Map<Long, String> primaryImageMap = homestayImageService.findAllByIds(homestayIds).stream()
+                .collect(Collectors.toMap(HomestayImage::getHomestayId, HomestayImage::getImageUrl, (existing, replacement) -> existing));
+
+        // 6. Định dạng thời gian hiển thị: "Tháng MM, yyyy"
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("'Tháng' MM, yyyy", new Locale("vi", "VN"));
+
+        // 7. Tiến hành map dữ liệu sạch không tì vết chân thực từ DB
+        return completedBookings.stream().map(booking -> {
+            // Trích xuất thông tin từ Map In-Memory
+            Homestay homestay = homestayMap.get(booking.getHomestayId());
+            String homestayName = (homestay != null) ? homestay.getName() : "Unknown Property";
+            BigDecimal rating = (homestay != null) ? homestay.getAverageRating() : BigDecimal.ZERO;
+
+            String imageUrl = primaryImageMap.getOrDefault(booking.getHomestayId(), "assets/images/default-thumbnail.jpg");
+
+            String locationName = "Vietnam";
+            if (homestay != null && homestay.getLocationId() != null) {
+                Location loc = locationMap.get(homestay.getLocationId());
+                if (loc != null) {
+                    locationName = loc.getCityName();
+                }
+            }
+
+            String formattedDate = booking.getUpdatedAt() != null
+                    ? booking.getUpdatedAt().format(formatter)
+                    : "Just now";
+
+            String tripReviewStatus = (rating.compareTo(BigDecimal.valueOf(4.8)) >= 0) ? "EXCELLENT" : "GOOD";
+
+            return PastTripResponse.builder()
+                    .bookingId(booking.getId())
+                    .bookingCode(booking.getBookingCode())
+                    .homestayName(homestayName)
+                    .primaryImageUrl(imageUrl)
+                    .locationName(locationName)
+                    .completedMonthYear(formattedDate)
+                    .averageRating(rating)
+                    .tripReviewStatus(tripReviewStatus)
+                    .build();
+        }).collect(Collectors.toList());
     }
 }
 

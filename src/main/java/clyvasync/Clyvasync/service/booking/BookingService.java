@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.booking;
 import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
 import clyvasync.Clyvasync.dto.response.BookingInitResponse;
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 
 import java.time.LocalDate;
@@ -16,4 +17,5 @@ public interface BookingService {
     Booking getBookingByCode(String bookingCode);
     List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
     Booking findByBookingCodeAndUserId(String bookingCode, Long currentUserId);
+    List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, BookingStatus status);
 }

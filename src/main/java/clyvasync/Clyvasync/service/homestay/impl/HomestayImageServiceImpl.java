@@ -41,4 +41,9 @@ public class HomestayImageServiceImpl implements HomestayImageService {
     public List<HomestayImage> findByHomestayId(Long homestayId) {
         return homestayImageRepository.findByHomestayId(homestayId);
     }
+
+    @Override
+    public List<HomestayImage> findAllByIds(List<Long> homestayIds) {
+        return homestayImageRepository.findAllByHomestayIdIn(homestayIds);
+    }
 }

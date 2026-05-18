@@ -316,6 +316,11 @@ public class BookingServiceImpl implements BookingService {
         return bookingRepository.findByBookingCodeAndUserId(bookingCode,currentUserId).orElseThrow(()-> new AppException(ResultCode.BOOKING_NOT_FOUND));
     }
 
+    @Override
+    public List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, BookingStatus status) {
+        return bookingRepository.findAllByUserIdAndStatusOrderByUpdatedAtDesc(userId,status.name());
+    }
+
     // Hàm phụ để code nhìn gọn hơn
     private PolicyDetail mapToPolicyDto(HomestayPolicy policy) {
         return PolicyDetail.builder()

@@ -22,4 +22,9 @@ public class LocationServiceImpl implements LocationService {
         return locationRepository.findAllByIdIn(locationIds).stream()
                 .collect(Collectors.toMap(Location::getId, Location::getCityName));
     }
+
+    @Override
+    public List<Location> findAllByIds(List<Integer> ids) {
+        return locationRepository.findAllByIdIn(ids);
+    }
 }
