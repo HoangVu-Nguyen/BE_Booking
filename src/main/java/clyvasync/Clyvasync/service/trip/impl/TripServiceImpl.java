@@ -11,6 +11,7 @@ import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
+import clyvasync.Clyvasync.modules.homestay.entity.HomestayPolicy;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.tour.entity.Tour;
 import clyvasync.Clyvasync.modules.tour.entity.TourAvailability;
@@ -20,6 +21,7 @@ import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.HomestayImageService;
+import clyvasync.Clyvasync.service.homestay.HomestayPolicyService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.tour.TourAvailabilityService;
@@ -54,6 +56,7 @@ public class TripServiceImpl implements TripService {
     private final UserService userService;
     private final HomestayRoomService homestayRoomService;
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+    private final HomestayPolicyService homestayPolicyService;
 
 
     @Override
@@ -200,6 +203,22 @@ public class TripServiceImpl implements TripService {
             }
         }
         HomestayResponse homestay = homestayService.getById(booking.getHomestayId());
+        HomestayPolicy policy = homestayPolicyService.getHomestayPolicyByHomestayId(booking.getHomestayId());
+        BookingPolicyResponse policyResponse = null;
+        if (policy != null) {
+            policyResponse = BookingPolicyResponse.builder()
+                    .checkInTime(policy.getCheckInTime() != null ? policy.getCheckInTime().toString().substring(0, 5) : "14:00")
+                    .checkOutTime(policy.getCheckOutTime() != null ? policy.getCheckOutTime().toString().substring(0, 5) : "12:00")
+                    .allowsPets(policy.getAllowsPets() != null ? policy.getAllowsPets() : false)
+                    .allowsSmoking(policy.getAllowsSmoking() != null ? policy.getAllowsSmoking() : false)
+                    .allowsParties(policy.getAllowsParties() != null ? policy.getAllowsParties() : false)
+                    .build();
+        } else {
+            policyResponse = BookingPolicyResponse.builder()
+                    .checkInTime("14:00").checkOutTime("12:00")
+                    .allowsPets(false).allowsSmoking(false).allowsParties(false)
+                    .build();
+        }
         List<String> propertyImages = homestayImageService.findByHomestayId(booking.getHomestayId()).stream()
                 .sorted((a, b) -> Integer.compare(a.getDisplayOrder(), b.getDisplayOrder()))
                 .map(HomestayImage::getImageUrl)
@@ -276,6 +295,7 @@ public class TripServiceImpl implements TripService {
                 .paymentMethod("Chuyển khoản / Cổng thanh toán")
                 .property(propertyInfo)
                 .host(ownerResponse)
+                .policy(policyResponse)
                 .rooms(roomsBooked)
                 .tours(toursBooked)
                 .build();

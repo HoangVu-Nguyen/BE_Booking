@@ -8,6 +8,9 @@ import clyvasync.Clyvasync.service.homestay.HomestayPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class HomestayPolicyServiceImpl implements HomestayPolicyService {
@@ -15,5 +18,10 @@ public class HomestayPolicyServiceImpl implements HomestayPolicyService {
     @Override
     public HomestayPolicy getHomestayPolicyByHomestayId(Long homestayId) {
         return homestayPolicyRepository.findByHomestayId(homestayId).orElse(new HomestayPolicy());
+    }
+
+    @Override
+    public List<HomestayPolicy> findAllByHomestayId(Long homestayId) {
+        return homestayPolicyRepository.findAllByHomestayId(homestayId);
     }
 }

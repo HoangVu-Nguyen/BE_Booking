@@ -36,4 +36,5 @@ public class TripDetailResponse {
     private List<RoomBookedInfo> rooms;
 
     private List<TourTimelineInfo> tours;
+    private BookingPolicyResponse policy;
 }
