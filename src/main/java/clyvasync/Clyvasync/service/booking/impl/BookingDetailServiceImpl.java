@@ -36,4 +36,9 @@ public class BookingDetailServiceImpl implements BookingDetailService {
         return bookingDetailRepository.findByBookingIdIn(bookingIds);
     }
 
+    @Override
+    public List<BookingDetail> findAllByBookingId(Long bookingId) {
+        return bookingDetailRepository.findByBookingId(bookingId);
+    }
+
 }

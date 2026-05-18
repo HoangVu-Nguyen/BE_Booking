@@ -127,4 +127,9 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     public HomestayRoom getRoomById(Long roomId) {
         return roomRepository.findById(roomId).orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
     }
+
+    @Override
+    public List<HomestayRoom> findByIdIn(List<Long> roomIds) {
+        return roomRepository.findByIdIn(roomIds);
+    }
 }

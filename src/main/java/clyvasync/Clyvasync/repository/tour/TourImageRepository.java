@@ -31,4 +31,7 @@ public interface TourImageRepository extends JpaRepository<TourImage,Long> {
                         TourImageProjection::getImageUrl,
                         (existing, replacement) -> existing
                 ));
-    }    }
+
+    }
+    List<TourImage> findByTourIdIn(List<Long> tourIds);
+}

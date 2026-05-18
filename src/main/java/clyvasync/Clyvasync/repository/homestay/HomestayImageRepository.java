@@ -10,4 +10,5 @@ public interface HomestayImageRepository extends JpaRepository<HomestayImage,Lon
     List<HomestayImage> findAllByHomestayIdIn(List<Long> homestayIds);
     List<HomestayImage> findByHomestayIdInOrderByDisplayOrderAsc(List<Long> homestayIds);
     List<HomestayImage> findByHomestayIdOrderByDisplayOrderAsc(Long homestayId);
+    List<HomestayImage> findByHomestayId(Long homestayId);
 }

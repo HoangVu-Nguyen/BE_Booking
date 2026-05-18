@@ -58,4 +58,9 @@ public class TourImageServiceImpl implements TourImageService {
     public Map<Long, String> getPrimaryImagesByTourIds(List<Long> tourIds) {
         return tourImageRepository.getPrimaryImagesByTourIds(tourIds);
     }
+
+    @Override
+    public List<TourImage> findByTourIdIn(List<Long> tourIds) {
+        return tourImageRepository.findByTourIdIn(tourIds);
+    }
 }

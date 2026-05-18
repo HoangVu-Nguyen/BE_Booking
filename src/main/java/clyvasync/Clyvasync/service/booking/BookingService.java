@@ -15,4 +15,5 @@ public interface BookingService {
     BookingDetailsResponse getBookingDetailsByCode(String bookingCode);
     Booking getBookingByCode(String bookingCode);
     List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
+    Booking findByBookingCodeAndUserId(String bookingCode, Long currentUserId);
 }

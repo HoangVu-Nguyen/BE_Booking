@@ -36,4 +36,9 @@ public class HomestayImageServiceImpl implements HomestayImageService {
         return homestayImageRepository.findByHomestayIdOrderByDisplayOrderAsc(homestayId)
                 .stream().map(HomestayImage::getImageUrl).toList();
     }
+
+    @Override
+    public List<HomestayImage> findByHomestayId(Long homestayId) {
+        return homestayImageRepository.findByHomestayId(homestayId);
+    }
 }
