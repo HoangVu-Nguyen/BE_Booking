@@ -9,5 +9,6 @@ public record RoomTimelineResponse(
         Long roomId,
         String roomName,
         List<DailyStatusResponse> dailyStatuses, // Dành cho việc hiển thị giá từng ngày
-        List<BookingBlockResponse> bookings      // Dành cho các cục đen đen (khách đặt)
+        List<BookingBlockResponse> bookings ,     // Dành cho các cục đen đen (khách đặt)
+        String imageUrl
 ) {}
