@@ -2,8 +2,10 @@ package clyvasync.Clyvasync.service.homestay;
 
 
 
+import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
+import clyvasync.Clyvasync.dto.response.GlobalSearchResponse;
 import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
@@ -36,4 +38,5 @@ public interface HomestayService {
     void updateAverageRating(Long id, BigDecimal newRating);
     HomestayDetailResponse getHomestayDetail(Long currentUserId, Long id, LocalDate checkIn, LocalDate checkOut, Integer guests);
     List<Homestay> findByIdIn(List<Long> ids);
+    List<GlobalSearchResponse> cinematicSearch(GlobalSearchRequest request);
 }

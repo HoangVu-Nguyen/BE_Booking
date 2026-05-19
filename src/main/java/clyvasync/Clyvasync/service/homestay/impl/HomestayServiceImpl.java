@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
+import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.*;
@@ -13,17 +14,24 @@ import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
 import clyvasync.Clyvasync.modules.homestay.entity.Location;
+import clyvasync.Clyvasync.modules.tour.entity.Tour;
+import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
+import clyvasync.Clyvasync.repository.tour.TourRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.*;
+import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
+import clyvasync.Clyvasync.spec.HomestaySearchSpec;
+import clyvasync.Clyvasync.spec.TourSearchSpec;
 import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,13 +39,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -55,6 +61,7 @@ public class HomestayServiceImpl implements HomestayService {
     private final UserService userService;
     private final HomestayRoomService homestayRoomService;
     private final FavoriteService favoriteService;
+    private final TourImageService tourImageService;
 
     @Override
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
@@ -78,70 +85,131 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     public Page<HomestayResponse> searchHomestays(HomestaySearchRequest filters, Pageable pageable) {
-        log.info("Searching homestays with filters: {}", filters);
+        log.info("[SEARCH V2] Searching homestays with cinematic filters: {}", filters);
 
         Specification<Homestay> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. Lọc theo Thành phố (Dùng Subquery vì là ID phẳng)
+            // 1. TÌM KIẾM TỪ KHÓA (Gần đúng, không phân biệt hoa thường)
             if (StringUtils.hasText(filters.city())) {
+                // Mẹo Postgres: Nếu DB bác có cài EXTENSION unaccent, bác có thể đổi cb.lower thành:
+                // cb.lower(cb.function("unaccent", String.class, ...)) để tìm tiếng Việt không dấu siêu chuẩn.
+                String searchPattern = "%" + filters.city().trim().toLowerCase() + "%";
+
+                // 1.1 Tìm trong tên Thành phố (Location Subquery)
                 Subquery<Integer> locationSubquery = query.subquery(Integer.class);
                 Root<Location> locationRoot = locationSubquery.from(Location.class);
                 locationSubquery.select(locationRoot.get("id"));
-
                 Predicate cityMatch = cb.or(
-                        cb.like(cb.lower(locationRoot.get("cityName")), "%" + filters.city().toLowerCase() + "%"),
+                        cb.like(cb.lower(locationRoot.get("cityName")), searchPattern),
                         cb.equal(locationRoot.get("slug"), filters.city())
                 );
                 locationSubquery.where(cityMatch);
+                Predicate matchLocation = root.get("locationId").in(locationSubquery);
 
-                predicates.add(cb.in(root.get("locationId")).value(locationSubquery));
+                // 1.2 Tìm trực tiếp trong tên Homestay
+                Predicate matchName = cb.like(
+                        cb.lower(cb.function("unaccent", String.class, root.get("name"))),
+                        cb.function("unaccent", String.class, cb.literal(searchPattern))
+                );
+
+                // Gộp lại: Có trong Tên HOẶC Có trong Thành phố đều lấy
+                predicates.add(cb.or(matchName, matchLocation));
             }
 
-            // 4. Lọc theo Rating (Check null trong Entity trước khi dùng)
-            if (filters.minRating() != null) {
+            // 2. LỌC THEO GIÁ (Ngân sách)
+            if (filters.minPrice() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("basePrice"), filters.minPrice()));
+            }
+            if (filters.maxPrice() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("basePrice"), filters.maxPrice()));
+            }
+
+            // 3. QUY MÔ (Số khách & Phòng ngủ) - Chỉ lọc nếu > 0
+            if (filters.guests() != null && filters.guests() > 0) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("maxGuests"), filters.guests()));
+            }
+            if (filters.bedrooms() != null && filters.bedrooms() > 0) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("numBedrooms"), filters.bedrooms()));
+            }
+
+            // 4. LỌC THEO SỐ SAO (Rating)
+            if (filters.minRating() != null && filters.minRating() > 0) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("averageRating"), filters.minRating()));
             }
 
-            // 5. Lọc theo CategoryId (ID phẳng)
+            // 5. LỌC CATEGORY (Tour hay Homestay)
             if (filters.categoryId() != null) {
                 predicates.add(cb.equal(root.get("categoryId"), filters.categoryId()));
             }
 
-            // 6. Luôn lọc bỏ những căn đã bị xóa mềm
-            predicates.add(cb.isNull(root.get("deletedAt")));
+            // 6. LỌC TIỆN ÍCH (Yêu cầu phải có TẤT CẢ các tiện ích được chọn)
+            if (filters.amenityIds() != null && !filters.amenityIds().isEmpty()) {
+                // Tùy vào cách cấu hình Entity của bác:
+                // CÁCH 1 (Dễ nhất): Nếu trong entity Homestay bác có @ManyToMany List<Amenity> amenities
+            /*
+            for (Integer amId : filters.amenityIds()) {
+                predicates.add(cb.isMember(amId, root.get("amenities"))); // Hibernate tự JOIN bảng phụ
+            }
+            */
 
-            // 7. FIX LỖI ENUM: So sánh Object Enum với Object Enum
+                // CÁCH 2: Nếu bác lưu Array List Integer thẳng vào PostgreSQL (Cột JSONB hoặc INT[])
+            for (Integer amId : filters.amenityIds()) {
+                predicates.add(cb.isTrue(cb.function("jsonb_contains", Boolean.class, root.get("amenityIds"), cb.literal(amId.toString()))));
+            }
+
+
+                // Note: Bác mở comment cách nào phù hợp với kiến trúc Entity của bác nhé!
+            }
+
+            // 7. FIX CỨNG: Trạng thái hiển thị
+            predicates.add(cb.isNull(root.get("deletedAt")));
             predicates.add(cb.equal(root.get("status"), HomestayStatus.AVAILABLE));
 
+            // Nếu query.where() chưa được gọi, JPA tự hiểu là lấy danh sách các Predicate này nối với nhau bằng AND
             return cb.and(predicates.toArray(new Predicate[0]));
         };
+
+        // THỰC THI QUERY ĐỘNG TỚI DB
         Page<Homestay> homestayPage = homestayRepository.findAll(spec, pageable);
         List<Homestay> homestays = homestayPage.getContent();
+
+        if (homestays.isEmpty()) {
+            return Page.empty(pageable); // Thoát sớm nếu không tìm thấy, tránh chạy code thừa
+        }
+
+        // =========================================================================
+        // ĐOẠN DƯỚI NÀY LÀ TUYỆT KỸ BÁC VŨ ĐÃ VIẾT ĐỂ CHỐNG N+1 QUERY (Giữ nguyên)
+        // =========================================================================
         List<Long> ids = homestays.stream().map(Homestay::getId).toList();
         List<Integer> locationIds = homestays.stream().map(Homestay::getLocationId).distinct().toList();
         List<Integer> categoryIds = homestays.stream().map(Homestay::getCategoryId).distinct().toList();
+
         List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(ids);
         Map<Long, HomestayRoomSummary> roomSummaryMap = summaries.stream()
                 .collect(Collectors.toMap(HomestayRoomSummary::getHomestayId, s -> s));
+
         Map<Long, List<AmenityResponse>> amenitiesMap = amenityService.getAmenitiesForHomestays(ids);
         Map<Long, List<String>> imagesMap = homestayImageService.getImagesForHomestays(ids);
         Map<Integer, String> locationsMap = locationService.getLocationNamesMap(locationIds);
         Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(categoryIds);
 
+        // MAPPING SANG DTO
         return homestayPage.map(entity -> {
             HomestayResponse response = homestayMapper.toResponse(entity);
             response.setImageUrls(imagesMap.getOrDefault(entity.getId(), List.of()));
             response.setCityName(locationsMap.get(entity.getLocationId()));
             response.setCategoryName(categoriesMap.get(entity.getCategoryId()));
             response.setAmenities(amenitiesMap.getOrDefault(entity.getId(), List.of()));
+
             response.setAverageRating(BigDecimal.valueOf(entity.getAverageRating() != null ? entity.getAverageRating().doubleValue() : 0.0));
+
             HomestayRoomSummary summary = roomSummaryMap.get(entity.getId());
             if (summary != null) {
                 response.setBasePrice(summary.getMinPrice());
                 response.setMaxGuests(summary.getMaxGuestsInRoom());
                 response.setNumBedrooms(summary.getTotalRooms());
-                response.setNumBathrooms(summary.getTotalRooms());
+                response.setNumBathrooms(summary.getTotalRooms()); // Tạm dùng chung theo logic cũ của bác
             } else {
                 response.setBasePrice(BigDecimal.ZERO);
                 response.setMaxGuests(0);
@@ -149,9 +217,7 @@ public class HomestayServiceImpl implements HomestayService {
             }
             return response;
         });
-
     }
-
 
     @Override
     public List<HomestayResponse> getByOwnerId(Long ownerId) {
@@ -223,5 +289,73 @@ public class HomestayServiceImpl implements HomestayService {
     @Override
     public List<Homestay> findByIdIn(List<Long> ids) {
         return  homestayRepository.findByIdIn(ids);
+    }
+
+    @Override
+    public List<GlobalSearchResponse> cinematicSearch(GlobalSearchRequest request) {
+        log.info("[GLOBAL SEARCH] Triggered with keyword: {}", request.keyword());
+        List<GlobalSearchResponse> unifiedResults = new ArrayList<>();
+        String category = request.category() != null ? request.category().toUpperCase() : "ALL";
+
+        // 1. TÌM VÀ MAP HOMESTAY
+        if (category.equals("ALL") || category.equals("HOMESTAY")) {
+            List<Homestay> homestays = homestayRepository.findAll(HomestaySearchSpec.buildGlobalSpec(request), PageRequest.of(0, 20)).getContent();
+            System.out.println(homestays.size());
+            unifiedResults.addAll(mapHomestaysToResponse(homestays));
+        }
+
+        // 2. TÌM VÀ MAP TOUR
+        if (category.equals("ALL") || category.equals("TOUR")) {
+            List<Tour> tours = tourService.findAll(TourSearchSpec.buildGlobalSpec(request), PageRequest.of(0, 20)).getContent();
+            unifiedResults.addAll(mapToursToResponse(tours));
+        }
+
+        // 3. MIX & SORT: Ưu tiên Rating cao nhất
+        unifiedResults.sort(Comparator.comparing(GlobalSearchResponse::rating, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        return unifiedResults;
+    }
+
+    private List<GlobalSearchResponse> mapHomestaysToResponse(List<Homestay> homestays) {
+        if (homestays.isEmpty()) return List.of();
+
+        List<Long> ids = homestays.stream().map(Homestay::getId).toList();
+        var roomMap = homestayRoomService.getRoomSummaries(ids).stream()
+                .collect(Collectors.toMap(s -> s.getHomestayId(), s -> s));
+        var imagesMap = homestayImageService.getImagesForHomestays(ids);
+        var locationIds = homestays.stream().map(Homestay::getLocationId).distinct().toList();
+        var locationsMap = locationService.getLocationNamesMap(locationIds);
+
+        return homestays.stream().map(h -> {
+            var room = roomMap.get(h.getId());
+            return new GlobalSearchResponse(
+                    h.getId(), h.getName(),
+                    locationsMap.get(h.getLocationId()),
+                    room != null ? room.getMinPrice() : BigDecimal.ZERO,
+                    imagesMap.getOrDefault(h.getId(), List.of()),
+                    "HOMESTAY",
+                    h.getAverageRating() != null ? h.getAverageRating().doubleValue() : 0.0,
+                    room != null ? room.getMaxGuestsInRoom() : 0,
+                    room != null ? room.getTotalRooms() : 0
+            );
+        }).toList();
+    }
+
+    private List<GlobalSearchResponse> mapToursToResponse(List<Tour> tours) {
+        if (tours.isEmpty()) return List.of();
+
+        List<Long> ids = tours.stream().map(Tour::getId).toList();
+        var imagesMap = tourImageService.getImagesForTours(ids);
+
+        return tours.stream().map(t -> new GlobalSearchResponse(
+                t.getId(), t.getName(),
+                t.getLocationDetail(), // Tour lấy trực tiếp từ location_detail
+                t.getPricePerPerson(),
+                imagesMap.getOrDefault(t.getId(), List.of()),
+                "TOUR",
+                5.0, // Tạm fix 5 sao hoặc lấy từ bảng tour review nếu bác có
+                t.getMaxParticipants(),
+                0 // Tour không có bedrooms
+        )).toList();
     }
 }

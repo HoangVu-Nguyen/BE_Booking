@@ -33,17 +33,10 @@ public class HomestayController {
 
     @GetMapping("/search")
     public ApiResponse<Page<HomestayResponse>> searchHomestays(
-            @RequestParam(required = false) String city,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice,
-            @RequestParam(required = false) Integer guests,
-            @RequestParam(required = false) Double minRating,
-            @RequestParam(required = false) Long categoryId,
+            HomestaySearchRequest filters,
+
             @PageableDefault(size = 10, sort = "averageRating", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        HomestaySearchRequest filters = new HomestaySearchRequest(
-                city, minPrice, maxPrice, guests, minRating, null, categoryId
-        );
 
         Page<HomestayResponse> result = homestayService.searchHomestays(filters, pageable);
 

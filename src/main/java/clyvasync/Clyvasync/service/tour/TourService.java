@@ -8,6 +8,8 @@ import clyvasync.Clyvasync.enums.type.TourStatus;
 import clyvasync.Clyvasync.modules.tour.entity.Tour;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.lang.Nullable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -36,4 +38,5 @@ public interface TourService {
     Tour findTourById(Long tourId);
     List<Tour> findAllByIds(List<Long> tourIds);
     List<Tour> findByIdIn(List<Long> ids);
+    Page<Tour> findAll(@Nullable Specification<Tour> spec, Pageable pageable);
 }
