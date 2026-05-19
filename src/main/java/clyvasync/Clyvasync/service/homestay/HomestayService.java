@@ -5,9 +5,7 @@ package clyvasync.Clyvasync.service.homestay;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
-import clyvasync.Clyvasync.dto.response.GlobalSearchResponse;
-import clyvasync.Clyvasync.dto.response.HomestayDetailResponse;
-import clyvasync.Clyvasync.dto.response.HomestayResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +14,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+
 @Service
 public interface HomestayService {
 
@@ -39,4 +39,8 @@ public interface HomestayService {
     HomestayDetailResponse getHomestayDetail(Long currentUserId, Long id, LocalDate checkIn, LocalDate checkOut, Integer guests);
     List<Homestay> findByIdIn(List<Long> ids);
     List<GlobalSearchResponse> cinematicSearch(GlobalSearchRequest request);
+    Homestay findById(Long id);
+    HomestayTimelineResponse getHomestayTimeline(Long homestayId, LocalDate startDate, LocalDate endDate);
+    Map<Long, HomestayTimelineResponse> getBatchTimeline(List<Long> homestayIds, LocalDate startDate, LocalDate endDate);
+    PortfolioTimelineResponse getOwnerPortfolioTimeline(Long ownerId, int month, int year);
 }

@@ -54,4 +54,5 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
 
     List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, RoomStatus status);
     List<HomestayRoom> findByIdIn(List<Long> ids);
+    List<HomestayRoom> findAllByHomestayIdIn(List<Long> homestayIds);
 }

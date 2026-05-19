@@ -45,4 +45,10 @@ public interface RoomCalendarRepository extends JpaRepository<RoomCalendar, Long
     List<LocalDate> findUnavailableDates(@Param("roomId") Long roomId,
                                          @Param("start") LocalDate start,
                                          @Param("end") LocalDate end);
+    @Query("SELECT c FROM RoomCalendar c WHERE c.roomId IN :roomIds AND c.nightDate >= :startDate AND c.nightDate <= :endDate")
+    List<RoomCalendar> findCalendarsByRoomIdsAndDateRange(
+            @Param("roomIds") List<Long> roomIds,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 }

@@ -15,4 +15,6 @@ public interface HomestayRoomService {
     List<HomestayRoomSummary> getRoomSummaries( List<Long> homestayIds);
     HomestayRoom getRoomById(Long roomId);
     List<HomestayRoom> findByIdIn(List<Long> roomIds);
+    List<HomestayRoom> findAllById(Long homestayId);
+    List<HomestayRoom> findAllByIdIn(List<Long> homestayIds);
 }

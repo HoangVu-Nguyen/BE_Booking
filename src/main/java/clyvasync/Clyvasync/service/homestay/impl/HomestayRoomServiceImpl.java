@@ -132,4 +132,14 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     public List<HomestayRoom> findByIdIn(List<Long> roomIds) {
         return roomRepository.findByIdIn(roomIds);
     }
+
+    @Override
+    public List<HomestayRoom> findAllById(Long homestayId) {
+        return roomRepository.findById(homestayId).stream().toList();
+    }
+
+    @Override
+    public List<HomestayRoom> findAllByIdIn(List<Long> homestayIds) {
+        return roomRepository.findAllByHomestayIdIn(homestayIds);
+    }
 }

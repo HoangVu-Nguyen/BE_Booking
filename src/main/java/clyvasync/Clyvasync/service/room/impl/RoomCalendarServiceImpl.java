@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.room.impl;
 
+import clyvasync.Clyvasync.modules.room.RoomCalendar;
 import clyvasync.Clyvasync.repository.room.RoomCalendarRepository;
 import clyvasync.Clyvasync.service.room.RoomCalendarService;
 import lombok.RequiredArgsConstructor;
@@ -29,5 +30,10 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         LocalDate startOfMonth = yearMonth.atDay(1);
         LocalDate endOfMonth = yearMonth.atEndOfMonth();
         return roomCalendarRepository.findUnavailableDates(roomId, startOfMonth, endOfMonth);
+    }
+
+    @Override
+    public List<RoomCalendar> findCalendarsByRoomIdsAndDateRange(List<Long> roomIds, LocalDate startDate, LocalDate endDate) {
+        return roomCalendarRepository.findCalendarsByRoomIdsAndDateRange(roomIds, startDate, endDate);
     }
 }

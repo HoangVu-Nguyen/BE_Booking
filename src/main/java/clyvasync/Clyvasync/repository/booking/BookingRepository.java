@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.booking;
 
+import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
@@ -35,4 +36,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "ORDER BY b.updatedAt DESC")
     List<PastTripResponse> findPastTripsByUserId(@Param("userId") Long userId);
     List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, String status);
+    @Query("SELECT new clyvasync.Clyvasync.dto.projection.BookingTimelineProjection(" +
+            "bd.roomId, b.id, b.guestName, bd.checkInDate, bd.checkOutDate, b.status) " +
+            "FROM BookingDetail bd, Booking b " +
+            "WHERE bd.bookingId = b.id " +
+            "AND bd.roomId IN :roomIds " +
+            "AND b.status NOT IN ('CANCELLED', 'REJECTED') " +
+            "AND bd.checkInDate <= :endDate AND bd.checkOutDate >= :startDate")
+    List<BookingTimelineProjection> findOverlappingBookings(
+            @Param("roomIds") List<Long> roomIds,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
 }

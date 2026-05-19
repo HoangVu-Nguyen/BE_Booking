@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
+import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
@@ -13,7 +14,9 @@ import clyvasync.Clyvasync.mapper.homestay.HomestayMapper;
 import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
+import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.homestay.entity.Location;
+import clyvasync.Clyvasync.modules.room.RoomCalendar;
 import clyvasync.Clyvasync.modules.tour.entity.Tour;
 import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
@@ -21,8 +24,10 @@ import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
 import clyvasync.Clyvasync.repository.tour.TourRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.*;
+import clyvasync.Clyvasync.service.room.RoomCalendarService;
 import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import clyvasync.Clyvasync.spec.HomestaySearchSpec;
@@ -62,6 +67,8 @@ public class HomestayServiceImpl implements HomestayService {
     private final HomestayRoomService homestayRoomService;
     private final FavoriteService favoriteService;
     private final TourImageService tourImageService;
+    private final RoomCalendarService roomCalendarService;
+    private final BookingDetailService bookingDetailService;
 
     @Override
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
@@ -221,7 +228,46 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     public List<HomestayResponse> getByOwnerId(Long ownerId) {
-        return List.of();
+        // 1. Lấy danh sách Homestay của đúng Host đó
+        List<Homestay> homestays = homestayRepository.findAllByOwnerId(ownerId);
+        List<Long> ids = homestays.stream().map(Homestay::getId).toList();
+        List<Integer> locationIds = homestays.stream().map(Homestay::getLocationId).distinct().toList();
+        List<Integer> categoryIds = homestays.stream().map(Homestay::getCategoryId).distinct().toList();
+
+        List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(ids);
+        Map<Long, HomestayRoomSummary> roomSummaryMap = summaries.stream()
+                .collect(Collectors.toMap(HomestayRoomSummary::getHomestayId, s -> s));
+
+        Map<Long, List<AmenityResponse>> amenitiesMap = amenityService.getAmenitiesForHomestays(ids);
+        Map<Long, List<String>> imagesMap = homestayImageService.getImagesForHomestays(ids);
+        Map<Integer, String> locationsMap = locationService.getLocationNamesMap(locationIds);
+        Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(categoryIds);
+
+        // MAPPING SANG DTO
+        return homestays.stream().map(entity -> {
+            HomestayResponse response = homestayMapper.toResponse(entity);
+            response.setImageUrls(imagesMap.getOrDefault(entity.getId(), List.of()));
+            response.setCityName(locationsMap.get(entity.getLocationId()));
+            response.setCategoryName(categoriesMap.get(entity.getCategoryId()));
+            response.setAmenities(amenitiesMap.getOrDefault(entity.getId(), List.of()));
+
+            response.setAverageRating(BigDecimal.valueOf(entity.getAverageRating() != null ? entity.getAverageRating().doubleValue() : 0.0));
+
+            HomestayRoomSummary summary = roomSummaryMap.get(entity.getId());
+            if (summary != null) {
+                response.setBasePrice(summary.getMinPrice());
+                response.setMaxGuests(summary.getMaxGuestsInRoom());
+                response.setNumBedrooms(summary.getTotalRooms());
+                response.setNumBathrooms(summary.getTotalRooms());
+            } else {
+                response.setBasePrice(BigDecimal.ZERO);
+                response.setMaxGuests(0);
+                response.setNumBedrooms(0);
+            }
+            return response;
+        }).toList();
+
+
     }
 
     @Override
@@ -316,6 +362,140 @@ public class HomestayServiceImpl implements HomestayService {
         return unifiedResults;
     }
 
+    @Override
+    public Homestay findById(Long id) {
+        return homestayRepository.findById(id).orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+    }
+
+    @Override
+    public HomestayTimelineResponse getHomestayTimeline(Long homestayId, LocalDate startDate, LocalDate endDate) {
+        List<HomestayRoom> rooms = homestayRoomService.findAllById(homestayId);
+        List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
+        if (roomIds.isEmpty()) {
+            return new HomestayTimelineResponse(homestayId, startDate, endDate, List.of());
+        }
+        List<RoomCalendar> calendars = roomCalendarService.findCalendarsByRoomIdsAndDateRange(roomIds, startDate, endDate);
+        List<BookingTimelineProjection> bookings = bookingDetailService.findOverlappingBookings(roomIds, startDate, endDate);
+        Map<Long, List<RoomCalendar>> calendarMap = calendars.stream()
+                .collect(Collectors.groupingBy(RoomCalendar::getRoomId));
+
+        Map<Long, List<BookingTimelineProjection>> bookingMap = bookings.stream()
+                .collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+        List<RoomTimelineResponse> roomTimelines = rooms.stream().map(room -> {
+
+            // Map Lịch giá
+            List<DailyStatusResponse> dailyStatuses = calendarMap.getOrDefault(room.getId(), List.of())
+                    .stream()
+                    .map(c -> DailyStatusResponse.builder()
+                            .date(c.getNightDate())
+                            .price(c.getPriceOverride() != null ? c.getPriceOverride() : BigDecimal.ZERO) // Lắp giá gốc nếu cần
+                            .availableQuantity(c.getAvailableQuantity())
+                            .build())
+                    .toList();
+
+            List<BookingBlockResponse> bookingBlocks = bookingMap.getOrDefault(room.getId(), List.of())
+                    .stream()
+                    .map(b -> BookingBlockResponse.builder()
+                            .bookingId(b.bookingId())
+                            .guestName(b.guestName())
+                            .checkInDate(b.checkInDate())
+                            .checkOutDate(b.checkOutDate())
+                            .status(b.status())
+                            .build())
+                    .toList();
+
+            return RoomTimelineResponse.builder()
+                    .roomId(room.getId())
+                    .roomName(room.getName())
+                    .dailyStatuses(dailyStatuses)
+                    .bookings(bookingBlocks)
+                    .build();
+        }).toList();
+
+        return new HomestayTimelineResponse(homestayId, startDate, endDate, roomTimelines);
+
+
+
+
+    }
+
+    @Override
+    public Map<Long, HomestayTimelineResponse> getBatchTimeline(List<Long> homestayIds, LocalDate startDate, LocalDate endDate) {
+        // 1. Lấy tất cả Rooms của tất cả Homes trong list
+        List<HomestayRoom> allRooms = homestayRoomService.findAllByIdIn(homestayIds);
+        List<Long> allRoomIds = allRooms.stream().map(HomestayRoom::getId).toList();
+
+        // 2. Query 1 lần cho lịch và 1 lần cho booking (Batch)
+        List<RoomCalendar> allCalendars = roomCalendarService.findCalendarsByRoomIdsAndDateRange(allRoomIds, startDate, endDate);
+        List<BookingTimelineProjection> allBookings = bookingDetailService.findOverlappingBookings(allRoomIds, startDate, endDate);
+
+        // 3. Gom nhóm dữ liệu
+        Map<Long, List<RoomCalendar>> calendarMap = allCalendars.stream().collect(Collectors.groupingBy(RoomCalendar::getRoomId));
+        Map<Long, List<BookingTimelineProjection>> bookingMap = allBookings.stream().collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream().collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
+
+        // 4. Map sang Map<HomestayId, Timeline>
+        Map<Long, HomestayTimelineResponse> result = new HashMap<>();
+        for (Long homeId : homestayIds) {
+            List<RoomTimelineResponse> roomTimelines = roomsByHomeMap.getOrDefault(homeId, List.of()).stream()
+                    .map(room -> mapToRoomTimeline(room, calendarMap, bookingMap))
+                    .toList();
+
+            result.put(homeId, new HomestayTimelineResponse(homeId, startDate, endDate, roomTimelines));
+        }
+        return result;
+    }
+
+
+    @Override
+    public PortfolioTimelineResponse getOwnerPortfolioTimeline(Long ownerId, int month, int year) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
+
+        // 1. Lấy toàn bộ Homestay
+        List<Homestay> allHomes = homestayRepository.findAllByOwnerId(ownerId);
+        List<Long> homeIds = allHomes.stream().map(Homestay::getId).toList();
+
+        if (homeIds.isEmpty()) return new PortfolioTimelineResponse(List.of());
+
+        // 2. Lấy tất cả Rooms
+        List<HomestayRoom> allRooms = homestayRoomService.findAllByIdIn(homeIds);
+        List<Long> allRoomIds = allRooms.stream().map(HomestayRoom::getId).toList();
+
+        // 3. Query Lịch và Booking
+        List<RoomCalendar> allCalendars = roomCalendarService.findCalendarsByRoomIdsAndDateRange(allRoomIds, startDate, endDate);
+        List<BookingTimelineProjection> allBookings = bookingDetailService.findOverlappingBookings(allRoomIds, startDate, endDate);
+
+        // 4. Gom nhóm
+        Map<Long, List<RoomCalendar>> calendarMap = allCalendars.stream().collect(Collectors.groupingBy(RoomCalendar::getRoomId));
+        Map<Long, List<BookingTimelineProjection>> bookingMap = allBookings.stream().collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream().collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
+
+        // Lấy Map ảnh (ID -> List<String>)
+        Map<Long, List<String>> homestayImageMap = homestayImageService.getImagesForHomestays(homeIds);
+
+        // 5. Map sang cấu trúc Portfolio
+        List<HomeTimelineResponse> homeTimelines = allHomes.stream().map(home -> {
+            List<RoomTimelineResponse> roomResponses = roomsByHomeMap.getOrDefault(home.getId(), List.of()).stream()
+                    .map(room -> mapToRoomTimeline(room, calendarMap, bookingMap))
+                    .toList();
+
+            // Lấy ảnh đầu tiên làm ảnh đại diện
+            List<String> images = homestayImageMap.getOrDefault(home.getId(), List.of());
+            String primaryImage = !images.isEmpty() ? images.get(0) : null;
+
+            return HomeTimelineResponse.builder()
+                    .homeId(home.getId())
+                    .homeName(home.getName())
+                    .address(home.getAddressDetail())
+                    .primaryImageUrl(primaryImage)
+                    .rooms(roomResponses)
+                    .build();
+        }).toList();
+
+        return new PortfolioTimelineResponse(homeTimelines);
+    }
+
     private List<GlobalSearchResponse> mapHomestaysToResponse(List<Homestay> homestays) {
         if (homestays.isEmpty()) return List.of();
 
@@ -357,5 +537,40 @@ public class HomestayServiceImpl implements HomestayService {
                 t.getMaxParticipants(),
                 0 // Tour không có bedrooms
         )).toList();
+    }
+    private RoomTimelineResponse mapToRoomTimeline(
+            HomestayRoom room,
+            Map<Long, List<RoomCalendar>> calendarMap,
+            Map<Long, List<BookingTimelineProjection>> bookingMap
+    ) {
+        // 1. Map dữ liệu Giá theo ngày
+        List<DailyStatusResponse> dailyStatuses = calendarMap.getOrDefault(room.getId(), List.of())
+                .stream()
+                .map(c -> DailyStatusResponse.builder()
+                        .date(c.getNightDate())
+                        .price(c.getPriceOverride() != null ? c.getPriceOverride() : BigDecimal.ZERO)
+                        .availableQuantity(c.getAvailableQuantity())
+                        .build())
+                .toList();
+
+        // 2. Map dữ liệu Đặt phòng (Các khối đen Marcus T, Sarah K,...)
+        List<BookingBlockResponse> bookingBlocks = bookingMap.getOrDefault(room.getId(), List.of())
+                .stream()
+                .map(b -> BookingBlockResponse.builder()
+                        .bookingId(b.bookingId())
+                        .guestName(b.guestName())
+                        .checkInDate(b.checkInDate())
+                        .checkOutDate(b.checkOutDate())
+                        .status(b.status())
+                        .build())
+                .toList();
+
+        // 3. Trả về DTO hoàn chỉnh
+        return RoomTimelineResponse.builder()
+                .roomId(room.getId())
+                .roomName(room.getName())
+                .dailyStatuses(dailyStatuses)
+                .bookings(bookingBlocks)
+                .build();
     }
 }

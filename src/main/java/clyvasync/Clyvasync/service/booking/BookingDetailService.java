@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.booking;
 
+import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import org.springframework.data.repository.query.Param;
 
@@ -16,5 +17,9 @@ public interface BookingDetailService {
     BookingDetail findBookingDetailByBookingId(Long bookingId);
     List<BookingDetail> findByBookingIdIn(List<Long> bookingIds);
     List<BookingDetail> findAllByBookingId(Long bookingId);
-
+    List<BookingTimelineProjection> findOverlappingBookings(
+           List<Long> roomId,
+            LocalDate startOfMonth,
+            LocalDate endOfMonth
+    );
 }
