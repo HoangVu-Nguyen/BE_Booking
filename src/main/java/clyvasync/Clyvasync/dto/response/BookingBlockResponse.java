@@ -8,6 +8,7 @@ import java.time.LocalDate;
 public record BookingBlockResponse(
         Long bookingId,
         String guestName,
+        String avatar,
         LocalDate checkInDate,
         LocalDate checkOutDate,
         String status

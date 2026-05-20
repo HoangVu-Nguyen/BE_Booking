@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 public interface HomestayRoomService {
     List<RoomResponse> getAllRoomsByHomestay(Long homestayId);
@@ -17,4 +18,5 @@ public interface HomestayRoomService {
     List<HomestayRoom> findByIdIn(List<Long> roomIds);
     List<HomestayRoom> findAllById(Long homestayId);
     List<HomestayRoom> findAllByIdIn(List<Long> homestayIds);
+    Map<Long, String> getRoomImageMap(List<Long> roomIds);
 }

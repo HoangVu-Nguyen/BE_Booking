@@ -22,6 +22,7 @@ public interface UserService {
     boolean existsById(Long userId);
     OwnerResponse getOwnerInfo(Long userId);
     Map<Long, OwnerResponse> getOwnerInfos(List<Long> userIds);
+    Map<Long,String> getImageUsers (List<Long> userIds);
 
     /**
      * Tìm User (ưu tiên lấy từ Cache, nếu không có mới gọi DB).

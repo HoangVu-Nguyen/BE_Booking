@@ -37,7 +37,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<PastTripResponse> findPastTripsByUserId(@Param("userId") Long userId);
     List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, String status);
     @Query("SELECT new clyvasync.Clyvasync.dto.projection.BookingTimelineProjection(" +
-            "bd.roomId, b.id, b.guestName, bd.checkInDate, bd.checkOutDate, b.status) " +
+            "b.userId,bd.roomId, b.id, b.guestName, bd.checkInDate, bd.checkOutDate, b.status) " +
             "FROM BookingDetail bd, Booking b " +
             "WHERE bd.bookingId = b.id " +
             "AND bd.roomId IN :roomIds " +

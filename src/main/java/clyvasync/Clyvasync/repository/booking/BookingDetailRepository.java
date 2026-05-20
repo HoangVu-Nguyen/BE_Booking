@@ -30,7 +30,7 @@ public interface BookingDetailRepository extends JpaRepository <BookingDetail,Lo
     List<BookingDetail> findByBookingId(Long bookingId);
     @Query("""
     SELECT new clyvasync.Clyvasync.dto.projection.BookingTimelineProjection(
-        bd.roomId, b.id, b.guestName, bd.checkInDate, bd.checkOutDate, b.status
+       b.userId, bd.roomId, b.id, b.guestName, bd.checkInDate, bd.checkOutDate, b.status
     )
     FROM BookingDetail bd 
     JOIN Booking b ON b.id = bd.bookingId

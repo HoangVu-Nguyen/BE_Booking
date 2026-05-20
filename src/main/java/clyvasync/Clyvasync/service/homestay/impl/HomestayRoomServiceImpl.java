@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.projection.RoomAvailabilityProjection;
+import clyvasync.Clyvasync.dto.projection.RoomImageProjection;
 import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
 import clyvasync.Clyvasync.dto.response.RatePlanResponse;
 import clyvasync.Clyvasync.dto.response.RoomResponse;
@@ -142,4 +143,18 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     public List<HomestayRoom> findAllByIdIn(List<Long> homestayIds) {
         return roomRepository.findAllByHomestayIdIn(homestayIds);
     }
+
+    @Override
+    public Map<Long, String> getRoomImageMap(List<Long> roomIds) {
+        List<RoomImageProjection> projections = roomRepository.findRoomImagesByIdIn(roomIds);
+
+        return projections.stream()
+                .collect(Collectors.toMap(
+                        RoomImageProjection::getRoomId,
+                        RoomImageProjection::getImageUrl,
+                        (existing, replacement) -> existing
+                ));
+    }
+
+
 }

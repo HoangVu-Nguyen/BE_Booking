@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.media.impl;
 
 import clyvasync.Clyvasync.constant.ImageConstants;
+import clyvasync.Clyvasync.dto.projection.UserAvatarProjection;
 import clyvasync.Clyvasync.dto.request.UploadPhotoRequest;
 import clyvasync.Clyvasync.dto.response.AvatarResponse;
 import clyvasync.Clyvasync.dto.response.UserPhotoResponse;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -127,7 +129,31 @@ public class UserPhotoServiceImpl implements IUserPhotoService {
 
     @Override
     public Map<Long, String> getAvatarsMapByIds(List<Long> userIds) {
-        return Map.of();
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // URL ảnh mặc định
+        String DEFAULT_AVATAR_URL = ImageConstants.AVATAR_DEFAULT; // Thay bằng URL thực tế của bác
+
+        // 1. Lấy dữ liệu từ DB
+        List<UserAvatarProjection> projections = userPhotoRepository.findAvatarsByUserIds(userIds, ImageType.AVATAR);
+
+        // 2. Chuyển thành Map (Chỉ chứa những User có ảnh trong DB)
+        Map<Long, String> dbAvatarMap = projections.stream()
+                .collect(Collectors.toMap(
+                        UserAvatarProjection::getUserId,
+                        UserAvatarProjection::getPhotoUrl,
+                        (existing, replacement) -> existing // Nếu có nhiều cái isCurrent=true thì lấy cái đầu
+                ));
+
+        // 3. Đảm bảo mọi User trong danh sách đầu vào đều có Avatar (Nếu không có -> gán mặc định)
+        return userIds.stream()
+                .distinct() // Loại bỏ ID trùng lặp
+                .collect(Collectors.toMap(
+                        id -> id,
+                        id -> dbAvatarMap.getOrDefault(id, DEFAULT_AVATAR_URL) // Lấy từ DB, nếu null thì gán default
+                ));
     }
 
     @Override

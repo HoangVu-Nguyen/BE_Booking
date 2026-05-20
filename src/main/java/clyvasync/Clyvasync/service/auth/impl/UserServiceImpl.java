@@ -97,6 +97,11 @@ public class UserServiceImpl implements UserService {
         return resultMap;
     }
 
+    @Override
+    public Map<Long, String> getImageUsers(List<Long> userIds) {
+        return userPhotoService.getAvatarsMapByIds(userIds);
+    }
+
 
     @Override
     public Optional<User> findByEmailWithCache(String email) {

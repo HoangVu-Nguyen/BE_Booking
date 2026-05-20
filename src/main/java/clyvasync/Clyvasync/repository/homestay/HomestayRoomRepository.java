@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.repository.homestay;
 
 import clyvasync.Clyvasync.dto.projection.RoomAvailabilityProjection;
+import clyvasync.Clyvasync.dto.projection.RoomImageProjection;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
@@ -55,4 +56,9 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
     List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, RoomStatus status);
     List<HomestayRoom> findByIdIn(List<Long> ids);
     List<HomestayRoom> findAllByHomestayIdIn(List<Long> homestayIds);
+    @Query("SELECT hi.imageUrl FROM HomestayImage hi WHERE hi.id IN :roomIds")
+    List<String> findImageUrlsByIdIn(@Param("homestayIds") List<Long> roomIds);
+    @Query("SELECT ri.id AS roomId, ri.imageUrl AS imageUrl FROM HomestayRoom ri WHERE ri.id IN :roomIds")
+    List<RoomImageProjection> findRoomImagesByIdIn(@Param("roomIds") List<Long> roomIds);
+
 }
