@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.wallet.impl;
 
 import clyvasync.Clyvasync.dto.detail.WalletNotificationPayload;
+import clyvasync.Clyvasync.dto.event.WalletEvent;
 import clyvasync.Clyvasync.dto.request.WithdrawApprovalRequest;
 import clyvasync.Clyvasync.enums.type.PayoutStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
@@ -19,6 +20,7 @@ import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class HostWalletServiceImpl implements HostWalletService {
     private final BookingRepository bookingRepository;
     private final HomestayRepository homestayRepository;
     private final SocketEmitterService socketEmitterService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -214,8 +217,8 @@ public class HostWalletServiceImpl implements HostWalletService {
                 .message(String.format("Yêu cầu rút %,.0f ₫ của bạn đã được phê duyệt thành công!", transaction.getAmount()))
                 .build();
 
-        // Gọi qua lớp bọc cực kỳ tường minh và sạch code
-        socketEmitterService.sendWalletNotification(wallet.getOwnerId(), payload);
+        log.info("[SERVICE] Phát sự kiện duyệt tiền cho HostId: {}", wallet.getOwnerId());
+        eventPublisher.publishEvent(new WalletEvent(this, wallet.getOwnerId(), payload));
     }
 
     @Override
@@ -247,8 +250,8 @@ public class HostWalletServiceImpl implements HostWalletService {
                 .message(String.format("Yêu cầu rút %,.0f ₫ bị từ chối. Lý do: %s", transaction.getAmount(), reason))
                 .build();
 
-        // Gọi qua lớp bọc
-        socketEmitterService.sendWalletNotification(wallet.getOwnerId(), payload);
+        log.info("[SERVICE] Phát sự kiện từ chối rút tiền cho HostId: {}", wallet.getOwnerId());
+        eventPublisher.publishEvent(new WalletEvent(this, wallet.getOwnerId(), payload));
     }
     @Override
     @Transactional(rollbackFor = Exception.class)
