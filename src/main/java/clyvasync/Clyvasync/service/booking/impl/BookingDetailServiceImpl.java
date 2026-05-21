@@ -29,7 +29,7 @@ public class BookingDetailServiceImpl implements BookingDetailService {
 
     @Override
     public BookingDetail findBookingDetailByBookingId(Long bookingId) {
-        return bookingDetailRepository.findById(bookingId).orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+        return bookingDetailRepository.findBookingDetailByBookingId(bookingId).orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
     }
 
     @Override

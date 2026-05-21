@@ -14,4 +14,5 @@ public interface SocketDestinations {
     // Các kênh công khai (Public Topics Broadcast)
     String ROOM_STATUS_TOPIC = "room-status";
     String SYSTEM_MAINTENANCE_TOPIC = "system-status";
+
 }

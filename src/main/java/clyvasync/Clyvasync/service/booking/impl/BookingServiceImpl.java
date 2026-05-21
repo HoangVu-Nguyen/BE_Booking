@@ -4,11 +4,10 @@ import clyvasync.Clyvasync.constant.ImageConstants;
 import clyvasync.Clyvasync.dto.detail.PolicyDetail;
 import clyvasync.Clyvasync.dto.detail.TourBookingItemDetail;
 import clyvasync.Clyvasync.dto.detail.TourDetail;
+import clyvasync.Clyvasync.dto.event.BookingEvent;
 import clyvasync.Clyvasync.dto.request.BookingInitRequest;
-import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
-import clyvasync.Clyvasync.dto.response.BookingInitResponse;
-import clyvasync.Clyvasync.dto.response.HomestayResponse;
-import clyvasync.Clyvasync.dto.response.RoomResponse;
+import clyvasync.Clyvasync.dto.request.UpdateBookingContactRequest;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.type.TourBookingStatus;
@@ -37,6 +36,7 @@ import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,7 +62,7 @@ public class BookingServiceImpl implements BookingService {
     private final HomestayPolicyService homestayPolicyService;
     private final RoomCalendarService roomCalendarService;
     private final TourAvailabilityService tourAvailabilityService;
-
+    private final ApplicationEventPublisher eventPublisher;
     @Override
     public boolean existsActiveBooking(Long userId, Long homestayId) {
         return true;
@@ -220,6 +220,16 @@ public class BookingServiceImpl implements BookingService {
                 tourBookingService.save(tourBooking);
             }
         }
+        Map<String, Object> calendarPayload = Map.of(
+                "type", "CALENDAR_SYNC",
+                "roomId", request.getRoomId(),
+                "action", "LOCK_DATES",
+                "checkIn", request.getCheckInDate().toString(),
+                "checkOut", request.getCheckOutDate().toString()
+        );
+
+        // Truyền hostId = null vì lúc này ta chỉ muốn Listener bắn Broadcast Public, chưa cần báo Host
+        eventPublisher.publishEvent(new BookingEvent(this, null, calendarPayload));
 
         return new BookingInitResponse(bookingCode, booking.getId());
     }
@@ -324,6 +334,92 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public List<Booking> findBookingsReadyForEscrowRelease(LocalDate targetDate) {
         return bookingRepository.findBookingsReadyForEscrowRelease(targetDate);
+    }
+
+    @Override
+    public List<HostBookingItemResponse> getHostBookings(Long ownerId) {
+        // 1. Tìm tất cả Homestay của Host này
+        // Giả sử bác có hàm findByOwnerId ở homestayService, nếu chưa có bác bổ sung nhé
+        List<Homestay> hostHomestays = homestayService.findByOwnerId(ownerId);
+        if (hostHomestays.isEmpty()) return List.of();
+
+        List<Long> homestayIds = hostHomestays.stream().map(Homestay::getId).toList();
+        Map<Long, String> homestayNameMap = hostHomestays.stream()
+                .collect(Collectors.toMap(Homestay::getId, Homestay::getName));
+
+        // 2. Lấy toàn bộ Hóa đơn thuộc các Homestay này
+        List<Booking> bookings = bookingRepository.findByHomestayIdInOrderByCreatedAtDesc(homestayIds);
+        if (bookings.isEmpty()) return List.of();
+
+        // 3. Lấy toàn bộ Chi tiết đặt phòng (Booking Details) một lần duy nhất
+        List<Long> bookingIds = bookings.stream().map(Booking::getId).toList();
+        List<BookingDetail> details = bookingDetailService.findByBookingIdIn(bookingIds);
+        Map<Long, BookingDetail> detailMap = details.stream()
+                .collect(Collectors.toMap(BookingDetail::getBookingId, d -> d, (d1, d2) -> d1));
+
+        // 4. Lấy toàn bộ Thông tin Phòng (Rooms) một lần duy nhất
+        List<Long> roomIds = details.stream().map(BookingDetail::getRoomId).distinct().toList();
+        // Bác cần thêm hàm findAllByIds vào roomService nếu chưa có
+        List<HomestayRoom> rooms = roomService.findAllByIdIn(roomIds);
+        Map<Long, String> roomNameMap = rooms.stream()
+                .collect(Collectors.toMap(HomestayRoom::getId, HomestayRoom::getName));
+
+        // 5. ĐÓNG GÓI RA DTO (Mapping)
+        return bookings.stream().map(booking -> {
+            BookingDetail detail = detailMap.get(booking.getId());
+            if (detail == null) return null;
+
+            long nights = java.time.temporal.ChronoUnit.DAYS.between(detail.getCheckInDate(), detail.getCheckOutDate());
+
+            // Xử lý logic hiển thị trạng thái và số tiền đã thanh toán
+            String uiStatus = "PENDING";
+            BigDecimal paidAmount = BigDecimal.ZERO;
+
+            if (PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
+                uiStatus = "CONFIRMED";
+                paidAmount = booking.getTotalPrice(); // Nếu đã thanh toán thì đã thu đủ
+            } else if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
+                uiStatus = "CANCELLED";
+            }
+
+            return HostBookingItemResponse.builder()
+                    .bookingCode(booking.getBookingCode())
+                    .guestName(booking.getGuestName())
+                    .guestPhone(booking.getGuestPhone())
+                    .guestEmail(booking.getGuestEmail())
+                    .guestAvatar("https://ui-avatars.com/api/?name=" + booking.getGuestName() + "&background=random") // Sinh avatar tự động
+
+                    .homestayName(homestayNameMap.getOrDefault(booking.getHomestayId(), "N/A"))
+                    .roomName(roomNameMap.getOrDefault(detail.getRoomId(), "N/A"))
+
+                    .adults(detail.getGuestCount()) // Tạm lấy tổng guest_count làm người lớn
+                    .children(0)
+
+                    // Ép kiểu Date sang LocalDateTime để ghép thêm giờ In/Out cho Frontend hiện đẹp
+                    .checkInDate(detail.getCheckInDate().atTime(14, 0))
+                    .checkOutDate(detail.getCheckOutDate().atTime(12, 0))
+                    .nights(nights)
+
+                    .source("Website Trực tiếp") // Sau này mở rộng OTA (Agoda/Booking) thì tính tiếp
+                    .totalPrice(booking.getTotalPrice())
+                    .paidAmount(paidAmount)
+                    .status(uiStatus)
+                    .build();
+        }).filter(Objects::nonNull).toList();
+    }
+
+    @Override
+    @Transactional
+    public void updateContactInfo(String bookingCode, UpdateBookingContactRequest request) {
+        Booking booking = bookingRepository.findBookingByBookingCode(bookingCode)
+                .orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+
+        booking.setGuestName(request.getGuestName());
+        booking.setGuestPhone(request.getPhone());
+        booking.setGuestEmail(request.getEmail());
+        booking.setSpecialRequests(request.getSpecialRequests());
+
+        bookingRepository.save(booking);
     }
 
     // Hàm phụ để code nhìn gọn hơn

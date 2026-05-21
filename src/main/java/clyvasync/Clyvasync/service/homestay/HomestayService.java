@@ -32,7 +32,7 @@ public interface HomestayService {
 
     List<HomestayResponse> getByOwnerId(Long ownerId);
 
-
+    List<Homestay> findByOwnerId(Long ownerId);
     void updateStatus(Long id, String status, Long ownerId);
 
     void updateAverageRating(Long id, BigDecimal newRating);

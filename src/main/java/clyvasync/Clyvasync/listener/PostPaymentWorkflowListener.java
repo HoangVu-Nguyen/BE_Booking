@@ -9,6 +9,7 @@ import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.realtime.SocketEmitterService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,9 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -32,6 +35,7 @@ public class PostPaymentWorkflowListener {
     private final HomestayService homestayService;
     private final TourBookingService tourBookingService;
     private final BookingRepository bookingRepository;
+    private final SocketEmitterService socketEmitterService;
 
     // Kéo cấu hình phí hoa hồng từ application.properties (không hardcode)
     @Value("${app.platform.fee-percentage:0.15}")
@@ -65,9 +69,32 @@ public class PostPaymentWorkflowListener {
                 }
             }
             log.info("Luồng Hậu thanh toán hoàn tất cho Booking: {}", booking.getBookingCode());
+
+            // --- BẮT ĐẦU IN LOG KIỂM TRA NULL ---
+            log.info("🔍 SOI DATA BOOKING:");
+            log.info("- Booking Code: {}", booking.getBookingCode());
+            log.info("- Guest Name: {}", booking.getGuestName()); // Đảm bảo dòng này in ra có tên không hay là null?
+            log.info("- Homestay Name: {}", homestay != null ? homestay.getName() : "Homestay bị null");
+            log.info("- Total Price: {}", booking.getTotalPrice());
+            // ------------------------------------
+
+            // 3. TẠO PAYLOAD BẰNG HASHMAP (CHỐNG NULL)
+            String safeGuestName = booking.getGuestName() != null ? booking.getGuestName() : "Khách hàng";
+            String safeHomestayName = (homestay != null && homestay.getName() != null) ? homestay.getName() : "Homestay";
+
+            Map<String, Object> hostNotificationPayload = new HashMap<>();
+            hostNotificationPayload.put("type", "NEW_BOOKING_PAID");
+            hostNotificationPayload.put("bookingCode", booking.getBookingCode());
+            hostNotificationPayload.put("homestayName", safeHomestayName);
+            hostNotificationPayload.put("guestName", safeGuestName);
+            hostNotificationPayload.put("totalPrice", booking.getTotalPrice());
+            hostNotificationPayload.put("message", String.format("🎉 Khách hàng %s vừa thanh toán thành công đơn %s!", safeGuestName, booking.getBookingCode()));
+
+            log.info("[REALTIME] Đang bắn chuông thông báo có đơn Booking PAID tới HostId: {}", homestay.getOwnerId());
+            socketEmitterService.sendBookingNotification(homestay.getOwnerId(), hostNotificationPayload);
+
         } catch (Exception e) {
-            log.error("Lỗi nghiêm trọng khi chạy luồng Hậu thanh toán cho Booking: {}", booking.getBookingCode(), e);
-            // Có thể bắn notification cho Admin vào xử lý tay
+            log.error("❌ Lỗi nghiêm trọng khi chạy luồng Hậu thanh toán cho Booking: {}", booking.getBookingCode(), e);
         }
     }
 }

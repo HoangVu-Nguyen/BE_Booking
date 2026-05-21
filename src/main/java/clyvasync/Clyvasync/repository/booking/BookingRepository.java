@@ -53,4 +53,5 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "AND b.status NOT IN ('DISPUTE', 'CANCELLED', 'FAILED') " +
             "AND bd.checkInDate <= :targetDate")
     List<Booking> findBookingsReadyForEscrowRelease(@Param("targetDate") LocalDate targetDate);
+    List<Booking> findByHomestayIdInOrderByCreatedAtDesc(List<Long> homestayIds);
 }

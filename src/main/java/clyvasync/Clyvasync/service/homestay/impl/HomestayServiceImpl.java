@@ -271,6 +271,11 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
+    public List<Homestay> findByOwnerId(Long ownerId) {
+        return homestayRepository.findAllByOwnerId(ownerId);
+    }
+
+    @Override
     public void updateStatus(Long id, String status, Long ownerId) {
 
     }
