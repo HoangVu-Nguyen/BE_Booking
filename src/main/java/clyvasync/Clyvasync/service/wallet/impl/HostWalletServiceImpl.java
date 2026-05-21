@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.wallet.impl;
 
+import clyvasync.Clyvasync.dto.detail.WalletNotificationPayload;
 import clyvasync.Clyvasync.dto.request.WithdrawApprovalRequest;
 import clyvasync.Clyvasync.enums.type.PayoutStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
@@ -13,6 +14,7 @@ import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
 import clyvasync.Clyvasync.repository.wallet.HostWalletRepository;
+import clyvasync.Clyvasync.service.realtime.SocketEmitterService;
 import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class HostWalletServiceImpl implements HostWalletService {
     private final WalletTransactionService walletTransactionService;
     private final BookingRepository bookingRepository;
     private final HomestayRepository homestayRepository;
+    private final SocketEmitterService socketEmitterService;
 
     @Override
     @Transactional
@@ -203,6 +206,16 @@ public class HostWalletServiceImpl implements HostWalletService {
                 .orElseThrow(() -> new AppException(ResultCode.WALLET_NOT_FOUND));
         wallet.setTotalWithdrawn(wallet.getTotalWithdrawn().add(transaction.getAmount()));
         hostWalletRepository.save(wallet);
+        WalletNotificationPayload payload = WalletNotificationPayload.builder()
+                .type(TransactionType.WITHDRAW_APPROVED)
+                .transactionId(transactionId)
+                .amount(transaction.getAmount())
+                .status(TransactionStatus.COMPLETED)
+                .message(String.format("Yêu cầu rút %,.0f ₫ của bạn đã được phê duyệt thành công!", transaction.getAmount()))
+                .build();
+
+        // Gọi qua lớp bọc cực kỳ tường minh và sạch code
+        socketEmitterService.sendWalletNotification(wallet.getOwnerId(), payload);
     }
 
     @Override
@@ -226,6 +239,16 @@ public class HostWalletServiceImpl implements HostWalletService {
         transaction.setStatus(TransactionStatus.FAILED);
         transaction.setDescription("Bị từ chối: " + reason);
         walletTransactionService.save(transaction);
+        WalletNotificationPayload payload = WalletNotificationPayload.builder()
+                .type(TransactionType.WITHDRAW_REJECTED)
+                .transactionId(transactionId)
+                .amount(transaction.getAmount())
+                .status(TransactionStatus.FAILED)
+                .message(String.format("Yêu cầu rút %,.0f ₫ bị từ chối. Lý do: %s", transaction.getAmount(), reason))
+                .build();
+
+        // Gọi qua lớp bọc
+        socketEmitterService.sendWalletNotification(wallet.getOwnerId(), payload);
     }
     @Override
     @Transactional(rollbackFor = Exception.class)
