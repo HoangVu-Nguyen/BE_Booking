@@ -173,8 +173,8 @@ public class BookingServiceImpl implements BookingService {
                 .homestayId(request.getHomestayId())
                 .totalPrice(finalGrandTotal)
                 .taxFee(taxFee)
-                .status(BookingStatus.DRAFT.name())
-                .paymentStatus(PaymentStatus.UNPAID.name())
+                .status(BookingStatus.DRAFT)
+                .paymentStatus(PaymentStatus.UNPAID)
                 .loyaltyPointsEarned(expectedPoints)
                 .guestName(request.getGuestName())
                 .guestEmail(request.getEmail())
@@ -318,7 +318,12 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, BookingStatus status) {
-        return bookingRepository.findAllByUserIdAndStatusOrderByUpdatedAtDesc(userId,status.name());
+        return bookingRepository.findAllByUserIdAndStatusOrderByUpdatedAtDesc(userId,status);
+    }
+
+    @Override
+    public List<Booking> findBookingsReadyForEscrowRelease(LocalDate targetDate) {
+        return bookingRepository.findBookingsReadyForEscrowRelease(targetDate);
     }
 
     // Hàm phụ để code nhìn gọn hơn

@@ -20,7 +20,7 @@ import java.util.Optional;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     Optional<Booking> findBookingByBookingCode(String bookingCode);
-    List<Booking> findAllByStatusAndCreatedAtBefore(String status, OffsetDateTime createdAt);
+    List<Booking> findAllByStatusAndCreatedAtBefore(BookingStatus status, OffsetDateTime createdAt);
     List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
     Optional<Booking> findByBookingCodeAndUserId(String bookingCode, Long currentUserId);
     @Query("SELECT new clyvasync.Clyvasync.dto.response.PastTripResponse(" +
@@ -35,7 +35,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "WHERE b.userId = :userId AND b.status = 'COMPLETED' " +
             "ORDER BY b.updatedAt DESC")
     List<PastTripResponse> findPastTripsByUserId(@Param("userId") Long userId);
-    List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, String status);
+    List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, BookingStatus status);
     @Query("SELECT new clyvasync.Clyvasync.dto.projection.BookingTimelineProjection(" +
             "b.userId,bd.roomId, b.id, b.guestName, bd.checkInDate, bd.checkOutDate, b.status) " +
             "FROM BookingDetail bd, Booking b " +
@@ -48,4 +48,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
+    @Query("SELECT b FROM Booking b JOIN BookingDetail bd ON b.id = bd.bookingId " +
+            "WHERE b.payoutStatus = 'ON_HOLD' " +
+            "AND b.status NOT IN ('DISPUTE', 'CANCELLED', 'FAILED') " +
+            "AND bd.checkInDate <= :targetDate")
+    List<Booking> findBookingsReadyForEscrowRelease(@Param("targetDate") LocalDate targetDate);
 }

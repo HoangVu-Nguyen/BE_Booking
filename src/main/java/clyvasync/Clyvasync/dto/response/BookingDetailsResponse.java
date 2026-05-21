@@ -2,6 +2,8 @@ package clyvasync.Clyvasync.dto.response;
 
 import clyvasync.Clyvasync.dto.detail.PolicyDetail;
 import clyvasync.Clyvasync.dto.detail.TourDetail;
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
+import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,8 +17,8 @@ public class BookingDetailsResponse {
     // 1. Thông tin chung đơn hàng
     private Long bookingId;
     private String bookingCode;
-    private String status;
-    private String paymentStatus;
+    private BookingStatus status;
+    private PaymentStatus paymentStatus;
     private String specialRequests;
     private Integer loyaltyPointsEarned;
 

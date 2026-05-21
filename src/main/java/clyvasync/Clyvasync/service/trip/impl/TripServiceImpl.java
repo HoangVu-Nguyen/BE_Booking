@@ -110,11 +110,11 @@ public class TripServiceImpl implements TripService {
 
             String tripStatus;
 
-            if ("CANCELLED".equalsIgnoreCase(booking.getStatus())) {
+            if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
                 tripStatus = "CANCELLED";
             }
-            else if (PaymentStatus.UNPAID.name().equalsIgnoreCase(booking.getPaymentStatus())
-                    && BookingStatus.DRAFT.name().equalsIgnoreCase(booking.getStatus())) {
+            else if (PaymentStatus.UNPAID.equals(booking.getPaymentStatus())
+                    && BookingStatus.DRAFT.equals(booking.getStatus())) {
                 // Bác nhớ thêm .name() hoặc ép kiểu chuẩn chuỗi nếu b.getStatus() là Enum nhé
                 tripStatus = "PENDING";
             }
@@ -187,9 +187,9 @@ public class TripServiceImpl implements TripService {
         LocalDate maxCheckOut = bookingDetails.stream().map(BookingDetail::getCheckOutDate).max(LocalDate::compareTo).orElse(today.plusDays(1));
         int totalGuests = bookingDetails.stream().mapToInt(BookingDetail::getGuestCount).sum();
         String tripStatus = "UPCOMING";
-        if (BookingStatus.CANCELLED.name().equalsIgnoreCase(booking.getStatus())) {
+        if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
             tripStatus = "CANCELLED";
-        } else if (PaymentStatus.UNPAID.name().equalsIgnoreCase(booking.getPaymentStatus()) && PaymentStatus.PAID.name().equalsIgnoreCase(booking.getStatus())) { // Sửa lại enum status cho khớp DB bác nhé
+        } else if (PaymentStatus.UNPAID.equals(booking.getPaymentStatus()) && PaymentStatus.PAID.equals(booking.getStatus())) { // Sửa lại enum status cho khớp DB bác nhé
             tripStatus = "PENDING";
         } else {
             if (today.isAfter(minCheckIn) || today.isEqual(minCheckIn)) {

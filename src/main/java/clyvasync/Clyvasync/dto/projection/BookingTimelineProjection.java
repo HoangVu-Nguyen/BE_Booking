@@ -1,5 +1,7 @@
 package clyvasync.Clyvasync.dto.projection;
 
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
+
 import java.time.LocalDate;
 
 public record BookingTimelineProjection(
@@ -9,5 +11,5 @@ public record BookingTimelineProjection(
         String guestName,
         LocalDate checkInDate,
         LocalDate checkOutDate,
-        String status
+        BookingStatus status
 ) {}

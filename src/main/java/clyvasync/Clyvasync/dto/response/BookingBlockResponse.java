@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.dto.response;
 
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import lombok.Builder;
 
 import java.time.LocalDate;
@@ -11,5 +12,5 @@ public record BookingBlockResponse(
         String avatar,
         LocalDate checkInDate,
         LocalDate checkOutDate,
-        String status
+        BookingStatus status
 ) {}

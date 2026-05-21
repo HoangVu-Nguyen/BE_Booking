@@ -4,6 +4,7 @@ package clyvasync.Clyvasync.dto.response;
 import clyvasync.Clyvasync.dto.detail.PropertyDetailInfo;
 import clyvasync.Clyvasync.dto.detail.RoomBookedInfo;
 import clyvasync.Clyvasync.dto.detail.TourTimelineInfo;
+import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +22,7 @@ import java.util.List;
 public class TripDetailResponse {
     private String bookingCode;
     private String status;
-    private String paymentStatus;
+    private PaymentStatus paymentStatus;
     private LocalDate checkIn;
     private LocalDate checkOut;
     private int totalGuests;

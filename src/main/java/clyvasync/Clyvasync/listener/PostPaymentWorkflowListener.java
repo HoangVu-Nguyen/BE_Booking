@@ -1,0 +1,73 @@
+package clyvasync.Clyvasync.listener;
+
+
+import clyvasync.Clyvasync.dto.event.BookingPaidEvent;
+import clyvasync.Clyvasync.enums.type.PaymentStatus;
+import clyvasync.Clyvasync.enums.type.PayoutStatus;
+import clyvasync.Clyvasync.enums.type.TourBookingStatus;
+import clyvasync.Clyvasync.modules.booking.entity.Booking;
+import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
+import clyvasync.Clyvasync.repository.booking.BookingRepository;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.tour.TourBookingService;
+import clyvasync.Clyvasync.service.wallet.HostWalletService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class PostPaymentWorkflowListener {
+
+    private final HostWalletService hostWalletService;
+    private final HomestayService homestayService;
+    private final TourBookingService tourBookingService;
+    private final BookingRepository bookingRepository;
+
+    // Kéo cấu hình phí hoa hồng từ application.properties (không hardcode)
+    @Value("${app.platform.fee-percentage:0.15}")
+    private BigDecimal platformFeePercent;
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleBookingPaidEscrowAndTours(BookingPaidEvent event) {
+        Booking booking = event.booking();
+
+        try {
+            // 1. TÍNH TOÁN DÒNG TIỀN VÀ KÝ QUỸ
+            BigDecimal platformFee = booking.getTotalPrice().multiply(platformFeePercent);
+            BigDecimal hostPayout = booking.getTotalPrice().subtract(platformFee);
+
+            booking.setPlatformFeeAmount(platformFee);
+            booking.setHostPayoutAmount(hostPayout);
+            booking.setPayoutStatus(PayoutStatus.ON_HOLD);
+            bookingRepository.save(booking);
+
+            var homestay = homestayService.findById(booking.getHomestayId());
+            hostWalletService.lockFundsForBooking(booking.getId(), homestay.getOwnerId(), hostPayout);
+
+            // 2. CẬP NHẬT TRẠNG THÁI TOUR ĐI KÈM
+            List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
+            if (tourBookings != null && !tourBookings.isEmpty()) {
+                for (TourBooking tb : tourBookings) {
+                    tb.setPaymentStatus(PaymentStatus.PAID);
+                    tb.setStatus(TourBookingStatus.CONFIRMED);
+                    tourBookingService.save(tb);
+                }
+            }
+            log.info("Luồng Hậu thanh toán hoàn tất cho Booking: {}", booking.getBookingCode());
+        } catch (Exception e) {
+            log.error("Lỗi nghiêm trọng khi chạy luồng Hậu thanh toán cho Booking: {}", booking.getBookingCode(), e);
+            // Có thể bắn notification cho Admin vào xử lý tay
+        }
+    }
+}

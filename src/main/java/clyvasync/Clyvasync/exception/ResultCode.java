@@ -166,11 +166,25 @@ public enum ResultCode {
     PERMISSION_REVC_FAILED(13012, HttpStatus.INTERNAL_SERVER_ERROR),
     PERMISSION_SYNC_PENDING(13013, HttpStatus.ACCEPTED),
 
+    // ==========================================
+    // NHÓM LỖI THANH TOÁN (PAYMENT)
+    // ==========================================
     INVALID_PAYMENT_SIGNATURE(14000, HttpStatus.BAD_REQUEST),
     PAYMENT_METHOD_NOT_SUPPORTED(14001, HttpStatus.BAD_REQUEST),
-    PAYMENT_CREATION_FAILED(14002, HttpStatus.INTERNAL_SERVER_ERROR)  ,
-    PAYMENT_FAILED_OR_CANCELLED(14003, HttpStatus.BAD_REQUEST)
-            ;
+    PAYMENT_CREATION_FAILED(14002, HttpStatus.INTERNAL_SERVER_ERROR),
+    PAYMENT_FAILED_OR_CANCELLED(14003, HttpStatus.BAD_REQUEST),
+    TRANSACTION_NOT_FOUND(14004, HttpStatus.NOT_FOUND),
+
+    // ==========================================
+    // NHÓM LỖI VÍ VÀ RÚT TIỀN (WALLET & WITHDRAWAL)
+    // ==========================================
+    WALLET_NOT_FOUND(14010, HttpStatus.NOT_FOUND),
+    INSUFFICIENT_AVAILABLE_BALANCE(14011, HttpStatus.BAD_REQUEST),
+    INVALID_WITHDRAWAL_AMOUNT(14012, HttpStatus.BAD_REQUEST),
+    INVALID_TRANSACTION_STATUS(14013, HttpStatus.BAD_REQUEST),
+    INVALID_TRANSACTION_TYPE(14014, HttpStatus.BAD_REQUEST),
+    WITHDRAWAL_ALREADY_PROCESSED(14015, HttpStatus.BAD_REQUEST),
+    ESCROW_RELEASE_FAILED(14016, HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final int code;
     private final HttpStatusCode statusCode;

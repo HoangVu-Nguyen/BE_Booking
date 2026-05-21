@@ -39,7 +39,7 @@ public class BookingExpirationScheduler {
                 .minus(15, java.time.temporal.ChronoUnit.MINUTES);
 
         List<Booking> expiredBookings = bookingRepository
-                .findAllByStatusAndCreatedAtBefore(BookingStatus.DRAFT.name(), expirationThreshold);
+                .findAllByStatusAndCreatedAtBefore(BookingStatus.DRAFT, expirationThreshold);
 
         if (expiredBookings.isEmpty()) return;
 
@@ -47,7 +47,7 @@ public class BookingExpirationScheduler {
 
         for (Booking booking : expiredBookings) {
             // 1. Huỷ Booking tổng
-            booking.setStatus(BookingStatus.CANCELLED.name());
+            booking.setStatus(BookingStatus.CANCELLED);
             bookingRepository.save(booking);
 
             // 2. Nhả phòng (Giữ nguyên logic cũ của bác)

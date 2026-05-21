@@ -1,7 +1,11 @@
 package clyvasync.Clyvasync.service.payment;
 
+import clyvasync.Clyvasync.dto.event.BookingPaidEvent;
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.payment.PaymentMethod;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
+import clyvasync.Clyvasync.enums.type.PayoutStatus;
+import clyvasync.Clyvasync.enums.type.TourBookingStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.factory.PaymentFactory;
@@ -13,15 +17,19 @@ import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
+import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.strategy.PaymentStrategy;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +47,9 @@ public class PaymentService {
     private final BookingDetailService bookingDetailService;
     private final HomestayRoomService homestayRoomService;
     private final TourBookingService tourBookingService;
+    private final HostWalletService hostWalletService;
+    private final HomestayService homestayService;
+    private final ApplicationEventPublisher eventPublisher; // Kênh phát thanh sự kiện
 
     /**
      * Logic sinh link URL thanh toán
@@ -98,37 +109,28 @@ public class PaymentService {
 
         PaymentStatus paymentStatus = strategy.processCallback(params);
         String bookingCode = strategy.extractBookingCode(params);
-
         Booking booking = bookingService.getBookingByCode(bookingCode);
 
-        // Biện pháp Idempotency: Chống spam lặp giao dịch từ đối tác nếu đơn đã PAID trước đó
-        if ("PAID".equalsIgnoreCase(booking.getPaymentStatus())) {
+        // Idempotency check
+        if (PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
             return strategy.buildIPNSuccessResponse("Đơn hàng này đã được xác nhận thành công từ trước");
         }
 
-        // Chốt đơn thực sự xuống Database hệ thống
         if (paymentStatus == PaymentStatus.PAID) {
-            // 1. Cập nhật trạng thái tổng của Booking thành PAID
-            booking.setPaymentStatus("PAID");
-            booking.setStatus("CONFIRMED"); // Đổi trạng thái từ DRAFT sang CONFIRMED luôn cho khớp luồng
+            // 1. Chỉ cập nhật đúng trạng thái của Booking
+            booking.setPaymentStatus(PaymentStatus.PAID);
+            booking.setStatus(BookingStatus.CONFIRMED);
             bookingRepository.save(booking);
 
-            // 2. Cập nhật luôn trạng thái đóng dấu ĐÃ THÀNH TOÁN cho các tour đi kèm của đơn hàng này
-            List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
-            if (tourBookings != null && !tourBookings.isEmpty()) {
-                for (TourBooking tb : tourBookings) {
-                    tb.setPaymentStatus(PaymentStatus.PAID);
-                    tb.setStatus(clyvasync.Clyvasync.enums.type.TourBookingStatus.CONFIRMED); // Ép chuẩn Enum của bác
-                    tourBookingService.save(tb); // Lưu lại trạng thái tour
-                }
-            }
+            // 2. Phát loa thông báo: "Đơn này đã trả tiền xong!"
+            log.info("[IPN SUCCESS] Đơn hàng {} chốt PAID. Kích hoạt luồng hậu thanh toán...", bookingCode);
+            eventPublisher.publishEvent(new BookingPaidEvent(booking));
 
-            log.info("[IPN SUCCESS] Đơn hàng {} và các dịch vụ tour đi kèm đã được chốt trạng thái PAID thành công!", bookingCode);
-            return strategy.buildIPNSuccessResponse("Xác nhận đơn thành công - Đã cập nhật trạng thái PAID");
+            return strategy.buildIPNSuccessResponse("Xác nhận đơn thành công");
         } else {
-            booking.setPaymentStatus("FAILED");
+            booking.setPaymentStatus(PaymentStatus.UNPAID);
             bookingRepository.save(booking);
-            return strategy.buildIPNSuccessResponse("Xác nhận đơn thành công - Giao dịch gốc thất bại");
+            return strategy.buildIPNSuccessResponse("Giao dịch gốc thất bại");
         }
     }
 }

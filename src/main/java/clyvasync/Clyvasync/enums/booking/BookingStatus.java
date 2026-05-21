@@ -1,9 +1,16 @@
 package clyvasync.Clyvasync.enums.booking;
 
-public  enum BookingStatus {
-    DRAFT,            // Khách mới vào trang checkout, đang nhập thông tin
-    PENDING_PAYMENT,  // Đã nhấn thanh toán, đang chờ Gateway (VNPAY/MoMo) phản hồi
-    CONFIRMED,        // Thanh toán thành công
-    CANCELLED,        // Khách hủy hoặc hết hạn thanh toán (timeout)
-    FAILED            // Lỗi thanh toán từ phía ngân hàng
+
+public enum BookingStatus {
+    DRAFT,            // Khách mới vào trang checkout
+    PENDING_PAYMENT,  // Đang chờ Gateway (VNPAY/MoMo) phản hồi
+    CONFIRMED,        // Đã thanh toán, phòng đã bị trừ (Available_quantity - 1)
+
+    // --- CÁC TRẠNG THÁI MỚI THÊM VÀO ---
+    CHECKED_IN,       // Khách đã nhận phòng (Bắt đầu đếm ngược 24h khiếu nại)
+    COMPLETED,        // Đã trả phòng an toàn (Kết thúc booking)
+    DISPUTE,          // CẢNH BÁO: Khách đang khiếu nại, đóng băng giải ngân
+
+    CANCELLED,        // Khách/Host hủy hoặc hết hạn thanh toán
+    FAILED            // Lỗi thanh toán
 }

@@ -5,6 +5,7 @@ import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
 import clyvasync.Clyvasync.dto.response.BookingInitResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -18,4 +19,5 @@ public interface BookingService {
     List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);
     Booking findByBookingCodeAndUserId(String bookingCode, Long currentUserId);
     List<Booking> findAllByUserIdAndStatusOrderByUpdatedAtDesc(Long userId, BookingStatus status);
+    List<Booking> findBookingsReadyForEscrowRelease( LocalDate targetDate);
 }
