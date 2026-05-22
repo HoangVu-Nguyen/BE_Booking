@@ -21,6 +21,7 @@ import clyvasync.Clyvasync.modules.homestay.entity.HomestayPolicy;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.modules.tour.entity.Tour;
+import clyvasync.Clyvasync.modules.tour.entity.TourAvailability;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
@@ -44,8 +45,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -366,6 +369,14 @@ public class BookingServiceImpl implements BookingService {
         Map<Long, Tour> tourMap = tourService.findAllByIds(coreTourIds).stream()
                 .collect(Collectors.toMap(Tour::getId, t -> t));
         Map<Long, String> tourImageMap = tourImageService.getPrimaryImagesByTourIds(coreTourIds);
+        List<TourAvailability> tourAvailabilities = tourAvailabilityService.findByIdIn(coreTourIds);
+        // CODE ĐÃ SỬA LỖI (AN TOÀN TUYỆT ĐỐI)
+        Map<Long, TourAvailability> tourAvailabilityMap = tourAvailabilities.stream()
+                .collect(Collectors.toMap(
+                        TourAvailability::getTourId,
+                        t -> t,
+                        (existing, replacement) -> existing // QUAN TRỌNG: Nếu trùng ID, giữ lại cái có sẵn, bỏ qua cái mới
+                ));
         // 4. Lấy toàn bộ Thông tin Phòng (Rooms) một lần duy nhất
         List<Long> roomIds = details.stream().map(BookingDetail::getRoomId).distinct().toList();
         // Bác cần thêm hàm findAllByIds vào roomService nếu chưa có
@@ -373,6 +384,7 @@ public class BookingServiceImpl implements BookingService {
         Map<Long, String> roomNameMap = rooms.stream()
                 .collect(Collectors.toMap(HomestayRoom::getId, HomestayRoom::getName));
         Map<Long,String> roomImageMap = rooms.stream().collect(Collectors.toMap(HomestayRoom::getId,HomestayRoom::getImageUrl));
+
         System.out.println(roomImageMap.size());
 
         // 5. ĐÓNG GÓI RA DTO (Mapping)
@@ -402,13 +414,34 @@ public class BookingServiceImpl implements BookingService {
             }
             List<MiniTourInfor> comboTours = new ArrayList<>();
             if (bookingToursMap.containsKey(booking.getId())) {
+                // TRONG VÒNG LẶP FOR LẤY TOUR
                 for (TourBooking tb : bookingToursMap.get(booking.getId())) {
                     Tour coreTour = tourMap.get(tb.getTourId());
-                    String tourName = coreTour != null ? coreTour.getName() : "Tour không xác định";
-                    // Lấy ảnh, nếu không có thì gán ảnh mặc định
+                    if (coreTour == null) continue; // Bỏ qua nếu Tour lõi bị xóa mất
+
+                    String tourName = coreTour.getName();
                     String tourImg = tourImageMap.getOrDefault(tb.getTourId(), ImageConstants.TOUR_DEFAULT);
 
-                    comboTours.add(new MiniTourInfor(tourName, tourImg, tb.getParticipantCount()));
+                    BigDecimal pricePerPerson = coreTour.getPricePerPerson() != null ? coreTour.getPricePerPerson() : BigDecimal.ZERO;
+                    BigDecimal totalTourPrice = pricePerPerson.multiply(BigDecimal.valueOf(tb.getParticipantCount()));
+
+                    // ---- ĐOẠN FIX LỖI Ở ĐÂY ----
+                    // Lấy object Availability từ Map ra, có thể bị NULL
+                    TourAvailability availability = tourAvailabilityMap.get(coreTour.getId());
+
+                    // Check an toàn: Nếu null thì truyền null, nếu có thì lấy ngày giờ
+                    LocalDate startDate = availability != null ? availability.getStartDate() : null;
+                    LocalTime startTime = availability != null ? availability.getStartTime() : null;
+                    // ----------------------------
+
+                    comboTours.add(new MiniTourInfor(
+                            tourName,
+                            tourImg,
+                            totalTourPrice,
+                            tb.getParticipantCount(),
+                            startDate, // Truyền biến an toàn đã check null
+                            startTime  // Truyền biến an toàn đã check null
+                    ));
                 }
             }
             String displayGuestName = booking.getGuestName() != null ? booking.getGuestName() : "Khách đang điền...";
