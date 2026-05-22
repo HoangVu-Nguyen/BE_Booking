@@ -26,6 +26,7 @@ public class BookingDetailsResponse {
     private Long homestayId;
     private String homestayName;
     private String homestayAddress;
+    private Boolean isInstantBook;
     private String roomName;
     private String roomImage;
     private LocalDate checkInDate;
@@ -33,6 +34,8 @@ public class BookingDetailsResponse {
     private Long totalNights;
     private Integer roomQuantity;
     private Integer guestCount;
+    private boolean isApproved;
+
 
     private List<TourDetail> tours;
 

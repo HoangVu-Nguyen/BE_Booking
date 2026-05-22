@@ -10,6 +10,7 @@ import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public interface BookingService {
@@ -24,4 +25,12 @@ public interface BookingService {
     List<Booking> findBookingsReadyForEscrowRelease( LocalDate targetDate);
     List<HostBookingItemResponse> getHostBookings(Long ownerId);
     void updateContactInfo(String bookingCode, UpdateBookingContactRequest request);
+    void approveBooking(String bookingCode, Long hostId);
+    void rejectBooking(String bookingCode, String rejectReason, Long hostId);
+    List<Booking> findAllExpired(
+             OffsetDateTime draftThreshold,
+            OffsetDateTime paymentThreshold,
+             BookingStatus draftStatus ,
+          BookingStatus paymentStatus
+    );
 }

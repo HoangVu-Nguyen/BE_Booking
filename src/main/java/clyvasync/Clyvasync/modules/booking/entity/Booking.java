@@ -73,6 +73,8 @@ public class Booking {
     @Enumerated(EnumType.STRING)
     @Column(length = 50, nullable = false)
     private BookingStatus status = BookingStatus.PENDING_PAYMENT; // Đã đổi sang Enum
+    @Column(name = "is_approved")
+    private boolean isApproved = false;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

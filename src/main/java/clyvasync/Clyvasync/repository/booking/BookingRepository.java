@@ -54,4 +54,13 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "AND bd.checkInDate <= :targetDate")
     List<Booking> findBookingsReadyForEscrowRelease(@Param("targetDate") LocalDate targetDate);
     List<Booking> findByHomestayIdInOrderByCreatedAtDesc(List<Long> homestayIds);
+    @Query("SELECT b FROM Booking b WHERE " +
+            "(b.status = :draftStatus AND b.createdAt < :draftThreshold) OR " +
+            "(b.status = :paymentStatus AND b.updatedAt < :paymentThreshold)")
+    List<Booking> findAllExpired(
+            @Param("draftThreshold") OffsetDateTime draftThreshold,
+            @Param("paymentThreshold") OffsetDateTime paymentThreshold,
+            @Param("draftStatus") BookingStatus draftStatus,
+            @Param("paymentStatus") BookingStatus paymentStatus
+    );
 }

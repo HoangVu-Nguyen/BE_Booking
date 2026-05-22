@@ -21,4 +21,9 @@ public class TourAvailabilityServiceImpl implements TourAvailabilityService {
     public List<TourAvailability> findByIdIn(List<Long> ids) {
         return tourAvailabilityRepository.findByIdIn(ids);
     }
+
+    @Override
+    public int releaseTourSlots(Long availabilityId, int slots) {
+        return tourAvailabilityRepository.releaseTourSlots(availabilityId, slots);
+    }
 }

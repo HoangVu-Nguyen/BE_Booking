@@ -6,6 +6,7 @@ import clyvasync.Clyvasync.dto.detail.PolicyDetail;
 import clyvasync.Clyvasync.dto.detail.TourBookingItemDetail;
 import clyvasync.Clyvasync.dto.detail.TourDetail;
 import clyvasync.Clyvasync.dto.event.BookingEvent;
+import clyvasync.Clyvasync.dto.event.PaymentRequestMailMessage;
 import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.request.UpdateBookingContactRequest;
 import clyvasync.Clyvasync.dto.response.*;
@@ -24,7 +25,9 @@ import clyvasync.Clyvasync.modules.tour.entity.Tour;
 import clyvasync.Clyvasync.modules.tour.entity.TourAvailability;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import clyvasync.Clyvasync.modules.tour.entity.TourImage;
+import clyvasync.Clyvasync.producer.BookingProducer;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
+import clyvasync.Clyvasync.service.annotation.IsHomestayOwner;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.HomestayPolicyService;
@@ -38,6 +41,7 @@ import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -46,6 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.function.Function;
@@ -67,6 +72,10 @@ public class BookingServiceImpl implements BookingService {
     private final RoomCalendarService roomCalendarService;
     private final TourAvailabilityService tourAvailabilityService;
     private final ApplicationEventPublisher eventPublisher;
+    private final BookingProducer bookingProducer;
+
+    @Value("${app.frontend.url:https://localhost:4200}")
+    private String frontendUrl;
     @Override
     public boolean existsActiveBooking(Long userId, Long homestayId) {
         return true;
@@ -252,6 +261,7 @@ public class BookingServiceImpl implements BookingService {
         List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
         List<TourDetail> tourDetails = List.of();
         BigDecimal tourSubtotal = BigDecimal.ZERO;
+        Boolean instantBookFlag = homestayRoom.getIsInstantBook() != null ? homestayRoom.getIsInstantBook() : true;
 
         if (!tourBookings.isEmpty()) {
             // GOM TẤT CẢ ID TOUR LẠI (Batching)
@@ -292,12 +302,14 @@ public class BookingServiceImpl implements BookingService {
                 .bookingCode(booking.getBookingCode())
                 .status(booking.getStatus())
                 .paymentStatus(booking.getPaymentStatus())
+                .isApproved(booking.isApproved())
                 .specialRequests(booking.getSpecialRequests())
                 .loyaltyPointsEarned(booking.getLoyaltyPointsEarned())
                 .homestayId(homestayResponse.getId())
                 .homestayName(homestayResponse.getName())
                 .homestayAddress(homestayResponse.getAddressDetail())
                 .roomName(homestayRoom.getName())
+                .isInstantBook(instantBookFlag)
                 .roomImage(homestayRoom.getImageUrl())
 
                 .checkInDate(detail.getCheckInDate())
@@ -411,6 +423,8 @@ public class BookingServiceImpl implements BookingService {
                 uiStatus = "CONFIRMED"; // Khách đã thanh toán / Host đã duyệt
             } else if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
                 uiStatus = "CANCELLED"; // Đơn đã hủy (quá 15p hoặc khách hủy)
+            }else if(BookingStatus.AWAITING_PAYMENT.equals(booking.getStatus())){
+                uiStatus = "AWAITING_PAYMENT";
             }
             List<MiniTourInfor> comboTours = new ArrayList<>();
             if (bookingToursMap.containsKey(booking.getId())) {
@@ -481,13 +495,102 @@ public class BookingServiceImpl implements BookingService {
     public void updateContactInfo(String bookingCode, UpdateBookingContactRequest request) {
         Booking booking = bookingRepository.findBookingByBookingCode(bookingCode)
                 .orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+        BookingDetail bookingDetail  = bookingDetailService.findBookingDetailByBookingId(booking.getId());
+        HomestayRoom homestayRoom = roomService.getRoomById(bookingDetail.getRoomId());
 
         booking.setGuestName(request.getGuestName());
         booking.setGuestPhone(request.getPhone());
         booking.setGuestEmail(request.getEmail());
         booking.setSpecialRequests(request.getSpecialRequests());
+        if (!homestayRoom.getIsInstantBook() && !booking.isApproved()) {
+            booking.setStatus(BookingStatus.PENDING);
+
+        }
 
         bookingRepository.save(booking);
+    }
+
+    @Override
+    @IsHomestayOwner
+    @Transactional
+    public void approveBooking(String bookingCode, Long hostId) {
+        Booking booking = bookingRepository.findBookingByBookingCode(bookingCode)
+                .orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+        if (!BookingStatus.PENDING.equals(booking.getStatus())) {
+            throw new AppException(ResultCode.INVALID_STATUS);
+        }
+        booking.setStatus(BookingStatus.AWAITING_PAYMENT);
+        booking.setApproved(true);
+        bookingRepository.save(booking);
+        String checkoutLink = frontendUrl + "/checkout/" + booking.getBookingCode();
+        Homestay homestay = homestayService.findById(booking.getHomestayId());
+        BookingDetail detail = bookingDetailService.findBookingDetailByBookingId(booking.getId());
+        HomestayRoom room = roomService.getRoomById(detail.getRoomId());
+
+        // 1. Đóng gói DTO
+        PaymentRequestMailMessage mailMsg = PaymentRequestMailMessage.builder()
+                .bookingCode(booking.getBookingCode())
+                .guestName(booking.getGuestName())
+                .guestEmail(booking.getGuestEmail())
+                .homestayName(homestay != null ? homestay.getName() : "Clyvasync Homestay")
+                .roomName(room != null ? room.getName() : "Phòng tiêu chuẩn")
+                .grandTotal(booking.getTotalPrice())
+                .checkoutUrl(checkoutLink)
+                .build();
+
+        // 2. GỌI PRODUCER (Mã nguồn lúc này cực kỳ Clean!)
+        bookingProducer.sendPaymentRequestMail(mailMsg);
+    }
+
+    @Override
+    @Transactional
+    public void rejectBooking(String bookingCode, String rejectReason, Long hostId) {
+        Booking booking = bookingRepository.findBookingByBookingCode(bookingCode)
+                .orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+
+        if (!BookingStatus.PENDING.equals(booking.getStatus())) {
+            throw new AppException(ResultCode.INVALID_STATUS);
+        }
+
+        // 1. Đổi trạng thái Booking thành Hủy
+        booking.setStatus(BookingStatus.CANCELLED);
+        // Lưu lý do hủy vào bảng Booking (Bác có thể tạo thêm cột cancel_reason ở DB)
+        // booking.setCancelReason(rejectReason);
+        bookingRepository.save(booking);
+
+        // 2. GIẢI PHÓNG LỊCH PHÒNG (Unlock Room Calendar)
+        BookingDetail detail = bookingDetailService.findBookingDetailByBookingId(booking.getId());
+        roomCalendarService.unlockRoomRange(
+                detail.getRoomId(),
+                detail.getCheckInDate(),
+                detail.getCheckOutDate(),
+                detail.getQuantity()
+        );
+
+        // 3. GIẢI PHÓNG SLOT TOUR (Restore Tour Availability)
+        List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
+        if (tourBookings != null && !tourBookings.isEmpty()) {
+            for (TourBooking tb : tourBookings) {
+                tourAvailabilityService.releaseTourSlots(tb.getAvailabilityId(), tb.getParticipantCount());
+
+                // Đổi trạng thái của TourBooking thành CANCELLED luôn
+                tb.setStatus(TourBookingStatus.CANCELLED);
+                tourBookingService.save(tb);
+            }
+        }
+
+        // 4. BẮN SOCKET ĐỒNG BỘ CALENDAR & GỬI EMAIL XIN LỖI KHÁCH
+        Map<String, Object> calendarPayload = Map.of(
+                "type", "CALENDAR_SYNC",
+                "roomId", detail.getRoomId(),
+                "action", "UNLOCK_DATES" // Báo UI mở lại lịch
+        );
+        eventPublisher.publishEvent(new BookingEvent(this, null, calendarPayload));
+    }
+
+    @Override
+    public List<Booking> findAllExpired(OffsetDateTime draftThreshold, OffsetDateTime paymentThreshold, BookingStatus draftStatus, BookingStatus paymentStatus) {
+        return bookingRepository.findAllExpired(draftThreshold,paymentThreshold,draftStatus,paymentStatus);
     }
 
     // Hàm phụ để code nhìn gọn hơn

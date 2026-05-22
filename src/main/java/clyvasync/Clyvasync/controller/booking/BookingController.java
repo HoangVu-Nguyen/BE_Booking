@@ -61,5 +61,26 @@ public class BookingController {
         bookingService.updateContactInfo(bookingCode, request);
         return ApiResponse.success();
     }
+    @PutMapping("/host/approve/{bookingCode}")
+    public ApiResponse<String> approveBooking(@PathVariable String bookingCode,@CurrentUserId Long hostId) {
+        bookingService.approveBooking(bookingCode, hostId);
+
+        return ApiResponse.success();
+    }
+
+    // =======================================================
+    // API DÀNH CHO HOST: TỪ CHỐI ĐƠN HÀNG
+    // =======================================================
+    @PutMapping("/host/reject/{bookingCode}")
+    public ApiResponse<String> rejectBooking(
+            @PathVariable String bookingCode,
+            @RequestParam(required = false, defaultValue = "Chủ nhà không thể sắp xếp phòng") String reason,@CurrentUserId Long hostId) {
+
+
+
+        bookingService.rejectBooking(bookingCode, reason, hostId);
+
+        return ApiResponse.success();
+    }
 
 }

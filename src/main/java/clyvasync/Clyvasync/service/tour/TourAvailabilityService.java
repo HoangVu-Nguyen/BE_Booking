@@ -8,4 +8,6 @@ import java.util.List;
 public interface TourAvailabilityService {
     int deductTourSlots(Long availabilityId,  int slots);
     List<TourAvailability> findByIdIn(List<Long> ids);
+    int releaseTourSlots( Long availabilityId,
+                         int slots);
 }

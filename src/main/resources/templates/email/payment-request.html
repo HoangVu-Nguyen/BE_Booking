@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Yêu Cầu Thanh Toán - Clyvasync</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333333;">
+
+<table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6; padding: 40px 0;">
+    <tr>
+        <td align="center">
+            <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+
+                <tr>
+                    <td align="center" style="background-color: #173124; padding: 30px 20px;">
+                        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-style: italic; letter-spacing: 1px;">Clyvasync</h1>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td style="padding: 40px 40px 20px 40px;">
+                        <h2 style="margin-top: 0; color: #173124; font-size: 20px;">Xác nhận đặt phòng & Yêu cầu thanh toán</h2>
+                        <p style="font-size: 15px; line-height: 1.6; color: #555;">Xin chào <strong style="color: #111;" th:text="${guestName}">Khách hàng</strong>,</p>
+                        <p style="font-size: 15px; line-height: 1.6; color: #555;">Tin vui cho bạn! Chủ nhà của <strong style="color: #111;" th:text="${homestayName}">Homestay</strong> đã <strong style="color: #059669;">DUYỆT</strong> yêu cầu đặt phòng của bạn. Để giữ chỗ, vui lòng hoàn tất thanh toán.</p>
+
+                        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 30px 0;">
+                            <table width="100%" border="0" cellspacing="0" cellpadding="5">
+                                <tr>
+                                    <td width="35%" style="font-size: 14px; color: #64748b; font-weight: bold; text-transform: uppercase;">Mã đơn:</td>
+                                    <td width="65%" style="font-size: 15px; font-weight: bold; color: #0f172a;" th:text="${bookingCode}">BK-123456</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 14px; color: #64748b; font-weight: bold; text-transform: uppercase;">Phòng:</td>
+                                    <td style="font-size: 15px; font-weight: bold; color: #0f172a;" th:text="${roomName}">Phòng Đôi Tiêu Chuẩn</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="border-bottom: 1px dashed #cbd5e1; padding-top: 10px;"></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 14px; color: #64748b; font-weight: bold; text-transform: uppercase; padding-top: 15px;">Tổng cần thu:</td>
+                                    <td style="font-size: 22px; font-weight: 900; color: #059669; padding-top: 15px;" th:text="${grandTotal}">1,500,000 VND</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <div style="text-align: center; margin: 40px 0;">
+                            <a th:href="${checkoutUrl}" style="background-color: #f59e0b; color: #ffffff; padding: 16px 32px; border-radius: 50px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(245, 158, 11, 0.25);">
+                                THANH TOÁN NGAY ĐỂ CHỐT PHÒNG
+                            </a>
+                        </div>
+
+                        <p style="font-size: 13px; line-height: 1.5; color: #94a3b8; text-align: center;">
+                            Lưu ý: Đơn đặt phòng của bạn có thể bị hủy nếu không được thanh toán trong thời gian quy định.<br>
+                            Nếu bạn muốn thay đổi ý định, vui lòng bỏ qua email này.
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td align="center" style="background-color: #f8fafc; padding: 20px; border-top: 1px solid #e2e8f0;">
+                        <p style="margin: 0; font-size: 12px; color: #94a3b8;">&copy; 2024 Clyvasync Booking. All rights reserved.</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px; color: #94a3b8;">Hỗ trợ khách hàng: support@clyvasync.com</p>
+                    </td>
+                </tr>
+
+            </table>
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

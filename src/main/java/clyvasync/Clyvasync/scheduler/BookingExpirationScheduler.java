@@ -35,11 +35,10 @@ public class BookingExpirationScheduler {
     @Scheduled(fixedDelay = 60000)
     @Transactional
     public void releaseExpiredBookings() {
-        java.time.OffsetDateTime expirationThreshold = java.time.OffsetDateTime.now()
-                .minus(15, java.time.temporal.ChronoUnit.MINUTES);
+        java.time.OffsetDateTime draftThreshold = java.time.OffsetDateTime.now().minus(15, ChronoUnit.MINUTES);
+        java.time.OffsetDateTime paymentThreshold = java.time.OffsetDateTime.now().minus(30, ChronoUnit.MINUTES);
 
-        List<Booking> expiredBookings = bookingRepository
-                .findAllByStatusAndCreatedAtBefore(BookingStatus.DRAFT, expirationThreshold);
+        List<Booking> expiredBookings = bookingRepository.findAllExpired(draftThreshold, paymentThreshold,BookingStatus.DRAFT,BookingStatus.AWAITING_PAYMENT);
 
         if (expiredBookings.isEmpty()) return;
 
