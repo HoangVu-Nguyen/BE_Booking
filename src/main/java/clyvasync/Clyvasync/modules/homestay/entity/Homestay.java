@@ -57,6 +57,7 @@ public class Homestay {
     @Column(name = "review_count")
     private Integer reviewCount = 0;
 
+
     @Version
     @Column(nullable = false)
     private Integer version = 0;

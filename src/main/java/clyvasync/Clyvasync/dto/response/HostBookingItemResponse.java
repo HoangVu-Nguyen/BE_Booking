@@ -1,11 +1,13 @@
 package clyvasync.Clyvasync.dto.response;
 
+import clyvasync.Clyvasync.dto.detail.MiniTourInfor;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -18,6 +20,7 @@ public class HostBookingItemResponse {
 
     private String homestayName;
     private String roomName;
+    private String roomImage;
 
     private int adults;
     private int children;
@@ -32,4 +35,5 @@ public class HostBookingItemResponse {
     private BigDecimal paidAmount;
 
     private String status; // "CONFIRMED", "PENDING", "CANCELLED"
+    private List<MiniTourInfor> includedTours;
 }

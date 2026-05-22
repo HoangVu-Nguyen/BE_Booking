@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.enums.booking;
 
 public enum BookingStatus {
     DRAFT,            // Khách mới vào trang checkout
+    PENDING,           //Chờ duyệt từ host
     PENDING_PAYMENT,  // Đang chờ Gateway (VNPAY/MoMo) phản hồi
     CONFIRMED,        // Đã thanh toán, phòng đã bị trừ (Available_quantity - 1)
 

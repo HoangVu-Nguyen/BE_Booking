@@ -56,6 +56,8 @@ public class HomestayRoom {
 
     @Column(name = "image_url", length = 500)
     private String imageUrl;
+    @Column(name = "is_instant_book")
+    private Boolean isInstantBook = true;
 
     @Enumerated(EnumType.STRING)
     private RoomStatus status = RoomStatus.ACTIVE;

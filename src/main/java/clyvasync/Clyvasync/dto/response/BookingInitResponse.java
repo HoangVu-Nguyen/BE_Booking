@@ -8,4 +8,5 @@ import lombok.Data;
 public class BookingInitResponse {
     private String bookingCode;
     private Long bookingId;
+    private boolean isInstantBook;
 }

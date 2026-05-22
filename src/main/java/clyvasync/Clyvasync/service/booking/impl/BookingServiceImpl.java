@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.booking.impl;
 
 import clyvasync.Clyvasync.constant.ImageConstants;
+import clyvasync.Clyvasync.dto.detail.MiniTourInfor;
 import clyvasync.Clyvasync.dto.detail.PolicyDetail;
 import clyvasync.Clyvasync.dto.detail.TourBookingItemDetail;
 import clyvasync.Clyvasync.dto.detail.TourDetail;
@@ -121,6 +122,7 @@ public class BookingServiceImpl implements BookingService {
         // 1. TÍNH SỐ ĐÊM & KHÓA PHÒNG (Giữ nguyên)
         long nights = java.time.temporal.ChronoUnit.DAYS.between(request.getCheckInDate(), request.getCheckOutDate());
         if (nights <= 0) throw new AppException(ResultCode.INVALID_DATE_RANGE);
+        HomestayRoom room = roomService.getRoomById(request.getRoomId());
 
         int roomRowsUpdated = roomCalendarService.lockRoomRange(
                 request.getRoomId(),
@@ -230,8 +232,8 @@ public class BookingServiceImpl implements BookingService {
 
         // Truyền hostId = null vì lúc này ta chỉ muốn Listener bắn Broadcast Public, chưa cần báo Host
         eventPublisher.publishEvent(new BookingEvent(this, null, calendarPayload));
-
-        return new BookingInitResponse(bookingCode, booking.getId());
+        boolean instantBookFlag = room.getIsInstantBook() != null ? room.getIsInstantBook() : true;
+        return new BookingInitResponse(bookingCode, booking.getId(),instantBookFlag);
     }
 
     @Override
@@ -347,6 +349,7 @@ public class BookingServiceImpl implements BookingService {
         Map<Long, String> homestayNameMap = hostHomestays.stream()
                 .collect(Collectors.toMap(Homestay::getId, Homestay::getName));
 
+
         // 2. Lấy toàn bộ Hóa đơn thuộc các Homestay này
         List<Booking> bookings = bookingRepository.findByHomestayIdInOrderByCreatedAtDesc(homestayIds);
         if (bookings.isEmpty()) return List.of();
@@ -356,13 +359,21 @@ public class BookingServiceImpl implements BookingService {
         List<BookingDetail> details = bookingDetailService.findByBookingIdIn(bookingIds);
         Map<Long, BookingDetail> detailMap = details.stream()
                 .collect(Collectors.toMap(BookingDetail::getBookingId, d -> d, (d1, d2) -> d1));
-
+        List<TourBooking> allTourBookings = tourBookingService.findByHomestayBookingIdIn(bookingIds);
+        Map<Long, List<TourBooking>> bookingToursMap = allTourBookings.stream()
+                .collect(Collectors.groupingBy(TourBooking::getHomestayBookingId));
+        List<Long> coreTourIds = allTourBookings.stream().map(TourBooking::getTourId).distinct().toList();
+        Map<Long, Tour> tourMap = tourService.findAllByIds(coreTourIds).stream()
+                .collect(Collectors.toMap(Tour::getId, t -> t));
+        Map<Long, String> tourImageMap = tourImageService.getPrimaryImagesByTourIds(coreTourIds);
         // 4. Lấy toàn bộ Thông tin Phòng (Rooms) một lần duy nhất
         List<Long> roomIds = details.stream().map(BookingDetail::getRoomId).distinct().toList();
         // Bác cần thêm hàm findAllByIds vào roomService nếu chưa có
         List<HomestayRoom> rooms = roomService.findAllByIdIn(roomIds);
         Map<Long, String> roomNameMap = rooms.stream()
                 .collect(Collectors.toMap(HomestayRoom::getId, HomestayRoom::getName));
+        Map<Long,String> roomImageMap = rooms.stream().collect(Collectors.toMap(HomestayRoom::getId,HomestayRoom::getImageUrl));
+        System.out.println(roomImageMap.size());
 
         // 5. ĐÓNG GÓI RA DTO (Mapping)
         return bookings.stream().map(booking -> {
@@ -376,21 +387,44 @@ public class BookingServiceImpl implements BookingService {
             BigDecimal paidAmount = BigDecimal.ZERO;
 
             if (PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
-                uiStatus = "CONFIRMED";
-                paidAmount = booking.getTotalPrice(); // Nếu đã thanh toán thì đã thu đủ
-            } else if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
-                uiStatus = "CANCELLED";
+                paidAmount = booking.getTotalPrice();
             }
+
+            // Phân loại chính xác trạng thái từ DB để đẩy lên UI
+            if (BookingStatus.DRAFT.equals(booking.getStatus())) {
+                uiStatus = "DRAFT"; // Khách đang thao tác, giữ chỗ 15p
+            } else if (BookingStatus.PENDING.equals(booking.getStatus())) {
+                uiStatus = "PENDING"; // Khách đã gửi yêu cầu, chờ Host duyệt
+            } else if (BookingStatus.CONFIRMED.equals(booking.getStatus())) {
+                uiStatus = "CONFIRMED"; // Khách đã thanh toán / Host đã duyệt
+            } else if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
+                uiStatus = "CANCELLED"; // Đơn đã hủy (quá 15p hoặc khách hủy)
+            }
+            List<MiniTourInfor> comboTours = new ArrayList<>();
+            if (bookingToursMap.containsKey(booking.getId())) {
+                for (TourBooking tb : bookingToursMap.get(booking.getId())) {
+                    Tour coreTour = tourMap.get(tb.getTourId());
+                    String tourName = coreTour != null ? coreTour.getName() : "Tour không xác định";
+                    // Lấy ảnh, nếu không có thì gán ảnh mặc định
+                    String tourImg = tourImageMap.getOrDefault(tb.getTourId(), ImageConstants.TOUR_DEFAULT);
+
+                    comboTours.add(new MiniTourInfor(tourName, tourImg, tb.getParticipantCount()));
+                }
+            }
+            String displayGuestName = booking.getGuestName() != null ? booking.getGuestName() : "Khách đang điền...";
+            String displayPhone = booking.getGuestPhone() != null ? booking.getGuestPhone() : "---";
+            String displayEmail = booking.getGuestEmail() != null ? booking.getGuestEmail() : "---";
 
             return HostBookingItemResponse.builder()
                     .bookingCode(booking.getBookingCode())
-                    .guestName(booking.getGuestName())
-                    .guestPhone(booking.getGuestPhone())
-                    .guestEmail(booking.getGuestEmail())
+                    .guestName(displayGuestName)
+                    .guestPhone(displayPhone)
+                    .guestEmail(displayEmail)
                     .guestAvatar("https://ui-avatars.com/api/?name=" + booking.getGuestName() + "&background=random") // Sinh avatar tự động
 
                     .homestayName(homestayNameMap.getOrDefault(booking.getHomestayId(), "N/A"))
                     .roomName(roomNameMap.getOrDefault(detail.getRoomId(), "N/A"))
+                    .roomImage(roomImageMap.getOrDefault(detail.getRoomId(), "N/A"))
 
                     .adults(detail.getGuestCount()) // Tạm lấy tổng guest_count làm người lớn
                     .children(0)
@@ -402,6 +436,7 @@ public class BookingServiceImpl implements BookingService {
 
                     .source("Website Trực tiếp") // Sau này mở rộng OTA (Agoda/Booking) thì tính tiếp
                     .totalPrice(booking.getTotalPrice())
+                    .includedTours(comboTours)
                     .paidAmount(paidAmount)
                     .status(uiStatus)
                     .build();
