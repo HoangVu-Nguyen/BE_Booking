@@ -60,5 +60,5 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
     List<String> findImageUrlsByIdIn(@Param("homestayIds") List<Long> roomIds);
     @Query("SELECT ri.id AS roomId, ri.imageUrl AS imageUrl FROM HomestayRoom ri WHERE ri.id IN :roomIds")
     List<RoomImageProjection> findRoomImagesByIdIn(@Param("roomIds") List<Long> roomIds);
-
+    List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, String status);
 }

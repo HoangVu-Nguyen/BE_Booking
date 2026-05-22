@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.service.homestay;
 
 import clyvasync.Clyvasync.dto.response.RoomResponse;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
+import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import org.springframework.data.repository.query.Param;
 
@@ -19,4 +20,5 @@ public interface HomestayRoomService {
     List<HomestayRoom> findAllById(Long homestayId);
     List<HomestayRoom> findAllByIdIn(List<Long> homestayIds);
     Map<Long, String> getRoomImageMap(List<Long> roomIds);
+    List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, RoomStatus status);
 }

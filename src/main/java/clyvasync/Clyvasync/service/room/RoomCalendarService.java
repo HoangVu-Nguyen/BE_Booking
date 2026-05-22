@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.room;
 
+import clyvasync.Clyvasync.dto.response.CalendarRoomResponse;
 import clyvasync.Clyvasync.modules.room.RoomCalendar;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -22,4 +23,10 @@ public interface RoomCalendarService {
                          int qty);
      List<LocalDate> getUnavailableDates(Long roomId, int month, int year);
     List<RoomCalendar> findCalendarsByRoomIdsAndDateRange(List<Long> roomIds, LocalDate startDate,LocalDate endDate);
+    List<RoomCalendar> findCustomCalendarByRoomIdsAndDateRange(
+            List<Long> roomIds,
+        LocalDate startDate,
+             LocalDate endDate
+    );
+    List<CalendarRoomResponse> getHomestayCalendar(Long homestayId, LocalDate startDate, LocalDate endDate);
 }

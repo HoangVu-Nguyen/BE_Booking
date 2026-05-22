@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.booking;
 
+import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import org.springframework.data.repository.query.Param;
@@ -21,5 +22,15 @@ public interface BookingDetailService {
            List<Long> roomId,
             LocalDate startOfMonth,
             LocalDate endOfMonth
+    );
+    List<BookingDetail> findActiveBookingsByRoomIdsAndDateRange(
+           List<Long> roomIds,
+           LocalDate startDate,
+            LocalDate endDate
+    );
+    List<BookingCalendarProjection> findActiveBookingsForCalendar(
+           List<Long> roomIds,
+             LocalDate startDate,
+           LocalDate endDate
     );
 }

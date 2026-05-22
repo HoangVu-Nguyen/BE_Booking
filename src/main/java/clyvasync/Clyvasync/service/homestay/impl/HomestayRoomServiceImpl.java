@@ -156,5 +156,11 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
                 ));
     }
 
+    @Override
+    public List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, RoomStatus status) {
+        return roomRepository.findAllByHomestayIdAndStatus(homestayId,status);
+    }
+
+
 
 }

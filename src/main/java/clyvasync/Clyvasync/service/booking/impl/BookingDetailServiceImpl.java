@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.booking.impl;
 
+import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -45,6 +46,16 @@ public class BookingDetailServiceImpl implements BookingDetailService {
     @Override
     public List<BookingTimelineProjection> findOverlappingBookings(List<Long> roomIds, LocalDate startOfMonth, LocalDate endOfMonth) {
         return bookingDetailRepository.findOverlappingBookings(roomIds, startOfMonth, endOfMonth);
+    }
+
+    @Override
+    public List<BookingDetail> findActiveBookingsByRoomIdsAndDateRange(List<Long> roomIds, LocalDate startDate, LocalDate endDate) {
+        return bookingDetailRepository.findActiveBookingsByRoomIdsAndDateRange(roomIds, startDate, endDate);
+    }
+
+    @Override
+    public List<BookingCalendarProjection> findActiveBookingsForCalendar(List<Long> roomIds, LocalDate startDate, LocalDate endDate) {
+        return bookingDetailRepository.findActiveBookingsForCalendar(roomIds,startDate, endDate);
     }
 
 }
