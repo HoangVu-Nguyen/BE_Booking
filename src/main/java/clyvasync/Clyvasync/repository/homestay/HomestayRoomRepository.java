@@ -33,19 +33,18 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
 
     // BẢN CẬP NHẬT THEO KIẾN TRÚC CALENDAR - KHÓA PHÒNG REALTIME
     @Query(value = """
-        SELECT r.id AS id, 
-               MIN(rc.available_quantity) AS availableQty
-        FROM homestay_rooms r
-        JOIN room_calendar rc ON r.id = rc.room_id
-        WHERE r.homestay_id = :homestayId
-          AND r.status = 'ACTIVE'
-          AND r.max_guests >= :guests
-          AND rc.night_date >= :checkIn AND rc.night_date < :checkOut
-        GROUP BY r.id
-        -- CHỈNH SỬA ĐOẠN NÀY: Dùng CAST AS DATE thay cho dấu :: để Hibernate không bị lú
-        HAVING MIN(rc.available_quantity) >= 1 
-           AND COUNT(rc.id) = (CAST(:checkOut AS date) - CAST(:checkIn AS date))
-        """, nativeQuery = true)
+    SELECT r.id AS id, 
+           MIN(rc.available_quantity) AS availableQty
+    FROM homestay_rooms r
+    JOIN room_calendar rc ON r.id = rc.room_id
+    WHERE r.homestay_id = :homestayId
+      AND r.status = 'ACTIVE'
+      AND r.max_guests >= :guests
+      AND rc.night_date >= :checkIn AND rc.night_date < :checkOut
+    GROUP BY r.id
+    -- Đảm bảo không có ngày nào trong khoảng đó có available_quantity <= 0
+    HAVING MIN(rc.available_quantity) >= 1
+    """, nativeQuery = true)
     List<RoomAvailabilityProjection> findAvailableRoomsProjections(
             @Param("homestayId") Long homestayId,
             @Param("checkIn") LocalDate checkIn,

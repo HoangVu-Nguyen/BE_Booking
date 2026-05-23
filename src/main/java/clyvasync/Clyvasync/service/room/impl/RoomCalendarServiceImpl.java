@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.room.impl;
 
+import clyvasync.Clyvasync.dto.detail.BookingSimpleInfo;
 import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
 import clyvasync.Clyvasync.dto.response.CalendarInventoryResponse;
 import clyvasync.Clyvasync.dto.response.CalendarRoomResponse;
@@ -110,65 +111,49 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
 
     }
     private CalendarInventoryResponse buildDailyCell(LocalDate date, HomestayRoom room,
-                                                     RoomCalendar override,
+                                                     RoomCalendar cal, // Dòng dữ liệu từ bảng RoomCalendar trong ảnh
                                                      List<BookingCalendarProjection> roomBookings) {
 
-        // 1. Khởi tạo: Lấy tổng số lượng phòng từ loại phòng (HomestayRoom)
-        Integer currentQty = room.getQuantity();
-        RoomCalendarStatus status = RoomCalendarStatus.AVAILABLE;
-        java.math.BigDecimal finalPrice = null;
-        String bookingCode = null;
-        String guestName = null;
+        // 1. Số lượng phòng ban đầu (Ví dụ 8 như trong ảnh của bạn)
+        int initialQty = room.getQuantity();
 
-        // 2. ƯU TIÊN 1: Ghi đè (Override) - Có thể làm thay đổi số lượng phòng tối đa hoặc giá
-        if (override != null) {
-            finalPrice = override.getPriceOverride();
-            if (override.getAvailableQuantity() != null) {
-                currentQty = override.getAvailableQuantity();
-            }
-            // Nếu Host chủ động set số phòng về 0 thì Block luôn
-            if (currentQty <= 0) {
-                status = RoomCalendarStatus.BLOCKED;
+        // 2. Tính xem trong ngày đó có bao nhiêu phòng đã được đặt
+        int totalBookedInDay = 0;
+        List<BookingSimpleInfo> bookingInfos = new ArrayList<>();
+        BookingCalendarProjection lastBooking = null;
+
+        for (BookingCalendarProjection b : roomBookings) {
+            if (!date.isBefore(b.getCheckInDate()) && date.isBefore(b.getCheckOutDate())) {
+                totalBookedInDay += b.getQuantity();
+                bookingInfos.add(new BookingSimpleInfo(b.getBookingCode(), b.getGuestName(), b.getQuantity()));
+                lastBooking = b;
             }
         }
 
-        // 3. ƯU TIÊN 2: Tính toán Inventory (Cộng dồn tất cả các booking trong ngày)
-        // Chúng ta KHÔNG dùng break ở đây nữa vì cần tính tổng số phòng đã đặt trong ngày
-        if (status != RoomCalendarStatus.BLOCKED) {
-            int totalBookedInDay = 0;
-            BookingCalendarProjection lastBooking = null;
+        // 3. Logic xác định trạng thái (KHÔNG CẦN OVERRIDE)
+        RoomCalendarStatus status;
 
-            for (BookingCalendarProjection b : roomBookings) {
-                // Kiểm tra xem ngày này có thuộc khoảng đêm lưu trú không
-                if (!date.isBefore(b.getCheckInDate()) && date.isBefore(b.getCheckOutDate())) {
-                    totalBookedInDay += b.getQuantity();
-                    lastBooking = b; // Lưu lại để lấy info hiển thị
-                }
+        // NẾU cal.getAvailableQuantity() == 0, ta cần biết tại sao?
+        // Nếu totalBookedInDay > 0 -> Có nghĩa là khách đặt hết sạch phòng -> BOOKED
+        // Nếu totalBookedInDay == 0 -> Nghĩa là không có khách nào đặt mà phòng vẫn 0 -> BLOCKED (Host khóa thật sự)
+
+        if (cal.getAvailableQuantity() <= 0) {
+            if (totalBookedInDay > 0) {
+                status = RoomCalendarStatus.BOOKED; // Khách đặt full
+            } else {
+                status = RoomCalendarStatus.BLOCKED; // Host khóa phòng
             }
-
-            // Trừ số lượng phòng đã bán
-            currentQty -= totalBookedInDay;
-
-            // Nếu hết phòng thì chuyển sang trạng thái BOOKED
-            if (currentQty <= 0) {
-                status = RoomCalendarStatus.BOOKED;
-                // Hiển thị info của booking gần nhất hoặc booking cuối cùng
-                if (lastBooking != null) {
-                    bookingCode = lastBooking.getBookingCode();
-                    guestName = (lastBooking.getGuestName() != null && !lastBooking.getGuestName().isBlank())
-                            ? lastBooking.getGuestName()
-                            : "KH: " + lastBooking.getBookingCode();
-                }
-            }
+        } else {
+            status = RoomCalendarStatus.AVAILABLE;
         }
 
         return CalendarInventoryResponse.builder()
                 .date(date)
-                .priceOverride(finalPrice)
-                .availableQuantity(Math.max(0, currentQty)) // Hiển thị số phòng trống thực tế
+                .availableQuantity(cal.getAvailableQuantity())
                 .status(status)
-                .bookingCode(bookingCode)
-                .guestName(guestName)
+                .totalBookedInDay(totalBookedInDay)
+                .bookings(bookingInfos)
+                .bookingCode(lastBooking != null ? lastBooking.getBookingCode() : null)
                 .build();
     }
 }

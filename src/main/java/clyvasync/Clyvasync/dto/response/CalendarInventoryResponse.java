@@ -1,11 +1,13 @@
 package clyvasync.Clyvasync.dto.response;
 
+import clyvasync.Clyvasync.dto.detail.BookingSimpleInfo;
 import clyvasync.Clyvasync.enums.calendar.RoomCalendarStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 
 @Data
@@ -20,4 +22,7 @@ public class CalendarInventoryResponse {
     // Thêm Data cho Booking nếu status là BOOKED
     private String bookingCode;
     private String guestName;
+    private Integer totalBookedInDay; // Thêm trường này
+    private List<BookingSimpleInfo> bookings;
+
 }

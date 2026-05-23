@@ -11,7 +11,7 @@ import java.util.List;
 
 public interface RoomCalendarRepository extends JpaRepository<RoomCalendar, Long> {
     RoomCalendar findByRoomId(Long roomId);
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE RoomCalendar rc 
         SET rc.availableQuantity = rc.availableQuantity - :qty
@@ -24,7 +24,7 @@ public interface RoomCalendarRepository extends JpaRepository<RoomCalendar, Long
                       @Param("checkOut") LocalDate checkOut,
                       @Param("qty") int qty);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("""
         UPDATE RoomCalendar rc 
         SET rc.availableQuantity = rc.availableQuantity + :qty
