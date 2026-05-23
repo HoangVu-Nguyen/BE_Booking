@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface RoomCalendarRepository extends JpaRepository<RoomCalendar, Long> {
     RoomCalendar findByRoomId(Long roomId);
@@ -59,4 +60,6 @@ public interface RoomCalendarRepository extends JpaRepository<RoomCalendar, Long
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
+    List<RoomCalendar> findByRoomIdAndNightDateBetween(Long roomId, LocalDate start, LocalDate end);
+    Optional<RoomCalendar> findByRoomIdAndNightDate(Long roomId, LocalDate nightDate);
 }

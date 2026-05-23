@@ -1,5 +1,7 @@
 package clyvasync.Clyvasync.service.room;
 
+import clyvasync.Clyvasync.dto.request.BatchUpdateCalendarRequest;
+import clyvasync.Clyvasync.dto.response.CalendarInventoryResponse;
 import clyvasync.Clyvasync.dto.response.CalendarRoomResponse;
 import clyvasync.Clyvasync.modules.room.RoomCalendar;
 import org.springframework.data.jpa.repository.Modifying;
@@ -29,4 +31,6 @@ public interface RoomCalendarService {
              LocalDate endDate
     );
     List<CalendarRoomResponse> getHomestayCalendar(Long homestayId, LocalDate startDate, LocalDate endDate);
+    void batchUpdateCalendar(BatchUpdateCalendarRequest request);
+    List<CalendarInventoryResponse> getCalendarDetails(Long roomId, LocalDate start, LocalDate end);
 }

@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.service.room.impl;
 
 import clyvasync.Clyvasync.dto.detail.BookingSimpleInfo;
 import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
+import clyvasync.Clyvasync.dto.request.BatchUpdateCalendarRequest;
 import clyvasync.Clyvasync.dto.response.CalendarInventoryResponse;
 import clyvasync.Clyvasync.dto.response.CalendarRoomResponse;
 import clyvasync.Clyvasync.enums.calendar.RoomCalendarStatus;
@@ -19,6 +20,7 @@ import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -95,7 +97,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
 
             // Chạy từng ngày
             for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-                inventoryList.add(buildDailyCell(date, room, roomOverrides.get(date), roomBookings));
+                inventoryList.add(buildDailyCell(date, room, roomOverrides.get(date), roomBookings,allRatePlans));
             }
 
             result.add(CalendarRoomResponse.builder()
@@ -110,50 +112,178 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         return result;
 
     }
+
+    @Override
+    @Transactional
+    public void batchUpdateCalendar(BatchUpdateCalendarRequest request) {
+        Long roomId = request.getRoomId();
+        LocalDate startDate = request.getStartDate();
+        LocalDate endDate = request.getEndDate();
+
+        List<RoomCalendar> existingCalendars = roomCalendarRepository
+                .findByRoomIdAndNightDateBetween(roomId, startDate, endDate);
+
+        Map<LocalDate, RoomCalendar> calendarMap = existingCalendars.stream()
+                .collect(Collectors.toMap(RoomCalendar::getNightDate, calendar -> calendar));
+
+        List<RoomCalendar> calendarsToSave = new ArrayList<>();
+
+        // 3. Duyệt qua dải ngày
+        LocalDate current = startDate;
+        while (!current.isAfter(endDate)) {
+            RoomCalendar calendar = calendarMap.getOrDefault(current,
+                    RoomCalendar.builder()
+                            .roomId(roomId)
+                            .nightDate(current)
+                            .build());
+
+            // Cập nhật thuộc tính
+            boolean isChanged = false;
+
+            if (request.getPriceOverride() != null && !request.getPriceOverride().equals(calendar.getPriceOverride())) {
+                calendar.setPriceOverride(request.getPriceOverride());
+                isChanged = true;
+            }
+
+            if (request.getAvailableQuantity() != null && !request.getAvailableQuantity().equals(calendar.getAvailableQuantity())) {
+                calendar.setAvailableQuantity(request.getAvailableQuantity());
+                isChanged = true;
+            }
+
+            if (RoomStatus.BLOCKED.equals(request.getStatus())) {
+                if (calendar.getAvailableQuantity() != 0) {
+                    calendar.setAvailableQuantity(0);
+                    isChanged = true;
+                }
+            }
+
+            if (isChanged || calendar.getId() == null) {
+                calendarsToSave.add(calendar);
+            }
+
+            current = current.plusDays(1);
+        }
+
+        if (!calendarsToSave.isEmpty()) {
+            roomCalendarRepository.saveAll(calendarsToSave);
+        }
+    }
+
+    @Override
+    public List<CalendarInventoryResponse> getCalendarDetails(Long roomId, LocalDate start, LocalDate end) {
+        // 1. Lấy dữ liệu lịch và dữ liệu booking
+        List<RoomCalendar> calendars = roomCalendarRepository.findByRoomIdAndNightDateBetween(roomId, start, end);
+        List<BookingCalendarProjection> bookings = bookingDetailService.findActiveBookingsForCalendar(
+                Collections.singletonList(roomId), start, end);
+
+        // Lấy thông tin phòng để biết tổng số lượng (roomQuantity)
+        HomestayRoom room = homestayRoomService.getRoomById(roomId);
+        // 2. Chuyển calendars sang Map để dễ tra cứu
+        Map<LocalDate, RoomCalendar> calMap = calendars.stream()
+                .collect(Collectors.toMap(RoomCalendar::getNightDate, c -> c));
+
+        List<CalendarInventoryResponse> result = new ArrayList<>();
+
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            RoomCalendar cal = calMap.get(date);
+
+            // --- SỬA Ở ĐÂY ---
+            // Tạo biến cục bộ để sử dụng trong Lambda
+            final LocalDate currentDate = date;
+
+            // Tính booking trong ngày này
+            int totalBookedInDay = (int) bookings.stream()
+                    // Sử dụng currentDate thay vì date
+                    .filter(b -> !currentDate.isBefore(b.getCheckInDate()) && currentDate.isBefore(b.getCheckOutDate()))
+                    .mapToInt(BookingCalendarProjection::getQuantity)
+                    .sum();
+
+            // Gọi hàm determineStatus đã được sửa để nhận đủ tham số
+            RoomCalendarStatus status = determineStatus(cal, totalBookedInDay, room.getQuantity());
+
+            result.add(CalendarInventoryResponse.builder()
+                    .date(currentDate) // Dùng currentDate ở đây
+                    .priceOverride(cal != null ? cal.getPriceOverride() : null)
+                    .availableQuantity(cal != null ? cal.getAvailableQuantity() : room.getQuantity())
+                    .status(status)
+                    .build());
+        }
+        return result;
+    }
+
     private CalendarInventoryResponse buildDailyCell(LocalDate date, HomestayRoom room,
-                                                     RoomCalendar cal, // Dòng dữ liệu từ bảng RoomCalendar trong ảnh
-                                                     List<BookingCalendarProjection> roomBookings) {
+                                                     RoomCalendar cal,
+                                                     List<BookingCalendarProjection> roomBookings,List<RoomRatePlan> roomRatePlans) {
 
-        // 1. Số lượng phòng ban đầu (Ví dụ 8 như trong ảnh của bạn)
-        int initialQty = room.getQuantity();
-
-        // 2. Tính xem trong ngày đó có bao nhiêu phòng đã được đặt
+        // 1. Tính toán booking trong ngày
         int totalBookedInDay = 0;
         List<BookingSimpleInfo> bookingInfos = new ArrayList<>();
-        BookingCalendarProjection lastBooking = null;
 
         for (BookingCalendarProjection b : roomBookings) {
             if (!date.isBefore(b.getCheckInDate()) && date.isBefore(b.getCheckOutDate())) {
                 totalBookedInDay += b.getQuantity();
                 bookingInfos.add(new BookingSimpleInfo(b.getBookingCode(), b.getGuestName(), b.getQuantity()));
-                lastBooking = b;
             }
         }
 
-        // 3. Logic xác định trạng thái (KHÔNG CẦN OVERRIDE)
+        // 2. Xác định Giá (Ưu tiên Price Override trước, sau đó mới đến giá gốc của phòng)
+        BigDecimal finalPrice;
+        if (cal != null && cal.getPriceOverride() != null) {
+            finalPrice = cal.getPriceOverride();
+        } else {
+            finalPrice = roomRatePlans.stream()
+                    .map(RoomRatePlan::getPrice)
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+        }
+
+        // 3. Xác định Số lượng còn lại (Available)
+        // Nếu cal không tồn tại, mặc định là room.getQuantity()
+        int availableQty = (cal != null && cal.getAvailableQuantity() != null)
+                ? cal.getAvailableQuantity()
+                : room.getQuantity();
+
+        // 4. Xác định Trạng thái (Logic này cực kỳ quan trọng cho UI)
         RoomCalendarStatus status;
 
-        // NẾU cal.getAvailableQuantity() == 0, ta cần biết tại sao?
-        // Nếu totalBookedInDay > 0 -> Có nghĩa là khách đặt hết sạch phòng -> BOOKED
-        // Nếu totalBookedInDay == 0 -> Nghĩa là không có khách nào đặt mà phòng vẫn 0 -> BLOCKED (Host khóa thật sự)
-
-        if (cal.getAvailableQuantity() <= 0) {
-            if (totalBookedInDay > 0) {
-                status = RoomCalendarStatus.BOOKED; // Khách đặt full
-            } else {
-                status = RoomCalendarStatus.BLOCKED; // Host khóa phòng
-            }
-        } else {
+        // Kiểm tra ưu tiên: Đã có khách đặt chưa?
+        if (totalBookedInDay >= room.getQuantity()) {
+            status = RoomCalendarStatus.BOOKED; // Full phòng
+        }
+        // Nếu không full, kiểm tra Host có khóa phòng thủ công không?
+        else if (availableQty <= 0) {
+            status = RoomCalendarStatus.BLOCKED;
+        }
+        // Nếu vẫn còn phòng
+        else {
             status = RoomCalendarStatus.AVAILABLE;
         }
 
         return CalendarInventoryResponse.builder()
                 .date(date)
-                .availableQuantity(cal.getAvailableQuantity())
+                .availableQuantity(availableQty)
                 .status(status)
+                .priceOverride(finalPrice) // Đã cập nhật giá đúng
                 .totalBookedInDay(totalBookedInDay)
                 .bookings(bookingInfos)
-                .bookingCode(lastBooking != null ? lastBooking.getBookingCode() : null)
                 .build();
+    }
+    private RoomCalendarStatus determineStatus(RoomCalendar cal, int totalBookedInDay, int roomQuantity) {
+        // 1. ƯU TIÊN 1: Trạng thái Đã đặt (BOOKED)
+        // Nếu số phòng đã bán >= tổng số phòng, thì dù Host có chỉnh available hay không,
+        // trạng thái hiển thị trên lịch phải là BOOKED để tránh overbooking.
+        if (totalBookedInDay >= roomQuantity) {
+            return RoomCalendarStatus.BOOKED;
+        }
+
+        // 2. ƯU TIÊN 2: Trạng thái Khóa phòng (BLOCKED)
+        // Nếu cal bị null (chưa cấu hình) hoặc Host chủ động set available = 0
+        if (cal == null || cal.getAvailableQuantity() == null || cal.getAvailableQuantity() <= 0) {
+            return RoomCalendarStatus.BLOCKED;
+        }
+
+        // 3. ƯU TIÊN 3: Trạng thái Sẵn sàng (AVAILABLE)
+        // Còn phòng và không bị đặt full.
+        return RoomCalendarStatus.AVAILABLE;
     }
 }
