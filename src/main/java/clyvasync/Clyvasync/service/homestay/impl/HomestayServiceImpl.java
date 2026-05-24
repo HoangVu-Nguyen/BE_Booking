@@ -25,6 +25,7 @@ import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
 import clyvasync.Clyvasync.repository.tour.TourRepository;
+import clyvasync.Clyvasync.service.annotation.IsHomestayOwner;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
@@ -99,11 +100,13 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
+    @IsHomestayOwner
     public HomestayResponse updateHomestay(Long id, HomestayRequest request, Long ownerId) {
         return null;
     }
 
     @Override
+    @IsHomestayOwner
     public void deleteHomestay(Long id, Long ownerId) {
 
     }
@@ -299,11 +302,13 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
+    @IsHomestayOwner
     public void updateStatus(Long id, String status, Long ownerId) {
 
     }
 
     @Override
+    @IsHomestayOwner
     public void updateAverageRating(Long id, BigDecimal newRating) {
 
     }
@@ -396,6 +401,7 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
+    @IsHomestayOwner
     public HomestayTimelineResponse getHomestayTimeline(Long homestayId, LocalDate startDate, LocalDate endDate) {
         List<HomestayRoom> rooms = homestayRoomService.findAllById(homestayId);
         List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
