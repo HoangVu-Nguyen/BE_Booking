@@ -5,20 +5,26 @@ import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
 import clyvasync.Clyvasync.dto.request.BatchUpdateCalendarRequest;
 import clyvasync.Clyvasync.dto.response.CalendarInventoryResponse;
 import clyvasync.Clyvasync.dto.response.CalendarRoomResponse;
+import clyvasync.Clyvasync.dto.response.HomestayCalendarResponse;
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.enums.calendar.RoomCalendarStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
+import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.room.RoomCalendar;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.repository.room.RoomCalendarRepository;
+import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RoomCalendarService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,13 +37,24 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
+
 @Slf4j
 public class RoomCalendarServiceImpl implements RoomCalendarService {
     private final RoomCalendarRepository roomCalendarRepository;
     private final HomestayRoomService homestayRoomService;
     private final BookingDetailService bookingDetailService;
     private final RoomRatePlanService roomRatePlanService;
+    private final HomestayService homestayService;
+    private final UserService userService;
+
+    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService,@Lazy HomestayService homestayService,UserService userService) {
+        this.roomCalendarRepository = roomCalendarRepository;
+        this.homestayRoomService = homestayRoomService;
+        this.bookingDetailService = bookingDetailService;
+        this.roomRatePlanService = roomRatePlanService;
+        this.homestayService = homestayService;
+        this.userService = userService;
+    }
 
     @Override
     public int lockRoomRange(Long roomId, LocalDate checkIn, LocalDate checkOut, int qty) {
@@ -68,9 +85,11 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
     }
 
     @Override
-    public List<CalendarRoomResponse> getHomestayCalendar(Long homestayId, LocalDate startDate, LocalDate endDate) {
+    public HomestayCalendarResponse getHomestayCalendar(Long ownerId,Long homestayId, LocalDate startDate, LocalDate endDate) {
+        OwnerResponse ownerResponse = userService.getOwnerInfo(ownerId);
         List<HomestayRoom> rooms = homestayRoomService.findAllByHomestayIdAndStatus(homestayId, RoomStatus.ACTIVE);
-        if (rooms.isEmpty()) return Collections.emptyList();
+        Homestay homestay = homestayService.findById(homestayId);
+        if (rooms.isEmpty()) return new HomestayCalendarResponse();
         List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
         List<RoomCalendar> overrides = roomCalendarRepository.findCustomCalendarByRoomIdsAndDateRange(roomIds, startDate, endDate);
         List<BookingCalendarProjection> bookings = bookingDetailService.findActiveBookingsForCalendar(roomIds, startDate, endDate);        Map<Long, Map<LocalDate, RoomCalendar>> overrideMap = overrides.stream()
@@ -82,6 +101,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(roomIds);
         Map<Long, List<RoomRatePlan>> ratePlanMap = allRatePlans.stream()
                 .collect(Collectors.groupingBy(RoomRatePlan::getRoomId));
+
         List<CalendarRoomResponse> result = new ArrayList<>();
         for (HomestayRoom room : rooms) {
             List<CalendarInventoryResponse> inventoryList = new ArrayList<>();
@@ -103,13 +123,14 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
             result.add(CalendarRoomResponse.builder()
                     .id(room.getId())
                     .name(room.getName())
+                            .imageUrl(room.getImageUrl())
                     .tag(room.getTag())
                     .basePrice(basePrice)
                     .inventory(inventoryList)
                     .build());
         }
 
-        return result;
+        return HomestayCalendarResponse.builder().owner(ownerResponse).homestayId(homestay.getId()).homestayName(homestay.getName()).status(homestay.getStatus()).roomCode("PRT").rooms(result).build();
 
     }
 
