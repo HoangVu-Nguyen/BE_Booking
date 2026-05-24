@@ -9,7 +9,9 @@ import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -32,5 +34,11 @@ public interface BookingService {
             OffsetDateTime paymentThreshold,
              BookingStatus draftStatus ,
           BookingStatus paymentStatus
+    );
+    BigDecimal sumRevenueByHomestays(List<Long> homeIds, OffsetDateTime startOfThisMonth);
+    BigDecimal sumRevenueByHomestaysAndDateRange(
+           List<Long> homestayIds,
+           OffsetDateTime startDate,
+           OffsetDateTime endDate
     );
 }

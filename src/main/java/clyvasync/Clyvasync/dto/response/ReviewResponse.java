@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Data
@@ -16,7 +17,7 @@ public class ReviewResponse {
     private Long id;           // Từ reviews.id
     private Integer rating;    // Từ reviews.rating (1-5 sao)
     private String comment;    // Từ reviews.comment
-    private LocalDateTime createdAt; // Từ reviews.created_at
+    private OffsetDateTime createdAt; // Từ reviews.created_at
 
     // Thông tin người đánh giá (Lấy từ bảng users qua user_id)
     private Long userId;

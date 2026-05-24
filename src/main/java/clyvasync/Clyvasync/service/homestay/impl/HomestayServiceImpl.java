@@ -37,6 +37,7 @@ import clyvasync.Clyvasync.spec.TourSearchSpec;
 import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -46,6 +47,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.*;
 import java.math.BigDecimal;
@@ -55,7 +57,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class HomestayServiceImpl implements HomestayService {
     private final HomestayRepository homestayRepository;
@@ -72,6 +73,25 @@ public class HomestayServiceImpl implements HomestayService {
     private final TourImageService tourImageService;
     private final RoomCalendarService roomCalendarService;
     private final BookingDetailService bookingDetailService;
+    private final BookingService bookingService;
+
+    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService,@Lazy BookingService bookingService) {
+        this.homestayRepository = homestayRepository;
+        this.homestayMapper = homestayMapper;
+        this.amenityService = amenityService;
+        this.homestayImageService = homestayImageService;
+        this.locationService = locationService;
+        this.categoryService = categoryService;
+        this.reviewService = reviewService;
+        this.tourService = tourService;
+        this.userService = userService;
+        this.homestayRoomService = homestayRoomService;
+        this.favoriteService = favoriteService;
+        this.tourImageService = tourImageService;
+        this.roomCalendarService = roomCalendarService;
+        this.bookingDetailService = bookingDetailService;
+        this.bookingService = bookingService;
+    }
 
     @Override
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
@@ -581,6 +601,109 @@ public class HomestayServiceImpl implements HomestayService {
                             .build())
                     .build();
         }).toList();
+    }
+
+    @Override
+    public HostPortfolioSummaryResponse getPortfolioSummary(Long hostId) {
+        log.info("[PORTFOLIO] Calculating REAL summary report for host ID: {}", hostId);
+
+        List<Homestay> homestays = homestayRepository.findAllByOwnerId(hostId);
+        int totalProperties = homestays.size();
+
+        if (totalProperties == 0) {
+            return HostPortfolioSummaryResponse.builder()
+                    .totalPortfolioValue(BigDecimal.ZERO).portfolioGrowthRate(0.0)
+                    .averageOccupancyRate(0.0).occupancyTrend("N/A")
+                    .averageRating(0.0).ratingGrowth(0.0)
+                    .totalProperties(0).build();
+        }
+
+        List<Long> homeIds = homestays.stream().map(Homestay::getId).toList();
+        List<HomestayRoom> allRooms = homestayRoomService.findAllByIdIn(homeIds);
+        List<Long> allRoomIds = allRooms.stream().map(HomestayRoom::getId).toList();
+
+        // ==========================================
+        // 1. TÍNH TOÁN DOANH THU & TĂNG TRƯỞNG (REVENUE)
+        // ==========================================
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime startOfThisMonth = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        OffsetDateTime endOfThisMonth = now.withDayOfMonth(now.toLocalDate().lengthOfMonth()).withHour(23).withMinute(59).withSecond(59);
+
+        OffsetDateTime startOfLastMonth = startOfThisMonth.minusMonths(1);
+        OffsetDateTime endOfLastMonth = startOfThisMonth.minusSeconds(1);
+
+        BigDecimal currentRevenue = bookingService.sumRevenueByHomestaysAndDateRange(homeIds, startOfThisMonth, endOfThisMonth);
+        BigDecimal lastMonthRevenue = bookingService.sumRevenueByHomestaysAndDateRange(homeIds, startOfLastMonth, endOfLastMonth);
+
+        double portfolioGrowthRate = 0.0;
+        if (lastMonthRevenue.compareTo(BigDecimal.ZERO) > 0) {
+            // Công thức: ((Tháng này - Tháng trước) / Tháng trước) * 100
+            BigDecimal growth = currentRevenue.subtract(lastMonthRevenue)
+                    .divide(lastMonthRevenue, 4, RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"));
+            portfolioGrowthRate = growth.setScale(1, RoundingMode.HALF_UP).doubleValue();
+        } else if (currentRevenue.compareTo(BigDecimal.ZERO) > 0) {
+            portfolioGrowthRate = 100.0; // Từ 0 lên có doanh thu tính là tăng 100%
+        }
+
+        // ==========================================
+        // 2. TÍNH TOÁN LẤP ĐẦY & XU HƯỚNG (OCCUPANCY)
+        // ==========================================
+        YearMonth currentYearMonth = YearMonth.now();
+        YearMonth lastYearMonth = currentYearMonth.minusMonths(1);
+
+        List<BookingTimelineProjection> currentBookings = new ArrayList<>();
+        List<BookingTimelineProjection> lastMonthBookings = new ArrayList<>();
+
+        if (!allRoomIds.isEmpty()) {
+            currentBookings = bookingDetailService.findOverlappingBookings(allRoomIds, currentYearMonth.atDay(1), currentYearMonth.atEndOfMonth());
+            lastMonthBookings = bookingDetailService.findOverlappingBookings(allRoomIds, lastYearMonth.atDay(1), lastYearMonth.atEndOfMonth());
+        }
+
+        // Chạy thuật toán Batch 2 lần cho 2 tháng
+        Map<Long, Integer> currentOccupancyMap = calculateBatchOccupancy(homeIds, allRooms, currentBookings, currentYearMonth.atDay(1), currentYearMonth.atEndOfMonth());
+        Map<Long, Integer> lastMonthOccupancyMap = calculateBatchOccupancy(homeIds, allRooms, lastMonthBookings, lastYearMonth.atDay(1), lastYearMonth.atEndOfMonth());
+
+        double avgOccupancy = currentOccupancyMap.values().stream().mapToInt(Integer::intValue).average().orElse(0.0);
+        double prevAvgOccupancy = lastMonthOccupancyMap.values().stream().mapToInt(Integer::intValue).average().orElse(0.0);
+
+        // Xác định xu hướng (Chênh lệch > 2% mới tính là tăng/giảm)
+        String occupancyTrend = "Ổn định";
+        if (avgOccupancy > prevAvgOccupancy + 2.0) occupancyTrend = "Tăng trưởng";
+        else if (avgOccupancy < prevAvgOccupancy - 2.0) occupancyTrend = "Giảm nhẹ";
+
+        // ==========================================
+        // 3. TÍNH TOÁN RATING & TĂNG TRƯỞNG (RATING)
+        // ==========================================
+        // Lấy điểm trung bình tích luỹ tới cuối tháng này
+        Double currentAvgRating = reviewService.getAverageRatingByHomestaysUpToDate(homeIds, endOfThisMonth);
+        // Lấy điểm trung bình tích luỹ tới cuối tháng trước
+        Double prevAvgRating = reviewService.getAverageRatingByHomestaysUpToDate(homeIds, endOfLastMonth);
+
+        // Đảm bảo không bị null
+        double avgRatingVal = currentAvgRating != null ? currentAvgRating : 0.0;
+        double prevAvgRatingVal = prevAvgRating != null ? prevAvgRating : 0.0;
+
+        // Tính mức độ tăng trưởng điểm đánh giá
+        double ratingGrowth = 0.0;
+        if (avgRatingVal > 0 && prevAvgRatingVal > 0) {
+            ratingGrowth = avgRatingVal - prevAvgRatingVal;
+        } else if (avgRatingVal > 0 && prevAvgRatingVal == 0) {
+            ratingGrowth = avgRatingVal; // Có review đầu tiên
+        }
+
+        // ==========================================
+        // 4. ĐÓNG GÓI RESPONSE
+        // ==========================================
+        return HostPortfolioSummaryResponse.builder()
+                .totalPortfolioValue(currentRevenue)
+                .portfolioGrowthRate(portfolioGrowthRate)
+                .averageOccupancyRate(Math.round(avgOccupancy * 10.0) / 10.0)
+                .occupancyTrend(occupancyTrend)
+                .averageRating(Math.round(avgRatingVal * 100.0) / 100.0)
+                .ratingGrowth(Math.round(ratingGrowth * 100.0) / 100.0)
+                .totalProperties(totalProperties)
+                .build();
     }
 
     private List<GlobalSearchResponse> mapHomestaysToResponse(List<Homestay> homestays) {

@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "reviews")
@@ -33,5 +34,10 @@ public class Review {
     @Column(name = "reply_from_host", columnDefinition = "TEXT")
     private String replyFromHost;
 
-    private LocalDateTime createdAt;
+    // Đổi dòng này:
+    // private LocalDateTime createdAt;
+
+    // Thành dòng này:
+    @Column(name = "created_at", updatable = false)
+    private OffsetDateTime createdAt;
 }

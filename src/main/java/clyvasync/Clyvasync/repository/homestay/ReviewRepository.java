@@ -8,10 +8,21 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review,Long> {
     List<Review> findAllByHomestayId(Long homestayId);Page<Review> findAllByHomestayId(Long homestayId, Pageable pageable);
-
+    @Query("""
+        SELECT COALESCE(AVG(r.rating), 0) 
+        FROM Review r 
+        WHERE r.homestayId IN :homestayIds 
+          AND r.createdAt <= :targetDate
+    """)
+    Double getAverageRatingByHomestaysUpToDate(
+            @Param("homestayIds") List<Long> homestayIds,
+            @Param("targetDate") OffsetDateTime targetDate
+    );
 }

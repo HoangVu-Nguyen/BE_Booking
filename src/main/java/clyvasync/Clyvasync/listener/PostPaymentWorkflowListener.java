@@ -38,7 +38,7 @@ public class PostPaymentWorkflowListener {
     private final SocketEmitterService socketEmitterService;
 
     // Kéo cấu hình phí hoa hồng từ application.properties (không hardcode)
-    @Value("${app.platform.fee-percentage:0.15}")
+    @Value("${app.platform.fee-percentage:0.10}")
     private BigDecimal platformFeePercent;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

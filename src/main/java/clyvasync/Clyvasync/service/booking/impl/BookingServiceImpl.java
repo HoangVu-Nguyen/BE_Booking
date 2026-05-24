@@ -48,10 +48,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.YearMonth;
+import java.time.*;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -131,7 +128,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingInitResponse initBooking(BookingInitRequest request, Long userId) {
         System.out.println(request);
 
-        // 1. TÍNH SỐ ĐÊM & KHÓA PHÒNG (Giữ nguyên)
+        // 1. TÍNH SỐ ĐÊM & KHÓA PHÒNG
         long nights = java.time.temporal.ChronoUnit.DAYS.between(request.getCheckInDate(), request.getCheckOutDate());
         if (nights <= 0) throw new AppException(ResultCode.INVALID_DATE_RANGE);
         HomestayRoom room = roomService.getRoomById(request.getRoomId());
@@ -147,7 +144,6 @@ public class BookingServiceImpl implements BookingService {
         // 2. KHÓA SLOT CHO TOÀN BỘ DANH SÁCH TOUR
         BigDecimal totalTourPrice = BigDecimal.ZERO;
 
-        // Check nếu khách có chọn tour
         if (request.getTours() != null && !request.getTours().isEmpty()) {
             for (TourBookingItemDetail tourItem : request.getTours()) {
                 int tourRowsUpdated = tourAvailabilityService.deductTourSlots(
@@ -155,29 +151,38 @@ public class BookingServiceImpl implements BookingService {
                         tourItem.getParticipantCount()
                 );
 
-                // Nếu bất kỳ tour nào hết chỗ -> Rollback toàn bộ (kể cả phòng)
                 if (tourRowsUpdated == 0) {
                     throw new AppException(ResultCode.TOUR_NOT_AVAILABLE);
                 }
 
-                // Tính giá cho từng tour để cộng dồn
                 Tour tour = tourService.findTourById(tourItem.getTourId());
                 BigDecimal itemTotal = tour.getPricePerPerson().multiply(BigDecimal.valueOf(tourItem.getParticipantCount()));
                 totalTourPrice = totalTourPrice.add(itemTotal);
             }
         }
 
-        // 3. TÍNH TOÁN TỔNG TIỀN HÓA ĐƠN
+        // 3. TÍNH TOÁN DÒNG TIỀN (CHUẨN FINTECH)
         String bookingCode = "BK-" + System.currentTimeMillis() % 1000000 + "-" + generateRandomString();
         RoomRatePlan ratePlan = roomRatePlanService.getById(request.getRatePlanId());
 
+        // 3.1. Giá trị gốc của đơn hàng (Tiền phòng + Tiền Tour)
         BigDecimal roomSubtotal = ratePlan.getPrice()
                 .multiply(BigDecimal.valueOf(nights))
                 .multiply(BigDecimal.valueOf(request.getRoomQuantity()));
+        BigDecimal basePrice = roomSubtotal.add(totalTourPrice); // Ví dụ: 1.200.000
 
-        BigDecimal totalPrice = roomSubtotal.add(totalTourPrice);
-        BigDecimal taxFee = totalPrice.multiply(new BigDecimal("0.10"));
-        BigDecimal finalGrandTotal = totalPrice.add(taxFee);
+        // 3.2. Tiền từ phía KHÁCH HÀNG (Khách chịu 10% phí dịch vụ)
+        BigDecimal guestServiceFee = basePrice.multiply(new BigDecimal("0.10")); // 120.000
+        BigDecimal finalGrandTotal = basePrice.add(guestServiceFee);             // 1.320.000 (Tổng khách trả)
+
+        // 3.3. Tiền từ phía HOST (Host chịu 5% phí hoa hồng cho nền tảng)
+        BigDecimal hostCommission = basePrice.multiply(new BigDecimal("0.05"));  // 60.000
+        BigDecimal hostPayout = basePrice.subtract(hostCommission);              // 1.140.000 (Host thực nhận)
+
+        // 3.4. Tổng doanh thu của nền tảng (App thu từ Khách + App thu từ Host)
+        BigDecimal platformRevenue = guestServiceFee.add(hostCommission);        // 180.000
+
+        // Điểm thưởng cho khách (1% trên tổng tiền khách trả)
         int expectedPoints = finalGrandTotal.multiply(new BigDecimal("0.01")).intValue();
 
         // 4. LƯU BOOKING TỔNG
@@ -185,8 +190,13 @@ public class BookingServiceImpl implements BookingService {
                 .bookingCode(bookingCode)
                 .userId(userId)
                 .homestayId(request.getHomestayId())
-                .totalPrice(finalGrandTotal)
-                .taxFee(taxFee)
+
+                // Gán dữ liệu dòng tiền cực chuẩn vào DB
+                .totalPrice(finalGrandTotal)        // Cột này lưu 1.320.000 (Khách phải trả)
+                .taxFee(guestServiceFee)            // Cột này lưu 120.000 (Phí khách trả thêm)
+                .hostPayoutAmount(hostPayout)       // Cột này lưu 1.140.000 (Chờ giải ngân cho Host)
+                .platformFeeAmount(platformRevenue) // Cột này lưu 180.000 (Tổng doanh thu của Clyvasync)
+
                 .status(BookingStatus.DRAFT)
                 .paymentStatus(PaymentStatus.UNPAID)
                 .loyaltyPointsEarned(expectedPoints)
@@ -219,7 +229,7 @@ public class BookingServiceImpl implements BookingService {
                 BigDecimal itemTotal = tour.getPricePerPerson().multiply(BigDecimal.valueOf(tourItem.getParticipantCount()));
 
                 TourBooking tourBooking = TourBooking.builder()
-                        .bookingCode("TR-" + generateRandomString()) // Code riêng cho từng tour
+                        .bookingCode("TR-" + generateRandomString())
                         .tourId(tourItem.getTourId())
                         .userId(userId)
                         .homestayBookingId(booking.getId())
@@ -234,6 +244,8 @@ public class BookingServiceImpl implements BookingService {
                 tourBookingService.save(tourBooking);
             }
         }
+
+        // 7. PUBLISH EVENT ĐỒNG BỘ LỊCH
         Map<String, Object> calendarPayload = Map.of(
                 "type", "CALENDAR_SYNC",
                 "roomId", request.getRoomId(),
@@ -242,10 +254,10 @@ public class BookingServiceImpl implements BookingService {
                 "checkOut", request.getCheckOutDate().toString()
         );
 
-        // Truyền hostId = null vì lúc này ta chỉ muốn Listener bắn Broadcast Public, chưa cần báo Host
         eventPublisher.publishEvent(new BookingEvent(this, null, calendarPayload));
+
         boolean instantBookFlag = room.getIsInstantBook() != null ? room.getIsInstantBook() : true;
-        return new BookingInitResponse(bookingCode, booking.getId(),instantBookFlag);
+        return new BookingInitResponse(bookingCode, booking.getId(), instantBookFlag);
     }
 
     @Override
@@ -591,6 +603,16 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public List<Booking> findAllExpired(OffsetDateTime draftThreshold, OffsetDateTime paymentThreshold, BookingStatus draftStatus, BookingStatus paymentStatus) {
         return bookingRepository.findAllExpired(draftThreshold,paymentThreshold,draftStatus,paymentStatus);
+    }
+
+    @Override
+    public BigDecimal sumRevenueByHomestays(List<Long> homeIds, OffsetDateTime startOfThisMonth) {
+        return bookingRepository.sumRevenueByHomestays(homeIds,startOfThisMonth);
+    }
+
+    @Override
+    public BigDecimal sumRevenueByHomestaysAndDateRange(List<Long> homestayIds, OffsetDateTime startDate, OffsetDateTime endDate) {
+        return bookingRepository.sumRevenueByHomestaysAndDateRange(homestayIds,startDate,endDate);
     }
 
     // Hàm phụ để code nhìn gọn hơn

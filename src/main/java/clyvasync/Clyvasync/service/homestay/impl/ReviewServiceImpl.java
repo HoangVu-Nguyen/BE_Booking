@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
@@ -110,5 +111,11 @@ public class ReviewServiceImpl implements ReviewService {
 
             return response;
         }).toList();
+    }
+
+    @Override
+    public Double getAverageRatingByHomestaysUpToDate(List<Long> homestayIds, OffsetDateTime targetDate) {
+        if (homestayIds == null || homestayIds.isEmpty()) return 0.0;
+        return reviewRepository.getAverageRatingByHomestaysUpToDate(homestayIds, targetDate);
     }
 }

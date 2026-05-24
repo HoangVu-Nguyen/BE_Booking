@@ -11,8 +11,10 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.awt.print.Book;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -62,5 +64,29 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("paymentThreshold") OffsetDateTime paymentThreshold,
             @Param("draftStatus") BookingStatus draftStatus,
             @Param("paymentStatus") BookingStatus paymentStatus
+    );
+    @Query("""
+        SELECT COALESCE(SUM(b.totalPrice), 0) 
+        FROM Booking b 
+        WHERE b.homestayId IN :homestayIds 
+          AND b.status IN ('CONFIRMED', 'COMPLETED') 
+          AND b.createdAt >= :startDate
+    """)
+    BigDecimal sumRevenueByHomestays(
+            @Param("homestayIds") List<Long> homestayIds,
+            @Param("startDate")OffsetDateTime startDate
+    );
+    @Query("""
+        SELECT COALESCE(SUM(b.hostPayoutAmount), 0) 
+        FROM Booking b 
+        WHERE b.homestayId IN :homestayIds 
+          AND b.status IN ('CONFIRMED', 'COMPLETED') 
+          AND b.createdAt >= :startDate 
+          AND b.createdAt <= :endDate
+    """)
+    BigDecimal sumRevenueByHomestaysAndDateRange(
+            @Param("homestayIds") List<Long> homestayIds,
+            @Param("startDate") java.time.OffsetDateTime startDate,
+            @Param("endDate") java.time.OffsetDateTime endDate
     );
 }

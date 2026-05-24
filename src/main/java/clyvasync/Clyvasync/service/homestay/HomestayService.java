@@ -44,5 +44,6 @@ public interface HomestayService {
     Map<Long, HomestayTimelineResponse> getBatchTimeline(List<Long> homestayIds, LocalDate startDate, LocalDate endDate);
     PortfolioTimelineResponse getOwnerPortfolioTimeline(Long ownerId, int month, int year);
     List<PropertySummaryResponse> getHostProperties(Long hostId);
+    HostPortfolioSummaryResponse getPortfolioSummary(Long hostId);
 
 }
