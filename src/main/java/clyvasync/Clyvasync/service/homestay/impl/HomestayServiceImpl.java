@@ -1,11 +1,13 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
+import clyvasync.Clyvasync.dto.detail.PropertyStats;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -44,6 +46,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.*;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -512,6 +515,74 @@ public class HomestayServiceImpl implements HomestayService {
         return new PortfolioTimelineResponse(homeTimelines);
     }
 
+    @Override
+    public List<PropertySummaryResponse> getHostProperties(Long hostId) {
+        log.info("[PORTFOLIO] Fetching properties for host ID: {}", hostId);
+
+        List<Homestay> homestays = homestayRepository.findAllByOwnerId(hostId);
+        if (homestays.isEmpty()) {
+            return List.of(); // Thoát sớm nếu Host chưa có tài sản nào
+        }
+
+        List<Long> homeIds = homestays.stream().map(Homestay::getId).toList();
+        List<Integer> locationIds = homestays.stream().map(Homestay::getLocationId).distinct().toList();
+        List<Integer> categoryIds = homestays.stream().map(Homestay::getCategoryId).distinct().toList();
+
+        Map<Long, List<String>> imagesMap = homestayImageService.getImagesForHomestays(homeIds);
+        Map<Integer, String> locationsMap = locationService.getLocationNamesMap(locationIds);
+        Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(categoryIds);
+
+        List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(homeIds);
+        Map<Long, HomestayRoomSummary> roomSummaryMap = summaries.stream()
+                .collect(Collectors.toMap(HomestayRoomSummary::getHomestayId, s -> s));
+
+        List<HomestayRoom> allRooms = homestayRoomService.findAllByIdIn(homeIds);
+        List<Long> allRoomIds = allRooms.stream().map(HomestayRoom::getId).toList();
+
+        YearMonth currentMonth = YearMonth.now();
+        LocalDate startOfMonth = currentMonth.atDay(1);
+        LocalDate endOfMonth = currentMonth.atEndOfMonth();
+
+        // Query lô (Batch): Lấy toàn bộ Booking của các phòng này trong tháng
+        List<BookingTimelineProjection> allBookingsInMonth = new ArrayList<>();
+        if (!allRoomIds.isEmpty()) { // Bảo vệ lỗi SQL IN (empty list)
+            allBookingsInMonth = bookingDetailService.findOverlappingBookings(allRoomIds, startOfMonth, endOfMonth);
+        }
+
+        Map<Long, Integer> occupancyMap = calculateBatchOccupancy(homeIds, allRooms, allBookingsInMonth, startOfMonth, endOfMonth);
+
+        return homestays.stream().map(home -> {
+            HomestayRoomSummary roomSummary = roomSummaryMap.get(home.getId());
+            BigDecimal basePrice = (roomSummary != null && roomSummary.getMinPrice() != null)
+                    ? roomSummary.getMinPrice()
+                    : BigDecimal.ZERO;
+
+            List<String> images = imagesMap.getOrDefault(home.getId(), List.of());
+            String coverImage = images.isEmpty() ? null : images.get(0);
+
+            // Thống kê: Rating và Reviews
+            Double rating = home.getAverageRating() != null ? home.getAverageRating().doubleValue() : 0.0;
+            Integer reviews = home.getReviewCount() != null ? home.getReviewCount() : 0;
+
+            Integer occupancy = occupancyMap.getOrDefault(home.getId(), 0);
+
+            return PropertySummaryResponse.builder()
+                    .id(home.getId())
+                    .name(home.getName())
+                    .type(categoriesMap.getOrDefault(home.getCategoryId(), "Homestay"))
+                    .location(locationsMap.getOrDefault(home.getLocationId(), "Chưa cập nhật"))
+                    .image(coverImage)
+                    .price(basePrice)
+                    .status(home.getStatus() != null ? home.getStatus() : HomestayStatus.AVAILABLE)
+                    .stats(PropertyStats.builder()
+                            .rating(rating)
+                            .reviews(reviews)
+                            .occupancy(occupancy)
+                            .build())
+                    .build();
+        }).toList();
+    }
+
     private List<GlobalSearchResponse> mapHomestaysToResponse(List<Homestay> homestays) {
         if (homestays.isEmpty()) return List.of();
 
@@ -592,5 +663,72 @@ public class HomestayServiceImpl implements HomestayService {
                 .bookings(bookingBlocks)
                 .imageUrl(roomImageMap.get(room.getId()))
                 .build();
+    }
+    /**
+     * Thuật toán gom nhóm để tính tỷ lệ lấp đầy thực tế cho hàng loạt Homestay
+     */
+    private Map<Long, Integer> calculateBatchOccupancy(
+            List<Long> homeIds,
+            List<HomestayRoom> allRooms,
+            List<BookingTimelineProjection> bookings,
+            LocalDate startOfMonth,
+            LocalDate endOfMonth) {
+
+        int daysInMonth = startOfMonth.lengthOfMonth();
+        Map<Long, Integer> resultMap = new HashMap<>();
+
+        // Group 1: Gom phòng theo homestayId
+        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream()
+                .collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
+
+        // Group 2: Gom booking theo roomId
+        Map<Long, List<BookingTimelineProjection>> bookingsByRoom = bookings.stream()
+                .collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+
+        for (Long homeId : homeIds) {
+            List<HomestayRoom> rooms = roomsByHomeMap.getOrDefault(homeId, List.of());
+            if (rooms.isEmpty()) {
+                resultMap.put(homeId, 0);
+                continue;
+            }
+
+            int totalCapacityNights = 0;
+            int totalBookedNights = 0;
+
+            for (HomestayRoom room : rooms) {
+                int roomQuantity = room.getQuantity() != null ? room.getQuantity() : 1;
+                // A. Tính tổng số đêm có thể bán của loại phòng này trong tháng
+                totalCapacityNights += roomQuantity * daysInMonth;
+
+                // B. Tính số đêm đã bị khách đặt
+                List<BookingTimelineProjection> roomBookings = bookingsByRoom.getOrDefault(room.getId(), List.of());
+                for (BookingTimelineProjection b : roomBookings) {
+                    if (BookingStatus.CANCELLED.equals(b.status()) || BookingStatus.FAILED.equals(b.status())) {
+                        continue;
+                    }
+
+                    // Chặn ngày (cắt bớt những ngày nằm ngoài tháng hiện tại để tính chính xác)
+                    LocalDate checkIn = b.checkInDate().isBefore(startOfMonth) ? startOfMonth : b.checkInDate();
+                    LocalDate checkOut = b.checkOutDate().isAfter(endOfMonth.plusDays(1)) ? endOfMonth.plusDays(1) : b.checkOutDate();
+
+                    long nights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
+                    if (nights > 0) {
+
+                        int qty = b.quantity();
+                        totalBookedNights += (int) nights * qty;
+                    }
+                }
+            }
+
+            // C. Chia tỷ lệ và gán vào kết quả
+            if (totalCapacityNights == 0) {
+                resultMap.put(homeId, 0);
+            } else {
+                int occupancy = (int) Math.round((totalBookedNights * 100.0) / totalCapacityNights);
+                resultMap.put(homeId, Math.min(100, occupancy)); // Khống chế trần 100% để đề phòng overbooking
+            }
+        }
+
+        return resultMap;
     }
 }

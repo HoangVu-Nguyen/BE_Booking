@@ -11,5 +11,6 @@ public record BookingTimelineProjection(
         String guestName,
         LocalDate checkInDate,
         LocalDate checkOutDate,
-        BookingStatus status
+        BookingStatus status,
+        Integer quantity
 ) {}
