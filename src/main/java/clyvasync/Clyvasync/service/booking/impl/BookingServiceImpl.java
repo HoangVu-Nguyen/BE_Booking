@@ -11,6 +11,7 @@ import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.request.UpdateBookingContactRequest;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
+import clyvasync.Clyvasync.enums.type.NotificationType;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.type.TourBookingStatus;
 import clyvasync.Clyvasync.exception.AppException;
@@ -33,6 +34,7 @@ import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.HomestayPolicyService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.notification.NotificationService;
 import clyvasync.Clyvasync.service.room.RoomCalendarService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import clyvasync.Clyvasync.service.tour.TourAvailabilityService;
@@ -70,6 +72,7 @@ public class BookingServiceImpl implements BookingService {
     private final TourAvailabilityService tourAvailabilityService;
     private final ApplicationEventPublisher eventPublisher;
     private final BookingProducer bookingProducer;
+    private final NotificationService notificationService;
 
     @Value("${app.frontend.url:https://localhost:4200}")
     private String frontendUrl;
@@ -514,12 +517,29 @@ public class BookingServiceImpl implements BookingService {
         booking.setGuestPhone(request.getPhone());
         booking.setGuestEmail(request.getEmail());
         booking.setSpecialRequests(request.getSpecialRequests());
-        if (!homestayRoom.getIsInstantBook() && !booking.isApproved()) {
-            booking.setStatus(BookingStatus.PENDING);
 
+        boolean needsApproval = !homestayRoom.getIsInstantBook() && !booking.isApproved();
+
+        if (needsApproval) {
+            booking.setStatus(BookingStatus.PENDING);
+            bookingRepository.save(booking);
+
+            // BẮN THÔNG BÁO CHO HOST
+            // Lưu ý: bác cần lấy hostId từ homestay hoặc booking
+            Long hostId = homestayService.findById(booking.getHomestayId()).getOwnerId();
+
+            notificationService.sendNotification(
+                    hostId,
+                    NotificationType.BOOKING_REQUEST,
+                    "Yêu cầu đặt phòng mới",
+                    String.format("Khách hàng %s vừa cập nhật thông tin cho yêu cầu đặt phòng %s. Vui lòng kiểm tra và duyệt.",
+                            request.getGuestName(), bookingCode),
+                    Map.of("bookingId", booking.getId(), "bookingCode", bookingCode)
+            );
+        } else {
+            bookingRepository.save(booking);
         }
 
-        bookingRepository.save(booking);
     }
 
     @Override
@@ -552,6 +572,13 @@ public class BookingServiceImpl implements BookingService {
 
         // 2. GỌI PRODUCER (Mã nguồn lúc này cực kỳ Clean!)
         bookingProducer.sendPaymentRequestMail(mailMsg);
+        notificationService.sendNotification(
+                booking.getUserId(), // ID người đặt
+                NotificationType.BOOKING_CONFIRMED,
+                "Đặt phòng đã được duyệt!",
+                String.format("Homestay %s đã duyệt yêu cầu của bạn. Vui lòng thanh toán để giữ phòng.", mailMsg.getHomestayName()),
+                Map.of("bookingId", booking.getId(), "bookingCode", booking.getBookingCode())
+        );
     }
 
     @Override
@@ -598,6 +625,13 @@ public class BookingServiceImpl implements BookingService {
                 "action", "UNLOCK_DATES" // Báo UI mở lại lịch
         );
         eventPublisher.publishEvent(new BookingEvent(this, null, calendarPayload));
+        notificationService.sendNotification(
+                booking.getUserId(),
+                NotificationType.BOOKING_CANCELLED,
+                "Yêu cầu đặt phòng bị từ chối",
+                String.format("Rất tiếc, yêu cầu đặt phòng %s đã bị từ chối. Lý do: %s", booking.getBookingCode(), rejectReason),
+                Map.of("bookingId", booking.getId(), "bookingCode", booking.getBookingCode())
+        );
     }
 
     @Override
