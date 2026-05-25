@@ -17,6 +17,7 @@ public class BookingEventListener {
 
     private final SocketEmitterService socketEmitterService;
 
+
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBookingRealtimeNotification(BookingEvent event) {
         log.info("[BOOKING-LISTENER] DB commit đặt phòng thành công. Tiến hành đẩy realtime.");
@@ -27,5 +28,7 @@ public class BookingEventListener {
         // 2. Phát tín hiệu công khai (Broadcast) để đồng bộ trạng thái phòng/lịch phòng cho toàn hệ thống
         // Ví dụ payload chứa { roomId: 10, unavailableDates: ["2026-05-25", "2026-05-26"] }
         socketEmitterService.broadcastRoomStatus(SocketDestinations.ROOM_STATUS_TOPIC, event.getBookingPayload());
+
+
     }
 }

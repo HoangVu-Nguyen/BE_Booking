@@ -18,6 +18,7 @@ import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.notification.NotificationService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.strategy.PaymentStrategy;
@@ -125,6 +126,7 @@ public class PaymentService {
             // 2. Phát loa thông báo: "Đơn này đã trả tiền xong!"
             log.info("[IPN SUCCESS] Đơn hàng {} chốt PAID. Kích hoạt luồng hậu thanh toán...", bookingCode);
             eventPublisher.publishEvent(new BookingPaidEvent(booking));
+
 
             return strategy.buildIPNSuccessResponse("Xác nhận đơn thành công");
         } else {

@@ -3,6 +3,8 @@ package clyvasync.Clyvasync.service.realtime.impl;
 import clyvasync.Clyvasync.constant.SocketDestinations; // <-- Import hằng số
 
 import clyvasync.Clyvasync.dto.detail.WalletNotificationPayload;
+import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.realtime.SocketEmitterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,27 @@ public class SocketEmitterServiceImpl implements SocketEmitterService {
             messagingTemplate.convertAndSend(finalDestination, payload);
         } catch (Exception e) {
             log.error("[SOCKET-EMITTER ERROR] Lỗi phát tín hiệu Broadcast: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void sendNotification(Long userId, Object notificationPayload) {
+        try {
+            log.info("[SOCKET-EMITTER] Đang đẩy thông báo tới UserId: {}", userId);
+
+            // THÊM .build() VÀO ĐÂY!
+            var response = ApiResponse.builder()
+                    .data(notificationPayload)
+                    .code(ResultCode.SUCCESS.getCode())
+                    .build();
+
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(),
+                    SocketDestinations.NOTIFICATION_QUEUE,
+                    response
+            );
+        } catch (Exception e) {
+            log.error("[SOCKET-EMITTER ERROR] Lỗi gửi socket : ", e);
         }
     }
 }

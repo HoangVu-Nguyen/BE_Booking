@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.listener;
 
 
 import clyvasync.Clyvasync.dto.event.BookingPaidEvent;
+import clyvasync.Clyvasync.enums.type.NotificationType;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.type.PayoutStatus;
 import clyvasync.Clyvasync.enums.type.TourBookingStatus;
@@ -9,6 +10,7 @@ import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.notification.NotificationService;
 import clyvasync.Clyvasync.service.realtime.SocketEmitterService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.wallet.HostWalletService;
@@ -36,6 +38,7 @@ public class PostPaymentWorkflowListener {
     private final TourBookingService tourBookingService;
     private final BookingRepository bookingRepository;
     private final SocketEmitterService socketEmitterService;
+    private final NotificationService notificationService;
 
     // Kéo cấu hình phí hoa hồng từ application.properties (không hardcode)
     @Value("${app.platform.fee-percentage:0.10}")
@@ -47,6 +50,7 @@ public class PostPaymentWorkflowListener {
         Booking booking = event.booking();
 
         try {
+
             // 1. TÍNH TOÁN DÒNG TIỀN VÀ KÝ QUỸ
             BigDecimal platformFee = booking.getTotalPrice().multiply(platformFeePercent);
             BigDecimal hostPayout = booking.getTotalPrice().subtract(platformFee);
@@ -82,16 +86,32 @@ public class PostPaymentWorkflowListener {
             String safeGuestName = booking.getGuestName() != null ? booking.getGuestName() : "Khách hàng";
             String safeHomestayName = (homestay != null && homestay.getName() != null) ? homestay.getName() : "Homestay";
 
-            Map<String, Object> hostNotificationPayload = new HashMap<>();
-            hostNotificationPayload.put("type", "NEW_BOOKING_PAID");
-            hostNotificationPayload.put("bookingCode", booking.getBookingCode());
-            hostNotificationPayload.put("homestayName", safeHomestayName);
-            hostNotificationPayload.put("guestName", safeGuestName);
-            hostNotificationPayload.put("totalPrice", booking.getTotalPrice());
-            hostNotificationPayload.put("message", String.format("🎉 Khách hàng %s vừa thanh toán thành công đơn %s!", safeGuestName, booking.getBookingCode()));
 
-            log.info("[REALTIME] Đang bắn chuông thông báo có đơn Booking PAID tới HostId: {}", homestay.getOwnerId());
-            socketEmitterService.sendBookingNotification(homestay.getOwnerId(), hostNotificationPayload);
+            Map<String, Object> hostMetadata = new HashMap<>();
+            hostMetadata.put("bookingId", booking.getId());
+            hostMetadata.put("bookingCode", booking.getBookingCode());
+            hostMetadata.put("homestayName", safeHomestayName);
+
+            notificationService.sendNotification(
+                    homestay.getOwnerId(),
+                    NotificationType.BOOKING_CONFIRMED,
+                    "Có đơn đặt phòng mới!",
+                    String.format("🎉 Khách hàng %s vừa thanh toán đơn %s", safeGuestName, booking.getBookingCode()),
+                    hostMetadata
+            );
+
+            // Gửi cho User (Khách)
+            Map<String, Object> userMetadata = new HashMap<>();
+            userMetadata.put("bookingId", booking.getId());
+            userMetadata.put("homestayName", safeHomestayName);
+
+            notificationService.sendNotification(
+                    booking.getUserId(), // Giả sử trong Booking có userId
+                    NotificationType.BOOKING_CONFIRMED,
+                    "Thanh toán thành công",
+                    String.format("Đơn đặt phòng %s tại %s đã được xác nhận.", booking.getBookingCode(), safeHomestayName),
+                    userMetadata
+            );
 
         } catch (Exception e) {
             log.error("❌ Lỗi nghiêm trọng khi chạy luồng Hậu thanh toán cho Booking: {}", booking.getBookingCode(), e);

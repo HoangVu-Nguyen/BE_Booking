@@ -18,4 +18,5 @@ public interface SocketEmitterService {
      * Ví dụ: Realtime khóa ngày trên Lịch phòng khi có người đang thanh toán
      */
     void broadcastRoomStatus(String topic, Object payload);
+    void sendNotification(Long userId, Object bookingPayload);
 }
