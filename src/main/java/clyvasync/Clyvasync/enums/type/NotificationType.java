@@ -7,6 +7,8 @@ public enum NotificationType {
     BOOKING_CONFIRMED,
     BOOKING_REQUEST,
 
+    BOOKING_AWAITING_PAYMENT,
+
     // Nhóm Payment
     PAYMENT_SUCCESS,
     PAYMENT_FAILED,

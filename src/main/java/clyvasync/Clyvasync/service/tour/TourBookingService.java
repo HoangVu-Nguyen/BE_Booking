@@ -6,6 +6,7 @@ import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -51,4 +52,5 @@ public interface TourBookingService {
     TourBooking findByHomestayBookingId(Long homestayBookingId);
     List<TourBooking> findAllByHomestayBookingId(Long homestayBookingId);
     List<TourBooking> findByHomestayBookingIdIn(List<Long> homestayBookingIds);
+    void cancelAllByHomestayBookingId(Long bookingId);
 }

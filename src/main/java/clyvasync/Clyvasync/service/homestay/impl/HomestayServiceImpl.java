@@ -712,6 +712,11 @@ public class HomestayServiceImpl implements HomestayService {
                 .build();
     }
 
+    @Override
+    public Long getOwnerIdByHomestayId(Long homestayId) {
+        return homestayRepository.getOwnerIdByHomestayId(homestayId);
+    }
+
     private List<GlobalSearchResponse> mapHomestaysToResponse(List<Homestay> homestays) {
         if (homestays.isEmpty()) return List.of();
 

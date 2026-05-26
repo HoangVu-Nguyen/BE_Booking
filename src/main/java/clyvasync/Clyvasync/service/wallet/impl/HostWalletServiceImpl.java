@@ -21,6 +21,7 @@ import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +29,6 @@ import java.math.BigDecimal;
 import java.util.Optional;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class HostWalletServiceImpl implements HostWalletService {
 
@@ -38,6 +38,15 @@ public class HostWalletServiceImpl implements HostWalletService {
     private final HomestayRepository homestayRepository;
     private final SocketEmitterService socketEmitterService;
     private final ApplicationEventPublisher eventPublisher;
+
+    public HostWalletServiceImpl(HostWalletRepository hostWalletRepository, @Lazy WalletTransactionService walletTransactionService, BookingRepository bookingRepository, HomestayRepository homestayRepository, SocketEmitterService socketEmitterService, ApplicationEventPublisher eventPublisher) {
+        this.hostWalletRepository = hostWalletRepository;
+        this.walletTransactionService = walletTransactionService;
+        this.bookingRepository = bookingRepository;
+        this.homestayRepository = homestayRepository;
+        this.socketEmitterService = socketEmitterService;
+        this.eventPublisher = eventPublisher;
+    }
 
     @Override
     @Transactional
@@ -278,5 +287,15 @@ public class HostWalletServiceImpl implements HostWalletService {
     @Override
     public Optional<HostWallet> findByOwnerIdForUpdate(Long ownerId) {
         return hostWalletRepository.findByOwnerIdForUpdate(ownerId);
+    }
+
+    @Override
+    public HostWallet findAndLockByOwnerId(Long hostId) {
+        return hostWalletRepository.findAndLockByOwnerId(hostId).orElseThrow(() -> new AppException(ResultCode.WALLET_NOT_FOUND));
+    }
+
+    @Override
+    public HostWallet save(HostWallet hostWallet) {
+        return hostWalletRepository.save(hostWallet);
     }
 }

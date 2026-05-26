@@ -1,25 +1,38 @@
 package clyvasync.Clyvasync.service.wallet.impl;
 
+import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
+import clyvasync.Clyvasync.modules.room.RoomRatePlan;
+import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
 import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
 import clyvasync.Clyvasync.repository.wallet.WalletTransactionRepository;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.room.RoomRatePlanService;
+import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
 public class WalletTransactionServiceImpl implements WalletTransactionService {
 
     private final WalletTransactionRepository walletTransactionRepository;
+    private final HomestayService homestayService;
+    private final RoomRatePlanService roomRatePlanService;
+    private final HostWalletService hostWalletService;
 
     @Override
     @Transactional
@@ -78,5 +91,70 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
     @Override
     public Page<WalletTransaction> findByTransactionTypeAndStatus(TransactionType type, TransactionStatus status, Pageable pageable) {
         return walletTransactionRepository.findByTransactionTypeAndStatus(type,status,pageable);
+    }
+    @Transactional(propagation = Propagation.REQUIRED)
+    public PaymentStatus processCancellationRefund(Long homestayId, Long bookingId, String bookingCode, BigDecimal totalPaid, BookingDetail detail) {
+
+        // 1. Lấy chính sách gói giá
+        RoomRatePlan ratePlan = roomRatePlanService.getById(detail.getRatePlanId());
+
+        // 2. Tính toán tiền hoàn dựa trên thời gian thực tế
+        BigDecimal refundAmount = BigDecimal.ZERO;
+
+        if (Boolean.FALSE.equals(ratePlan.getIsNonRefundable())) {
+            long daysUntilCheckIn = ChronoUnit.DAYS.between(LocalDate.now(), detail.getCheckInDate());
+
+            if (daysUntilCheckIn >= 7) {
+                refundAmount = totalPaid; // Hủy trước 7 ngày: Trả 100%
+            } else if (daysUntilCheckIn >= 3) {
+                refundAmount = totalPaid.multiply(new BigDecimal("0.50")); // Hủy từ 3-6 ngày: Trả 50%
+            }
+        }
+
+        BigDecimal hostPenaltyRevenue = totalPaid.subtract(refundAmount);
+
+        // 3. Xử lý cập nhật Ví Chủ Nhà (Pessimistic Lock trên Ví để tránh lỗi race condition khi cộng/trừ tiền)
+        Long hostId = homestayService.getOwnerIdByHomestayId(homestayId);
+        HostWallet wallet = hostWalletService.findAndLockByOwnerId(hostId);
+
+        // Trừ toàn bộ tiền của booking ra khỏi pending_balance (vì đơn đã hủy, không giữ nữa)
+        wallet.setPendingBalance(wallet.getPendingBalance().subtract(totalPaid));
+
+        // Nếu chủ nhà được hưởng tiền phạt, cộng ngay vào available_balance
+        if (hostPenaltyRevenue.compareTo(BigDecimal.ZERO) > 0) {
+            wallet.setAvailableBalance(wallet.getAvailableBalance().add(hostPenaltyRevenue));
+        }
+        hostWalletService.save(wallet);
+
+        // 4. Ghi log lịch sử giao dịch (Audit Trail)
+        // Record 1: Rút tiền khỏi Pending
+        createTransactionRecord(wallet.getId(), bookingId, totalPaid.negate(), TransactionType.REFUND_DEDUCTION,
+                "Khách hủy phòng - Rút khỏi Pending. Mã: " + bookingCode);
+
+        // Record 2: Cộng doanh thu tiền phạt (Nếu có)
+        if (hostPenaltyRevenue.compareTo(BigDecimal.ZERO) > 0) {
+            createTransactionRecord(wallet.getId(), bookingId, hostPenaltyRevenue, TransactionType.CANCELLATION_FEE_REVENUE,
+                    "Thu nhập từ phí phạt khách hủy phòng. Mã: " + bookingCode);
+        }
+
+        // 5. Trả về trạng thái thanh toán mới cho Booking
+        if (refundAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return PaymentStatus.NON_REFUNDABLE;
+        } else if (refundAmount.compareTo(totalPaid) == 0) {
+            return PaymentStatus.REFUND_PENDING; // Chờ hệ thống thực hiện lệnh hoàn tiền (qua VNPay/Momo)
+        } else {
+            return PaymentStatus.PARTIALLY_REFUNDED;
+        }
+    }
+
+    private void createTransactionRecord(Long walletId, Long bookingId, BigDecimal amount, TransactionType type, String desc) {
+        WalletTransaction tx = new WalletTransaction();
+        tx.setWalletId(walletId);
+        tx.setBookingId(bookingId);
+        tx.setAmount(amount);
+        tx.setTransactionType(type);
+        tx.setStatus(TransactionStatus.COMPLETED);
+        tx.setDescription(desc);
+        walletTransactionRepository.save(tx);
     }
 }

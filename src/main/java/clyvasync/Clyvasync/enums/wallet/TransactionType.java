@@ -5,6 +5,8 @@ public enum TransactionType {
     ESCROW_RELEASE,     // Giải ngân từ tiền giam sang tiền khả dụng
     WITHDRAWAL,         // Lệnh rút tiền về ngân hàng của Host
     WITHDRAW_REJECTED,
+    CANCELLATION_FEE_REVENUE,
+
     WITHDRAW_APPROVED,
     REFUND_DEDUCTION    // Trừ tiền khi khách hủy/khiếu nại
 }

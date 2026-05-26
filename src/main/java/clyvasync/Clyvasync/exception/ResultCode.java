@@ -21,6 +21,7 @@ public enum ResultCode {
     LOGOUT_FAILED(1009, HttpStatus.INTERNAL_SERVER_ERROR),
     ACCOUNT_TEMPORARILY_LOCKED(1010, HttpStatus.FORBIDDEN),
     DEVICE_NOT_FOUND(1011, HttpStatus.NOT_FOUND),
+    UNAUTHORIZED_ACTION(1012,HttpStatus.UNAUTHORIZED),
 
     // --- 11xx: Verification (OTP / Captcha) ---
     OTP_INVALID(1101, HttpStatus.BAD_REQUEST),
@@ -98,6 +99,7 @@ public enum ResultCode {
     PROMO_CODE_EXHAUSTED(4011, HttpStatus.BAD_REQUEST),
     BOOKING_STATUS_INVALID(4012, HttpStatus.BAD_REQUEST),
     REFUND_FAILED(4013, HttpStatus.INTERNAL_SERVER_ERROR),
+    CANNOT_CANCEL_COMPLETED_BOOKING(4014,HttpStatus.BAD_REQUEST),
 
     // --- 5xxx: Reviews & Ratings (Đánh giá) ---
     REVIEW_NOT_FOUND(5001, HttpStatus.NOT_FOUND),

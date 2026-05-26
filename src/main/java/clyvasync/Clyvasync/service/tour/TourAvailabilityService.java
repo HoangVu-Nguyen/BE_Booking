@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.tour;
 
 import clyvasync.Clyvasync.modules.tour.entity.TourAvailability;
+import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
@@ -10,4 +11,5 @@ public interface TourAvailabilityService {
     List<TourAvailability> findByIdIn(List<Long> ids);
     int releaseTourSlots( Long availabilityId,
                          int slots);
+    void releaseTourSlotsBatch(List<TourBooking> tourBookings);
 }

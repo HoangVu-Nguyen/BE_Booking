@@ -1,7 +1,9 @@
 package clyvasync.Clyvasync.service.wallet;
 
+import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionType;
+import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -37,4 +39,5 @@ public interface WalletTransactionService {
     WalletTransaction getById(Long id);
     void save(WalletTransaction walletTransaction);
     Page<WalletTransaction> findByTransactionTypeAndStatus(TransactionType type, TransactionStatus status, Pageable pageable);
+    PaymentStatus processCancellationRefund(Long homestayId, Long bookingId, String bookingCode, BigDecimal totalPaid, BookingDetail detail);
 }

@@ -1,6 +1,8 @@
 package clyvasync.Clyvasync.service.wallet;
 
 import clyvasync.Clyvasync.dto.request.WithdrawApprovalRequest;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
 
 import java.math.BigDecimal;
@@ -50,4 +52,7 @@ public interface HostWalletService {
     void resolveWithdrawal(WithdrawApprovalRequest request);
 
     Optional<HostWallet> findByOwnerIdForUpdate(Long ownerId);
+    HostWallet findAndLockByOwnerId(Long hostId);
+    HostWallet save(HostWallet hostWallet);
+
 }

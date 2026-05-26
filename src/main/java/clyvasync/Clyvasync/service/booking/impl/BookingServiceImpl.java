@@ -5,6 +5,7 @@ import clyvasync.Clyvasync.dto.detail.MiniTourInfor;
 import clyvasync.Clyvasync.dto.detail.PolicyDetail;
 import clyvasync.Clyvasync.dto.detail.TourBookingItemDetail;
 import clyvasync.Clyvasync.dto.detail.TourDetail;
+import clyvasync.Clyvasync.dto.event.BookingCancelledEvent;
 import clyvasync.Clyvasync.dto.event.BookingEvent;
 import clyvasync.Clyvasync.dto.event.PaymentRequestMailMessage;
 import clyvasync.Clyvasync.dto.request.BookingInitRequest;
@@ -41,8 +42,10 @@ import clyvasync.Clyvasync.service.tour.TourAvailabilityService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
+import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
@@ -51,12 +54,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BookingServiceImpl implements BookingService {
     private final BookingRepository bookingRepository;
     private final HomestayRoomService roomService;
@@ -73,6 +78,7 @@ public class BookingServiceImpl implements BookingService {
     private final ApplicationEventPublisher eventPublisher;
     private final BookingProducer bookingProducer;
     private final NotificationService notificationService;
+    private final WalletTransactionService walletTransactionService;
 
     @Value("${app.frontend.url:https://localhost:4200}")
     private String frontendUrl;
@@ -574,7 +580,7 @@ public class BookingServiceImpl implements BookingService {
         bookingProducer.sendPaymentRequestMail(mailMsg);
         notificationService.sendNotification(
                 booking.getUserId(), // ID người đặt
-                NotificationType.BOOKING_CONFIRMED,
+                NotificationType.BOOKING_AWAITING_PAYMENT,
                 "Đặt phòng đã được duyệt!",
                 String.format("Homestay %s đã duyệt yêu cầu của bạn. Vui lòng thanh toán để giữ phòng.", mailMsg.getHomestayName()),
                 Map.of("bookingId", booking.getId(), "bookingCode", booking.getBookingCode())
@@ -649,6 +655,75 @@ public class BookingServiceImpl implements BookingService {
         return bookingRepository.sumRevenueByHomestaysAndDateRange(homestayIds,startDate,endDate);
     }
 
+    @Override
+    @Transactional
+    public void cancelBooking(String bookingCode, Long userId) {
+        log.info("[CANCEL-BOOKING] Khởi chạy luồng hủy đơn bởi UserId: {}, BookingCode: {}", userId, bookingCode);
+
+        // 1. LOCK & FETCH: Sử dụng Pessimistic Lock chống Race Condition
+        Booking booking = bookingRepository.findBookingByBookingCode(bookingCode)
+                .orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+
+        // 2. AUTHORIZATION: Bảo mật tuyệt đối
+        if (!booking.getUserId().equals(userId)) {
+            log.warn("[CANCEL-BOOKING SECURITY] UserId {} cố tình hủy đơn {} không thuộc sở hữu!", userId, bookingCode);
+            throw new AppException(ResultCode.UNAUTHORIZED_ACTION);
+        }
+
+        // 3. IDEMPOTENCY & STATE MACHINE VALIDATION
+        if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
+            log.info("[CANCEL-BOOKING] Đơn hàng {} đã ở trạng thái HỦY trước đó (Idempotent).", bookingCode);
+            return;
+        }
+        if (BookingStatus.COMPLETED.equals(booking.getStatus())) {
+            throw new AppException(ResultCode.CANNOT_CANCEL_COMPLETED_BOOKING);
+        }
+
+        BookingStatus oldStatus = booking.getStatus();
+        BookingDetail detail = bookingDetailService.findBookingDetailByBookingId(booking.getId());
+
+        // 4. FINANCIAL PROCESSING: Xử lý hoàn tiền và ví chủ nhà (CHỈ KHI ĐÃ THANH TOÁN)
+        if (PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
+            log.info("[CANCEL-BOOKING-FINANCE] Bắt đầu tính toán hoàn tiền cho đơn {}", bookingCode);
+
+            // Gọi sang Wallet Service để xử lý giao dịch ví, trả về trạng thái Payment mới
+            PaymentStatus newPaymentStatus = walletTransactionService.processCancellationRefund(
+                    booking.getHomestayId(),
+                    booking.getId(),
+                    bookingCode,
+                    booking.getTotalPrice(),
+                    detail
+            );
+            booking.setPaymentStatus(newPaymentStatus);
+        }
+
+        // 5. STATE TRANSITION: Cập nhật trạng thái
+        System.out.println("Chay khong");
+        booking.setStatus(BookingStatus.CANCELLED);
+        System.out.println("Chay khong");
+        bookingRepository.saveAndFlush(booking);
+
+        // 6. RESOURCE CLEANUP (ROOM): Giải phóng lịch phòng homestay
+        roomCalendarService.unlockRoomRange(
+                detail.getRoomId(),
+                detail.getCheckInDate(),
+                detail.getCheckOutDate(),
+                detail.getQuantity()
+        );
+
+        // 7. RESOURCE CLEANUP (TOUR): Giải phóng slot tour đi kèm
+        List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
+        if (tourBookings != null && !tourBookings.isEmpty()) {
+            tourAvailabilityService.releaseTourSlotsBatch(tourBookings);
+            tourBookingService.cancelAllByHomestayBookingId(booking.getId());
+        }
+
+
+        // 8. DISPATCH EVENT: Phát tín hiệu sự kiện ra toàn hệ thống (Gửi mail, push notification...)
+        eventPublisher.publishEvent(new BookingCancelledEvent(booking, oldStatus, "GUEST",previewCancelBooking(bookingCode,userId)));
+        log.info("[CANCEL-BOOKING SUCCESS] Đơn hàng {} đã hủy thành công trên DB, đang chờ commit.", bookingCode);
+    }
+
     // Hàm phụ để code nhìn gọn hơn
     private PolicyDetail mapToPolicyDto(HomestayPolicy policy) {
         return PolicyDetail.builder()
@@ -664,4 +739,92 @@ public class BookingServiceImpl implements BookingService {
     private String generateRandomString() {
         return java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
     }
+    private BigDecimal calculateRefundAmount(List<BookingDetail> details) {
+        BigDecimal totalRefund = BigDecimal.ZERO;
+        LocalDate today = LocalDate.now(); // Lưu ý: Nên dùng TimeZone của user hoặc hệ thống cho chuẩn
+
+        for (BookingDetail detail : details) {
+            RoomRatePlan ratePlan = roomRatePlanService.getById(detail.getRatePlanId());
+
+
+            // 1. Kiểm tra chính sách gói giá: Nếu là Non-refundable -> Không hoàn đồng nào
+            if (Boolean.TRUE.equals(ratePlan.getIsNonRefundable())) {
+                continue;
+            }
+
+            // 2. Tính số ngày từ lúc hủy đến ngày Check-in
+            long daysUntilCheckIn = ChronoUnit.DAYS.between(today, detail.getCheckInDate());
+            BigDecimal subtotal = detail.getSubtotal();
+
+            // 3. Áp dụng các mốc hoàn tiền (Tùy chỉnh theo luật của bạn)
+            if (daysUntilCheckIn >= 7) {
+                // Hủy sớm trước 7 ngày: Hoàn 100%
+                totalRefund = totalRefund.add(subtotal);
+            } else if (daysUntilCheckIn >= 3) {
+                // Hủy trước 3 - 6 ngày: Hoàn 50%
+                BigDecimal refund50 = subtotal.multiply(new BigDecimal("0.50"));
+                totalRefund = totalRefund.add(refund50);
+            } else {
+                // Hủy quá sát ngày (dưới 3 ngày) hoặc đã check-in: Hoàn 0%
+                // Không cộng thêm gì vào totalRefund
+            }
+        }
+
+        return totalRefund;
+    }
+    @Transactional(readOnly = true)
+    @Override
+    public CancelPreviewResponse previewCancelBooking(String bookingCode, Long userId) {
+        // 1. Validate cơ bản
+        Booking booking = bookingRepository.findBookingByBookingCode(bookingCode)
+                .orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+
+        if (!booking.getUserId().equals(userId)) {
+            throw new AppException(ResultCode.UNAUTHORIZED_ACTION);
+        }
+
+        // Nếu chưa thanh toán thì không có gì để hoàn
+        if (!PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
+            return CancelPreviewResponse.builder()
+                    .bookingCode(bookingCode)
+                    .totalPaid(BigDecimal.ZERO)
+                    .refundAmount(BigDecimal.ZERO)
+                    .penaltyFee(BigDecimal.ZERO)
+                    .refundPolicyMessage("Đơn hàng chưa thanh toán, bạn có thể hủy miễn phí.")
+                    .build();
+        }
+
+        // 2. Tính toán dựa trên Detail & Policy
+        BookingDetail detail = bookingDetailService.findBookingDetailByBookingId(booking.getId());
+        RoomRatePlan ratePlan = roomRatePlanService.getById(detail.getRatePlanId());
+
+        BigDecimal totalPaid = booking.getTotalPrice();
+        BigDecimal refundAmount = BigDecimal.ZERO;
+        String policyMsg = "Gói giá không hoàn tiền (Non-refundable).";
+
+        if (Boolean.FALSE.equals(ratePlan.getIsNonRefundable())) {
+            long daysUntilCheckIn = ChronoUnit.DAYS.between(LocalDate.now(), detail.getCheckInDate());
+
+            if (daysUntilCheckIn >= 7) {
+                refundAmount = totalPaid;
+                policyMsg = "Hủy trước 7 ngày, bạn được hoàn 100% số tiền.";
+            } else if (daysUntilCheckIn >= 3) {
+                refundAmount = totalPaid.multiply(new BigDecimal("0.50"));
+                policyMsg = "Hủy trước 3-6 ngày, bạn bị thu phí phạt 50%.";
+            } else {
+                policyMsg = "Hủy quá sát ngày (dưới 3 ngày), không được hoàn tiền.";
+            }
+        }
+
+        BigDecimal penaltyFee = totalPaid.subtract(refundAmount);
+
+        return CancelPreviewResponse.builder()
+                .bookingCode(bookingCode)
+                .totalPaid(totalPaid)
+                .refundAmount(refundAmount)
+                .penaltyFee(penaltyFee)
+                .refundPolicyMessage(policyMsg)
+                .build();
+    }
+
 }

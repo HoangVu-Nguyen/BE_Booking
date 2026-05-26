@@ -73,4 +73,9 @@ public class TourBookingServiceImpl implements TourBookingService {
     public List<TourBooking> findByHomestayBookingIdIn(List<Long> homestayBookingIds) {
         return tourBookingRepository.findByHomestayBookingIdIn(homestayBookingIds);
     }
+
+    @Override
+    public void cancelAllByHomestayBookingId(Long bookingId) {
+        tourBookingRepository.cancelAllByHomestayBookingId(bookingId);
+    }
 }

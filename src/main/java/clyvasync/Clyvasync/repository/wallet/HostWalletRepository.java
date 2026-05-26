@@ -26,4 +26,5 @@ public interface HostWalletRepository extends JpaRepository<HostWallet,Long> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE HostWallet w SET w.pendingBalance = w.pendingBalance - :amount, w.availableBalance = w.availableBalance + :amount WHERE w.ownerId = :ownerId AND w.pendingBalance >= :amount")
     int releaseEscrowFunds(@Param("ownerId") Long ownerId, @Param("amount") BigDecimal amount);
+    Optional<HostWallet> findAndLockByOwnerId(Long ownerId);
 }

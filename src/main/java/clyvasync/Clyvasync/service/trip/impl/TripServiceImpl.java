@@ -118,6 +118,10 @@ public class TripServiceImpl implements TripService {
                 // Bác nhớ thêm .name() hoặc ép kiểu chuẩn chuỗi nếu b.getStatus() là Enum nhé
                 tripStatus = "PENDING";
             }
+            else if(PaymentStatus.UNPAID.equals(booking.getPaymentStatus())
+                    && BookingStatus.AWAITING_PAYMENT.equals(booking.getStatus())){
+                tripStatus = "AWAITING_PAYMENT";
+            }
             else {
                 if (today.isAfter(minCheckIn) || today.isEqual(minCheckIn)) {
                     tripStatus = "COMPLETED"; // Đang ở hoặc đã ở xong

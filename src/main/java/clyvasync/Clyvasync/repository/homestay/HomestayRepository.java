@@ -18,5 +18,7 @@ import java.util.Optional;
 public interface HomestayRepository extends JpaRepository<Homestay, Long>, JpaSpecificationExecutor<Homestay> {
     List<Homestay> findByIdIn(List<Long> ids);
     List<Homestay> findAllByOwnerId(Long ownerId);
+    @Query("select h.ownerId from Homestay as h where h.id =  :homestayId ")
+    Long getOwnerIdByHomestayId(Long homestayId);
 
 }

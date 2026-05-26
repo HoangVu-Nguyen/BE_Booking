@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.request.UpdateBookingContactRequest;
 import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
 import clyvasync.Clyvasync.dto.response.BookingInitResponse;
+import clyvasync.Clyvasync.dto.response.CancelPreviewResponse;
 import clyvasync.Clyvasync.dto.response.HostBookingItemResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
@@ -41,4 +42,6 @@ public interface BookingService {
            OffsetDateTime startDate,
            OffsetDateTime endDate
     );
+    void cancelBooking(String bookingCode, Long userId);
+    CancelPreviewResponse previewCancelBooking(String bookingCode, Long userId);
 }

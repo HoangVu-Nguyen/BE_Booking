@@ -45,5 +45,6 @@ public interface HomestayService {
     PortfolioTimelineResponse getOwnerPortfolioTimeline(Long ownerId, int month, int year);
     List<PropertySummaryResponse> getHostProperties(Long hostId);
     HostPortfolioSummaryResponse getPortfolioSummary(Long hostId);
+    Long getOwnerIdByHomestayId(Long homestayId);
 
 }

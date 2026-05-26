@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.mail.impl;
 
+import clyvasync.Clyvasync.dto.detail.CancellationMailMessage;
 import clyvasync.Clyvasync.dto.event.PaymentRequestMailMessage;
 import clyvasync.Clyvasync.dto.request.StateEmailRequest;
 import clyvasync.Clyvasync.service.mail.MailService;
@@ -104,6 +105,45 @@ public class MailServiceImpl implements MailService {
         } catch (Exception e) {
             log.error("Lỗi không xác định khi gửi mail thanh toán: {}", e.getMessage());
             throw new RuntimeException("Gửi mail thanh toán thất bại", e);
+        }
+    }
+
+    @Override
+    public void sendCancellationEmail(CancellationMailMessage msg) {
+        try {
+            log.info("Đang chuẩn bị gửi email xác nhận hủy phòng tới: {}", msg.getGuestEmail());
+
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+
+            // 1. Đổ dữ liệu vào context của Thymeleaf
+            Context context = new Context();
+            context.setVariable("guestName", msg.getGuestName());
+            context.setVariable("bookingCode", msg.getBookingCode());
+            context.setVariable("homestayName", msg.getHomestayName());
+            context.setVariable("checkInDate", msg.getCheckInDate());
+            context.setVariable("cancelReason", msg.getCancelReason() != null ? msg.getCancelReason() : "Khách hàng chủ động hủy");
+
+            // 2. Render ra file HTML (Tạo file booking-cancelled.html ở src/main/resources/templates/email/)
+            String htmlContent = templateEngine.process("email/booking-cancelled", context);
+
+            // 3. Thiết lập thông tin gửi
+            helper.setTo(msg.getGuestEmail());
+            helper.setSubject("Clyvasync - Xác nhận hủy đơn đặt phòng #" + msg.getBookingCode());
+            helper.setText(htmlContent, true);
+            helper.setFrom("Clyvasync Support <no-reply@clyvasync.com>");
+
+            // 4. Bắn mail
+            mailSender.send(message);
+            log.info("Email xác nhận hủy phòng đã gửi thành công tới: {}", msg.getGuestEmail());
+
+        } catch (MessagingException e) {
+            log.error("Lỗi MessagingException khi gửi mail hủy phòng tới {}: {}", msg.getGuestEmail(), e.getMessage());
+            // Có thể chọn không throw Exception ở đây nếu không muốn luồng Message Queue bị kẹt
+            throw new RuntimeException("Gửi mail hủy phòng thất bại", e);
+        } catch (Exception e) {
+            log.error("Lỗi không xác định khi gửi mail hủy phòng: {}", e.getMessage());
+            throw new RuntimeException("Gửi mail hủy phòng thất bại", e);
         }
     }
 }

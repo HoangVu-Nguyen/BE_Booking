@@ -2,10 +2,7 @@ package clyvasync.Clyvasync.controller.booking;
 
 import clyvasync.Clyvasync.dto.request.BookingInitRequest;
 import clyvasync.Clyvasync.dto.request.UpdateBookingContactRequest;
-import clyvasync.Clyvasync.dto.response.ApiResponse;
-import clyvasync.Clyvasync.dto.response.BookingDetailsResponse;
-import clyvasync.Clyvasync.dto.response.BookingInitResponse;
-import clyvasync.Clyvasync.dto.response.HostBookingItemResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import lombok.AllArgsConstructor;
@@ -82,5 +79,29 @@ public class BookingController {
 
         return ApiResponse.success();
     }
+    // =======================================================
+    // API DÀNH CHO GUEST/HOST: XEM TRƯỚC HỦY ĐƠN
+    // =======================================================
+    @GetMapping("/{bookingCode}/cancel-preview")
+    public ApiResponse<CancelPreviewResponse> previewCancelBooking(
+            @PathVariable String bookingCode,
+            @CurrentUserId Long userId) {
 
+        CancelPreviewResponse response = bookingService.previewCancelBooking(bookingCode, userId);
+
+        return ApiResponse.success(response);
+    }
+
+    // =======================================================
+    // API DÀNH CHO GUEST/HOST: XÁC NHẬN HỦY ĐƠN
+    // =======================================================
+    @PutMapping("/{bookingCode}/cancel")
+    public ApiResponse<String> cancelBooking(
+            @PathVariable String bookingCode,
+            @CurrentUserId Long userId) {
+
+        bookingService.cancelBooking(bookingCode, userId);
+
+        return ApiResponse.success("Hủy đơn đặt phòng thành công");
+    }
 }
