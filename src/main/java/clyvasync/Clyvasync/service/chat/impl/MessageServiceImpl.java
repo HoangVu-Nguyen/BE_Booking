@@ -41,13 +41,13 @@ public class MessageServiceImpl implements MessageService {
     @Transactional
     public MessageResponse sendMessage(Long senderId, Long conversationId, SendMessageRequest request) {
         log.info("User {} sending message to conversation {}", senderId, conversationId);
-//        if (senderId != 0) {
-//            boolean isParticipant = conversationParticipantService.existsByConversationIdAndUserId(conversationId, senderId);
-//            if (!isParticipant) {
-//                log.warn("Security Alert: User {} cố gắng thao tác vào phòng chat {} trái phép!", senderId, conversationId);
-//                throw new AppException(ResultCode.ACCESS_DENIED);
-//            }
-//        }
+        if (senderId != 0) {
+            boolean isParticipant = conversationParticipantService.existsByConversationIdAndUserId(conversationId, senderId);
+            if (!isParticipant) {
+                log.warn("Security Alert: User {} cố gắng thao tác vào phòng chat {} trái phép!", senderId, conversationId);
+                throw new AppException(ResultCode.ACCESS_DENIED);
+            }
+        }
         // 2. Lưu Message vào Database
         Message message = new Message();
         message.setConversationId(conversationId);

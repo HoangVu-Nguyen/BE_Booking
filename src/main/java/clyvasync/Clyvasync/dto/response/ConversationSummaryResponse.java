@@ -1,30 +1,31 @@
 package clyvasync.Clyvasync.dto.response;
 
 import clyvasync.Clyvasync.enums.type.ChatType;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.OffsetDateTime;
 
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class ConversationSummaryResponse {
     private Long id;
-
-    private ChatType type; // ADMIN, HOST, GROUP
-
-    // Tùy theo ngữ cảnh: Nếu là 1-1 thì là tên Khách/Chủ. Nếu là Group thì là tên Nhóm (VD: Tour Đà Lạt 3N2Đ)
+    private ChatType type; // Lấy từ conversations.type
     private String targetName;
-
     private String targetAvatar;
+    private String lastMessage; // Lấy từ messages.content của tin mới nhất
 
-    private String lastMessage;
+    private OffsetDateTime rawLastMessageAt; // Từ conversations.last_message_at
+    private String lastMessageTime;
 
-    private String lastMessageTime; // Format thành chuỗi thân thiện (VD: "10:30", "Hôm qua") ở phía Backend
+    private Long unreadCount; // Tính qua conversation_participants.last_read_message_id
 
-    private long unreadCount;
-
-    // Trạng thái đơn hàng để render badge màu xanh/đỏ dưới tên
     private String bookingStatus;
-
-    // Tên property để hiển thị dòng chữ xám nhỏ dưới tên (VD: "Clyvasync Villa - Đà Lạt")
     private String propertyName;
+
+
 }
