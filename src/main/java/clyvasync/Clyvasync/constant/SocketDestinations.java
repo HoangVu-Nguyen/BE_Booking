@@ -10,6 +10,7 @@ public interface SocketDestinations {
     String WALLET_QUEUE = "/queue/wallet";
     String BOOKING_QUEUE = "/queue/booking";
     String NOTIFICATION_QUEUE = "/queue/notifications";
+    String CHAT_TOPIC = "/topic/conversations/";
 
     // Các kênh công khai (Public Topics Broadcast)
     String ROOM_STATUS_TOPIC = "room-status";

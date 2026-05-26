@@ -30,8 +30,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // Dùng hằng số để định nghĩa luồng Broker công khai và riêng tư
-        registry.enableSimpleBroker(SocketDestinations.TOPIC_PREFIX.replace("/", ""), SocketDestinations.USER_QUEUE_PREFIX.replace("/", ""));
+        registry.enableSimpleBroker("/topic", "/queue");
+
+        // 2. Tiền tố cho các request từ Client gửi LÊN server (nếu có dùng @MessageMapping)
         registry.setApplicationDestinationPrefixes("/app");
+
+        // 3. Tiền tố để Spring Boot tự động phân giải các tin nhắn gửi 1-1
         registry.setUserDestinationPrefix("/user");
     }
     @Override

@@ -229,7 +229,7 @@ public class TripServiceImpl implements TripService {
                 .images(propertyImages)
                 .build();
 
-        OwnerResponse ownerResponse = userService.getOwnerInfo(booking.getUserId());
+
         List<Long> roomIds = bookingDetails.stream().map(BookingDetail::getRoomId).distinct().toList();
         Map<Long, HomestayRoom> roomMap = homestayRoomService.findByIdIn(roomIds).stream()
                 .collect(Collectors.toMap(HomestayRoom::getId, r -> r));
@@ -292,7 +292,7 @@ public class TripServiceImpl implements TripService {
                 .totalPrice(booking.getTotalPrice())
                 .paymentMethod("Chuyển khoản / Cổng thanh toán")
                 .property(propertyInfo)
-                .host(ownerResponse)
+                .host(homestay.getOwner())
                 .policy(policyResponse)
                 .rooms(roomsBooked)
                 .tours(toursBooked)

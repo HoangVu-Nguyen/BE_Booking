@@ -83,4 +83,26 @@ public class SocketEmitterServiceImpl implements SocketEmitterService {
             log.error("[SOCKET-EMITTER ERROR] Lỗi gửi socket : ", e);
         }
     }
+
+    @Override
+    public void sendChat(Long conversationId, Object chatPayload) {
+        try {
+            log.info("[SOCKET-EMITTER] Đang đẩy chat tới Phòng Chat ID: {}", conversationId);
+
+            var response = ApiResponse.builder()
+                    .data(chatPayload)
+                    .code(ResultCode.SUCCESS.getCode())
+                    .build();
+
+            // CHỈ CẦN 2 THAM SỐ: ĐÍCH ĐẾN (Destination) và DỮ LIỆU (Payload)
+            // conversationId không cần đưa vào làm tham số thứ 1
+            messagingTemplate.convertAndSend(
+                    SocketDestinations.CHAT_TOPIC + conversationId,
+                    response
+            );
+
+        } catch (Exception e) {
+            log.error("[SOCKET-EMITTER ERROR] Lỗi gửi socket : ", e);
+        }
+    }
 }

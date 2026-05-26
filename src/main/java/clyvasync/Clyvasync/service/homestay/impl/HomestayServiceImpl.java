@@ -113,7 +113,46 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     public HomestayResponse getById(Long id) {
-        return homestayMapper.toResponse(homestayRepository.findById(id).orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND)));
+        // 1. Lấy thực thể Homestay gốc
+        Homestay homestay = homestayRepository.findById(id)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+
+        // 2. Map các trường cơ bản từ Entity sang Response
+        HomestayResponse response = homestayMapper.toResponse(homestay);
+
+        // 3. Lắp ráp dữ liệu Hình ảnh và Tiện ích
+        response.setImageUrls(homestayImageService.getImagesByHomestayId(id)); // Cần chắc chắn hàm này có tồn tại trong Service
+        response.setAmenities(amenityService.getAmenitiesByHomestayId(id));
+
+        // 4. Lắp ráp tên Thành phố và Danh mục
+        Map<Integer, String> locationsMap = locationService.getLocationNamesMap(List.of(homestay.getLocationId()));
+        response.setCityName(locationsMap.get(homestay.getLocationId()));
+
+        Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(List.of(homestay.getCategoryId()));
+        response.setCategoryName(categoriesMap.get(homestay.getCategoryId()));
+
+        // 5. Lắp ráp thông tin Chủ nhà (Owner)
+        response.setOwner(userService.getOwnerInfo(homestay.getOwnerId()));
+
+        // 6. Lắp ráp thông tin quy mô Phòng (Giá thấp nhất, Số khách, Số phòng)
+        List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(List.of(id));
+        if (summaries != null && !summaries.isEmpty()) {
+            HomestayRoomSummary summary = summaries.get(0);
+            response.setBasePrice(summary.getMinPrice());
+            response.setMaxGuests(summary.getMaxGuestsInRoom());
+            response.setNumBedrooms(summary.getTotalRooms());
+            response.setNumBathrooms(summary.getTotalRooms()); // Tạm dùng chung theo logic cũ của bạn
+        } else {
+            response.setBasePrice(BigDecimal.ZERO);
+            response.setMaxGuests(0);
+            response.setNumBedrooms(0);
+            response.setNumBathrooms(0);
+        }
+
+        // 7. Xử lý Rating (Đảm bảo không bị null)
+        response.setAverageRating(BigDecimal.valueOf(homestay.getAverageRating() != null ? homestay.getAverageRating().doubleValue() : 0.0));
+
+        return response;
     }
 
     @Override
