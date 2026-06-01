@@ -16,6 +16,7 @@ import clyvasync.Clyvasync.service.chat.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -92,6 +93,12 @@ public class MessageServiceImpl implements MessageService {
     public void revokeMessage(Long messageId, Long userId) {
 
     }
+
+    @Override
+    public List<Message> findChatHistoryWithCursor(Long conversationId, Long cursorId, Pageable pageable) {
+        return messageRepository.findChatHistoryWithCursor(conversationId, cursorId, pageable);
+    }
+
     private MessageResponse mapToResponse(Message msg, Long currentUserId, List<AttachmentResponse> attachments) {
 
         // 1. Kiểm tra xem tin nhắn này có phải của người dùng đang request không?

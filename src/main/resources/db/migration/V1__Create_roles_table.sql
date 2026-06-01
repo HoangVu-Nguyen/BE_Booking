@@ -7,3 +7,4 @@ CREATE TABLE roles (
 -- Đổ dữ liệu mồi (Seed Data)
 INSERT INTO roles (name) VALUES ('USER');
 INSERT INTO roles (name) VALUES ('ADMIN');
+INSERT INTO roles (name) VALUES ('HOST');

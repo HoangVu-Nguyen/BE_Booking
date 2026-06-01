@@ -5,6 +5,9 @@ package clyvasync.Clyvasync.service.chat;
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.MessageResponse;
 import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.modules.chat.entity.Message;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -35,4 +38,9 @@ public interface MessageService {
      * @throws AppException nếu người xóa không phải là người gửi tin nhắn.
      */
     void revokeMessage(Long messageId, Long userId);
+    List<Message> findChatHistoryWithCursor(
+            Long conversationId,
+            Long cursorId,
+            Pageable pageable
+    );
 }
