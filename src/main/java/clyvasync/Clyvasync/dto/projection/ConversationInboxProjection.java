@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.dto.projection;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 
 public interface ConversationInboxProjection {
     Long getConversationId();
@@ -8,7 +9,7 @@ public interface ConversationInboxProjection {
     String getTargetName();
     String getTargetAvatar();
     String getLastMessageContent();
-    Timestamp getLastMessageAt(); // Trả về Timestamp cho an toàn nhất với Native Query
+    Instant getLastMessageAt(); // Trả về Timestamp cho an toàn nhất với Native Query
     Long getUnreadCount();
     String getBookingStatus();
     String getPropertyName();

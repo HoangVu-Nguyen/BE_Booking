@@ -42,7 +42,7 @@ public class ConversationServiceImpl implements ConversationService {
         return rawPage.map(proj -> {
 
             OffsetDateTime rawLastMessageAt = proj.getLastMessageAt() != null
-                    ? proj.getLastMessageAt().toInstant().atOffset(ZoneOffset.UTC)
+                    ? proj.getLastMessageAt().atOffset(ZoneOffset.UTC)
                     : null;
 
             ChatType type = proj.getChatType() != null

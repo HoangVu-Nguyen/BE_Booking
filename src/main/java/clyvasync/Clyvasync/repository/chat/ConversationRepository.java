@@ -34,7 +34,7 @@ public interface ConversationRepository extends JpaRepository<Conversation,Long>
         INNER JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = :userId
         LEFT JOIN conversation_participants cp_other ON cp_other.conversation_id = c.id AND cp_other.user_id != :userId
         LEFT JOIN users u ON u.id = cp_other.user_id
-        LEFT JOIN user_photos up ON up.user_id = u.id AND up.is_primary = true
+        LEFT JOIN user_photos up ON up.user_id = u.id AND up.is_current = true
         LEFT JOIN messages m ON m.conversation_id = c.id 
              AND m.created_at = (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id)
         LEFT JOIN bookings b ON b.id = c.reference_id AND c.type IN ('ADMIN', 'HOST')

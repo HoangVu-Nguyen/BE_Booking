@@ -30,7 +30,7 @@ public class Conversation {
     private OffsetDateTime lastMessageAt;
 
     @Column(updatable = false)
-    @CreationTimestamp
+
     private OffsetDateTime createdAt;
 
 
