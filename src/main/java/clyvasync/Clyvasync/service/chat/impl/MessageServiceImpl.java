@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.chat.impl;
 import clyvasync.Clyvasync.dto.event.ChatMessageSentEvent;
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.AttachmentResponse;
+import clyvasync.Clyvasync.dto.response.ChatHistoryResponse;
 import clyvasync.Clyvasync.dto.response.MessageResponse;
 import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.exception.AppException;
@@ -92,37 +93,63 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public List<MessageResponse> getChatHistory(Long conversationId, Long cursorMessageId, int limit, Long currentUserId) {
+    @Transactional(readOnly = true)
+    public ChatHistoryResponse getChatHistory(Long conversationId, Long cursorMessageId, int limit, Long currentUserId) {
         log.info("Loading chat history for conversation {} by user {}, cursor: {}", conversationId, currentUserId, cursorMessageId);
-        Pageable pageable = PageRequest.of(0, limit);
+
+        Pageable pageable = PageRequest.of(0, limit + 1);
         List<Message> messages = messageRepository.findChatHistoryWithCursor(conversationId, cursorMessageId, pageable);
+
         if (messages.isEmpty()) {
-            return Collections.emptyList();
+            return ChatHistoryResponse.builder()
+                    .messages(Collections.emptyList())
+                    .nextCursor(null)
+                    .hasNext(false)
+                    .build();
         }
+
+        boolean hasNext = messages.size() > limit;
+        if (hasNext) {
+            messages = messages.subList(0, limit);
+        }
+
+
+        Long nextCursor = messages.get(messages.size() - 1).getId();
+
         List<Long> messageIds = messages.stream().map(Message::getId).toList();
         List<Long> senderIds = messages.stream().map(Message::getSenderId).distinct().toList();
+
         Map<Long, List<AttachmentResponse>> attachmentsMap = messageAttachmentService.getAttachmentsForMessages(messageIds);
         Map<Long, OwnerResponse> ownerResponseMap = userService.getOwnerInfos(senderIds);
+
         List<MessageResponse> responses = messages.stream().map(msg -> {
             List<AttachmentResponse> attachments = attachmentsMap.getOrDefault(msg.getId(), Collections.emptyList());
-
             MessageResponse res = mapToResponse(msg, currentUserId, attachments);
 
             if (msg.getSenderId() == 0) {
                 res.setSenderName("Hệ thống");
                 res.setSenderAvatar("support_agent");
             } else {
-                res.setSenderName(ownerResponseMap.get(res.getSenderId()).getFullName());
-                res.setSenderAvatar(ownerResponseMap.get(res.getSenderId()).getAvatar());
+                OwnerResponse owner = ownerResponseMap.get(msg.getSenderId());
+                if (owner != null) {
+                    res.setSenderName(owner.getFullName());
+                    res.setSenderAvatar(owner.getAvatar());
+                } else {
+                    res.setSenderName("Người dùng Clyvasync");
+                    res.setSenderAvatar("https://ui-avatars.com/api/?name=User");
+                }
             }
             return res;
         }).collect(Collectors.toList());
 
         Collections.reverse(responses);
 
-        return responses;
+        return ChatHistoryResponse.builder()
+                .messages(responses)
+                .nextCursor(nextCursor)
+                .hasNext(hasNext)
+                .build();
     }
-
     @Override
     public void revokeMessage(Long messageId, Long userId) {
 

@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.chat;
 
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.ChatHistoryResponse;
 import clyvasync.Clyvasync.dto.response.ConversationSummaryResponse;
 import clyvasync.Clyvasync.dto.response.MessageResponse;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
@@ -64,15 +65,22 @@ public class ChatController {
      * Lấy lịch sử tin nhắn của 1 phòng chat (Cursor-based Pagination)
      * GET /api/v1/chat/conversations/{conversationId}/messages?cursor=150&limit=20
      */
-    @GetMapping("/conversations/{conversationId}/messages")
-    public ApiResponse<List<MessageResponse>> getChatHistory(
-            @PathVariable Long conversationId,
-            @RequestParam(required = false) Long cursor,
-            @RequestParam(defaultValue = "20") int limit,
+    @GetMapping("/conversations/{id}/messages")
+    public ApiResponse<ChatHistoryResponse> getChatHistory(
+            @PathVariable("id") Long conversationId,
+            @RequestParam(value = "cursor", required = false) Long cursorMessageId,
+            @RequestParam(value = "limit", defaultValue = "10") int limit,
             @CurrentUserId Long currentUserId) {
 
-        List<MessageResponse> history = messageService.getChatHistory(conversationId, cursor, limit, currentUserId);
-        return ApiResponse.success(history);
+        log.info("REST API: User {} fetching chat history for conversation {} with cursor {}",
+                currentUserId, conversationId, cursorMessageId);
+
+        return ApiResponse.success(messageService.getChatHistory(
+                conversationId,
+                cursorMessageId,
+                limit,
+                currentUserId
+        ));
     }
 
     /**

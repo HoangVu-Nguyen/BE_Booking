@@ -3,6 +3,7 @@ package clyvasync.Clyvasync.service.chat;
 
 
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
+import clyvasync.Clyvasync.dto.response.ChatHistoryResponse;
 import clyvasync.Clyvasync.dto.response.MessageResponse;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.modules.chat.entity.Message;
@@ -32,7 +33,7 @@ public interface MessageService {
      * @param cursorMessageId ID của tin nhắn cũ nhất đang hiển thị trên UI (truyền null nếu mới vào phòng)
      * @param limit Số lượng tin nhắn cần lấy (VD: 20, 50)
      */
-    List<MessageResponse> getChatHistory(Long conversationId, Long cursorMessageId, int limit, Long currentUserId);
+     ChatHistoryResponse getChatHistory(Long conversationId, Long cursorMessageId, int limit, Long currentUserId);
     /**
      * Xóa/Thu hồi tin nhắn (Soft Delete).
      * @throws AppException nếu người xóa không phải là người gửi tin nhắn.
