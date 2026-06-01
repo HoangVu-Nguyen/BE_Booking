@@ -4,18 +4,22 @@ import clyvasync.Clyvasync.dto.event.ChatMessageSentEvent;
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.AttachmentResponse;
 import clyvasync.Clyvasync.dto.response.MessageResponse;
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.chat.entity.Message;
 import clyvasync.Clyvasync.modules.chat.entity.MessageAttachment;
 import clyvasync.Clyvasync.repository.chat.MessageRepository;
+import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.chat.ConversationParticipantService;
 import clyvasync.Clyvasync.service.chat.ConversationService;
 import clyvasync.Clyvasync.service.chat.MessageAttachmentService;
 import clyvasync.Clyvasync.service.chat.MessageService;
+import clyvasync.Clyvasync.service.media.IUserPhotoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +30,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +42,7 @@ public class MessageServiceImpl implements MessageService {
     private final MessageAttachmentService messageAttachmentService;
     private final ConversationService conversationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserService userService;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.systemDefault());
     @Override
@@ -86,7 +93,34 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public List<MessageResponse> getChatHistory(Long conversationId, Long cursorMessageId, int limit, Long currentUserId) {
-        return List.of();
+        log.info("Loading chat history for conversation {} by user {}, cursor: {}", conversationId, currentUserId, cursorMessageId);
+        Pageable pageable = PageRequest.of(0, limit);
+        List<Message> messages = messageRepository.findChatHistoryWithCursor(conversationId, cursorMessageId, pageable);
+        if (messages.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> messageIds = messages.stream().map(Message::getId).toList();
+        List<Long> senderIds = messages.stream().map(Message::getSenderId).distinct().toList();
+        Map<Long, List<AttachmentResponse>> attachmentsMap = messageAttachmentService.getAttachmentsForMessages(messageIds);
+        Map<Long, OwnerResponse> ownerResponseMap = userService.getOwnerInfos(senderIds);
+        List<MessageResponse> responses = messages.stream().map(msg -> {
+            List<AttachmentResponse> attachments = attachmentsMap.getOrDefault(msg.getId(), Collections.emptyList());
+
+            MessageResponse res = mapToResponse(msg, currentUserId, attachments);
+
+            if (msg.getSenderId() == 0) {
+                res.setSenderName("Hệ thống");
+                res.setSenderAvatar("support_agent");
+            } else {
+                res.setSenderName(ownerResponseMap.get(res.getSenderId()).getFullName());
+                res.setSenderAvatar(ownerResponseMap.get(res.getSenderId()).getAvatar());
+            }
+            return res;
+        }).collect(Collectors.toList());
+
+        Collections.reverse(responses);
+
+        return responses;
     }
 
     @Override
