@@ -55,4 +55,5 @@ public interface ConversationService {
      * Đếm tổng số tin nhắn chưa đọc của 1 User (Hiển thị chấm đỏ ở Header/Menu).
      */
     long getTotalUnreadCount(Long userId);
+     Long initOrGetHostConversation(Long currentUserId, Long targetHostId);
 }

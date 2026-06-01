@@ -5,9 +5,16 @@ import clyvasync.Clyvasync.dto.request.CreateConversationRequest;
 import clyvasync.Clyvasync.dto.response.ConversationDetailResponse;
 import clyvasync.Clyvasync.dto.response.ConversationSummaryResponse;
 import clyvasync.Clyvasync.enums.type.ChatType;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.chat.entity.Conversation;
+import clyvasync.Clyvasync.modules.chat.entity.ConversationParticipant;
+import clyvasync.Clyvasync.repository.chat.ConversationParticipantRepository;
 import clyvasync.Clyvasync.repository.chat.ConversationRepository;
+import clyvasync.Clyvasync.service.chat.ConversationParticipantService;
 import clyvasync.Clyvasync.service.chat.ConversationService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -16,11 +23,16 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ConversationServiceImpl implements ConversationService {
     private final ConversationRepository conversationRepository;
+    private final ConversationParticipantService conversationParticipantService;
+    private final ConversationParticipantRepository participantRepository;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.systemDefault());
     @Override
@@ -87,6 +99,34 @@ public class ConversationServiceImpl implements ConversationService {
     public long getTotalUnreadCount(Long userId) {
         return 0;
     }
+
+    @Override
+    public Long initOrGetHostConversation(Long currentUserId, Long targetHostId) {
+        Optional<Long> existingConvId =  conversationParticipantService.findExistingConversationId(currentUserId,targetHostId);
+        if (existingConvId.isPresent()) {
+            log.info("Phòng chat đã tồn tại: {}", existingConvId.get());
+            return existingConvId.get();
+        }
+        log.info("Tạo phòng chat mới giữa User {} và Host {}", currentUserId, targetHostId);
+        Conversation newConversation = new Conversation();
+        newConversation.setType(ChatType.HOST);
+        newConversation.setCreatedAt(OffsetDateTime.now());
+        Conversation savedConversation = conversationRepository.save(newConversation);
+
+        ConversationParticipant me = new ConversationParticipant();
+        me.setConversationId(savedConversation.getId());
+        me.setUserId(currentUserId);
+
+        ConversationParticipant host = new ConversationParticipant();
+        host.setConversationId(savedConversation.getId());
+        host.setUserId(targetHostId);
+
+        participantRepository.saveAll(List.of(me, host));
+
+        return savedConversation.getId();
+    }
+
+
     /**
      * Helper method to format OffsetDateTime into user-friendly strings.
      */

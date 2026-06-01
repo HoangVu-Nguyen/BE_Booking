@@ -17,6 +17,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -109,7 +110,15 @@ public class ChatController {
             @CurrentUserId Long currentUserId) {
 
         conversationService.markAsRead(conversationId, currentUserId, lastMessageId);
-        return ApiResponse.success(null); // Có thể trả về null hoặc một chuỗi thông báo tùy theo setup class ApiResponse của bạn
+        return ApiResponse.success(null);
     }
+    @PostMapping("/conversations/init")
+    public ApiResponse<Map<String, Long>> initConversation(
+            @RequestParam("targetUserId") Long targetUserId,
+            @CurrentUserId Long currentUserId) {
 
+        Long conversationId = conversationService.initOrGetHostConversation(currentUserId, targetUserId);
+
+        return ApiResponse.success(Map.of("conversationId", conversationId));
+    }
 }
