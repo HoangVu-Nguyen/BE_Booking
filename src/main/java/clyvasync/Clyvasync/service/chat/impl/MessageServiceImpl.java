@@ -10,6 +10,7 @@ import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.chat.entity.Message;
 import clyvasync.Clyvasync.modules.chat.entity.MessageAttachment;
+import clyvasync.Clyvasync.repository.chat.ConversationParticipantRepository;
 import clyvasync.Clyvasync.repository.chat.MessageRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.chat.ConversationParticipantService;
@@ -44,6 +45,7 @@ public class MessageServiceImpl implements MessageService {
     private final ConversationService conversationService;
     private final ApplicationEventPublisher eventPublisher;
     private final UserService userService;
+    private final ConversationParticipantRepository conversationParticipantRepository;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.systemDefault());
     @Override
@@ -83,7 +85,19 @@ public class MessageServiceImpl implements MessageService {
 
         // 5. Map sang Response DTO
         MessageResponse response = mapToResponse(savedMessage, senderId, attachmentResponses);
-        eventPublisher.publishEvent(new ChatMessageSentEvent(conversationId, response));
+        if (senderId == 0) {
+            // Nếu là tin nhắn SYSTEM, bắn cập nhật Inbox cho TẤT CẢ các thành viên trong phòng
+            List<Long> participantIds = conversationParticipantRepository.findAllParticipantIdsByConversationId(conversationId);
+            for (Long pId : participantIds) {
+                eventPublisher.publishEvent(new ChatMessageSentEvent(conversationId, pId, response));
+            }
+        } else {
+            Long receiverId = conversationParticipantRepository.findReceiverIdByConversationIdAndExcludeSender(conversationId, senderId);
+
+            if (receiverId != null) {
+                eventPublisher.publishEvent(new ChatMessageSentEvent(conversationId, receiverId, response));
+            }
+        }
         return response;
     }
 

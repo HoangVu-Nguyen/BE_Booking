@@ -29,6 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -67,11 +68,13 @@ public class ConversationServiceImpl implements ConversationService {
             String targetName = proj.getTargetName() != null
                     ? proj.getTargetName()
                     : "Khách hàng ẩn danh";
+            Long targetUserId  = proj.getTargetUserId() != null ? proj.getTargetUserId() : 0L;
 
             Long unreadCount = proj.getUnreadCount() != null ? proj.getUnreadCount() : 0L;
 
             return ConversationSummaryResponse.builder()
                     .id(proj.getConversationId())
+                    .targetUserId(targetUserId)
                     .type(type)
                     .targetName(targetName)
                     .targetAvatar(proj.getTargetAvatar())
@@ -174,6 +177,7 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         OwnerResponse host = userService.getOwnerInfo(targetHostId);
+        assert contextInfo != null;
         return ChatInitResponse.builder()
                 .conversationId(convId)
                 .name(host.getFullName())

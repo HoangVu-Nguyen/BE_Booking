@@ -105,4 +105,28 @@ public class SocketEmitterServiceImpl implements SocketEmitterService {
             log.error("[SOCKET-EMITTER ERROR] Lỗi gửi socket : ", e);
         }
     }
+
+    @Override
+    public void sendInboxUpdate(Long userId, Object chatPayload) {
+        if (userId == null) return;
+        try {
+            log.info("[SOCKET-EMITTER] Đang đẩy cập nhật Inbox bảo mật tới User ID: {}", userId);
+
+            var response = ApiResponse.builder()
+                    .data(chatPayload)
+                    .code(ResultCode.SUCCESS.getCode())
+                    .build();
+
+            // CHUẨN ĐÉT: Dùng convertAndSendToUser kết hợp với "/queue/inbox"
+            // Spring Boot sẽ tự hiểu và định tuyến bảo mật cho riêng User này
+            messagingTemplate.convertAndSendToUser(
+                    userId.toString(), // Phải trùng với Principal Name (thường là UserId) khi bạn giải mã Token ở WebSocket Interceptor
+                    "/queue/inbox",    // Chỉ cần truyền "/queue/inbox" thôi, không có /topic/users nữa
+                    response
+            );
+
+        } catch (Exception e) {
+            log.error("[SOCKET-EMITTER ERROR] Lỗi gửi socket inbox: ", e);
+        }
+    }
 }

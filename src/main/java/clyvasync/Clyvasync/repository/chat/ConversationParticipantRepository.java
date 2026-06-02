@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ConversationParticipantRepository extends JpaRepository<ConversationParticipant,Long> {
@@ -20,4 +21,22 @@ public interface ConversationParticipantRepository extends JpaRepository<Convers
         LIMIT 1
     """, nativeQuery = true)
     Optional<Long> findExistingConversationId(@Param("userId1") Long userId1, @Param("userId2") Long userId2);
+    @Query(value = """
+        SELECT user_id 
+        FROM conversation_participants 
+        WHERE conversation_id = :conversationId 
+          AND user_id != :senderId 
+        LIMIT 1
+    """, nativeQuery = true)
+    Long findReceiverIdByConversationIdAndExcludeSender(
+            @Param("conversationId") Long conversationId,
+            @Param("senderId") Long senderId
+    );
+
+    @Query(value = """
+        SELECT user_id 
+        FROM conversation_participants 
+        WHERE conversation_id = :conversationId
+    """, nativeQuery = true)
+    List<Long> findAllParticipantIdsByConversationId(@Param("conversationId") Long conversationId);
 }

@@ -5,5 +5,6 @@ import clyvasync.Clyvasync.dto.response.MessageResponse;
 // Class chứa dữ liệu để ném sang Listener
 public record ChatMessageSentEvent(
         Long conversationId,
+        Long receiverId,
         MessageResponse response
 ) {}

@@ -20,4 +20,5 @@ public interface SocketEmitterService {
     void broadcastRoomStatus(String topic, Object payload);
     void sendNotification(Long userId, Object bookingPayload);
     void sendChat(Long conversationId, Object chatPayload);
+     void sendInboxUpdate(Long userId, Object chatPayload);
 }

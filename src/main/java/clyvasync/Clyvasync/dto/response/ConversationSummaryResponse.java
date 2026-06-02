@@ -15,6 +15,7 @@ import java.time.OffsetDateTime;
 public class ConversationSummaryResponse {
     private Long id;
     private ChatType type; // Lấy từ conversations.type
+    private Long targetUserId;
     private String targetName;
     private String targetAvatar;
     private String lastMessage; // Lấy từ messages.content của tin mới nhất

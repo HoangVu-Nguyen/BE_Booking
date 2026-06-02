@@ -1,10 +1,7 @@
 package clyvasync.Clyvasync.controller.chat;
 
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
-import clyvasync.Clyvasync.dto.response.ApiResponse;
-import clyvasync.Clyvasync.dto.response.ChatHistoryResponse;
-import clyvasync.Clyvasync.dto.response.ConversationSummaryResponse;
-import clyvasync.Clyvasync.dto.response.MessageResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.chat.ConversationService;
 import clyvasync.Clyvasync.service.chat.MessageService;
@@ -113,12 +110,11 @@ public class ChatController {
         return ApiResponse.success(null);
     }
     @PostMapping("/conversations/init")
-    public ApiResponse<Map<String, Long>> initConversation(
+    public ApiResponse<ChatInitResponse> initConversation(
             @RequestParam("targetUserId") Long targetUserId,
             @CurrentUserId Long currentUserId) {
 
-        Long conversationId = conversationService.initOrGetHostConversation(currentUserId, targetUserId);
 
-        return ApiResponse.success(Map.of("conversationId", conversationId));
+        return ApiResponse.success(conversationService.getHostConversation(currentUserId, targetUserId));
     }
 }

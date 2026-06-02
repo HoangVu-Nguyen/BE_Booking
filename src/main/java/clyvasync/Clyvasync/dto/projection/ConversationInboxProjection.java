@@ -5,6 +5,7 @@ import java.time.Instant;
 
 public interface ConversationInboxProjection {
     Long getConversationId();
+    Long getTargetUserId();
     String getChatType();
     String getTargetName();
     String getTargetAvatar();

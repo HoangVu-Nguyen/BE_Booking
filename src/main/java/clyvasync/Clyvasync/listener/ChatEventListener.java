@@ -19,7 +19,9 @@ public class ChatEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onChatMessageSent(ChatMessageSentEvent event) {
         socketEmitterService.sendChat(event.conversationId(),event.response());
-
+        if (event.receiverId() != null) {
+            socketEmitterService.sendInboxUpdate(event.receiverId(), event.response());
+        }
         log.info("Đã bắn WebSocket thành công cho phòng chat {} sau khi DB Commit", event.conversationId());
     }
 }
