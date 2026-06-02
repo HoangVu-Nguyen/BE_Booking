@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.tour;
 
+import clyvasync.Clyvasync.dto.projection.TourInfoProjection;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -18,5 +19,24 @@ public interface TourBookingRepository extends JpaRepository<TourBooking,Long> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE TourBooking tb SET tb.status = 'CANCELLED' WHERE tb.homestayBookingId = :bookingId")
     void cancelAllByHomestayBookingId(@Param("bookingId") Long bookingId);
-
+    @Query(value = """
+    SELECT tb.* FROM tour_bookings tb
+    INNER JOIN tours t ON tb.tour_id = t.id
+    INNER JOIN homestays h ON t.homestay_id = h.id
+    WHERE tb.user_id = :userId
+      AND h.owner_id = :hostId
+      AND tb.status IN ('PENDING', 'CONFIRMED')
+    ORDER BY tb.created_at DESC
+    LIMIT 1
+""", nativeQuery = true)
+    Optional<TourBooking> findLatestActiveTourBooking(@Param("userId") Long userId, @Param("hostId") Long hostId);
+    @Query(value = """
+    SELECT t.name AS tourName, 
+           tb.tour_date AS tourDate, 
+           tb.total_price AS price
+    FROM tour_bookings tb
+    JOIN tours t ON tb.tour_id = t.id
+    WHERE tb.homestay_booking_id = :bookingId
+""", nativeQuery = true)
+    List<TourInfoProjection> findTourInfosByHomestayBookingId(@Param("bookingId") Long bookingId);
 }

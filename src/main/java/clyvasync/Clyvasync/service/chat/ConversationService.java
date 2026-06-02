@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.service.chat;
 
 
 import clyvasync.Clyvasync.dto.request.CreateConversationRequest;
+import clyvasync.Clyvasync.dto.response.ChatInitResponse;
 import clyvasync.Clyvasync.dto.response.ConversationDetailResponse;
 import clyvasync.Clyvasync.dto.response.ConversationSummaryResponse;
 import clyvasync.Clyvasync.exception.AppException;
@@ -56,4 +57,5 @@ public interface ConversationService {
      */
     long getTotalUnreadCount(Long userId);
      Long initOrGetHostConversation(Long currentUserId, Long targetHostId);
+     ChatInitResponse getHostConversation(Long currentUserId, Long targetHostId);
 }

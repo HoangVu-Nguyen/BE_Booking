@@ -1,16 +1,27 @@
 package clyvasync.Clyvasync.service.chat.impl;
 
+import clyvasync.Clyvasync.dto.detail.BookingContextInfo;
+import clyvasync.Clyvasync.dto.detail.TourInfo;
+import clyvasync.Clyvasync.dto.projection.BookingBriefProjection;
 import clyvasync.Clyvasync.dto.projection.ConversationInboxProjection;
+import clyvasync.Clyvasync.dto.projection.TourInfoProjection;
 import clyvasync.Clyvasync.dto.request.CreateConversationRequest;
+import clyvasync.Clyvasync.dto.response.ChatInitResponse;
 import clyvasync.Clyvasync.dto.response.ConversationDetailResponse;
 import clyvasync.Clyvasync.dto.response.ConversationSummaryResponse;
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.enums.type.ChatType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.chat.entity.Conversation;
 import clyvasync.Clyvasync.modules.chat.entity.ConversationParticipant;
+import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
+import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.chat.ConversationParticipantRepository;
 import clyvasync.Clyvasync.repository.chat.ConversationRepository;
+import clyvasync.Clyvasync.repository.tour.TourBookingRepository;
+import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.chat.ConversationParticipantService;
 import clyvasync.Clyvasync.service.chat.ConversationService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +36,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +45,9 @@ public class ConversationServiceImpl implements ConversationService {
     private final ConversationRepository conversationRepository;
     private final ConversationParticipantService conversationParticipantService;
     private final ConversationParticipantRepository participantRepository;
+    private final BookingRepository bookingRepository;
+    private final TourBookingRepository tourBookingRepository;
+    private final UserService userService;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.systemDefault());
     @Override
@@ -125,7 +140,47 @@ public class ConversationServiceImpl implements ConversationService {
 
         return savedConversation.getId();
     }
+    @Override
+    public ChatInitResponse getHostConversation(Long currentUserId, Long targetHostId) {
+        if (currentUserId.equals(targetHostId)) throw new AppException(ResultCode.INVALID_INPUT);
 
+        // 1. Lấy/tạo phòng chat
+        Long convId = initOrGetHostConversation(currentUserId, targetHostId);
+
+        // 2. Lấy Booking Context (Query #1 - Đã JOIN sẵn tên Homestay và Check In/Out)
+        Optional<BookingBriefProjection> bookingOpt = bookingRepository.findLatestBookingBrief(currentUserId, targetHostId);
+
+        BookingContextInfo contextInfo = null;
+        if (bookingOpt.isPresent()) {
+            BookingBriefProjection b = bookingOpt.get();
+
+            // 3. Lấy Danh sách Tour (Query #2 - Đã JOIN sẵn tên Tour)
+            List<TourInfoProjection> tourProjections = tourBookingRepository.findTourInfosByHomestayBookingId(b.getBookingId());
+
+            // 4. Map thẳng dữ liệu
+            contextInfo = BookingContextInfo.builder()
+                    .bookingCode(b.getBookingCode())
+                    .homestayName(b.getHomestayName())
+                    .status(b.getStatus())
+                    .checkIn(b.getCheckIn().toString())
+                    .checkOut(b.getCheckOut().toString())
+                    .totalPrice(b.getTotalPrice())
+                    .bookedTours(tourProjections.stream().map(t -> TourInfo.builder()
+                            .tourName(t.getTourName())
+                            .tourDate(t.getTourDate().toString())
+                            .price(t.getPrice())
+                            .build()).collect(Collectors.toList()))
+                    .build();
+        }
+
+        OwnerResponse host = userService.getOwnerInfo(targetHostId);
+        return ChatInitResponse.builder()
+                .conversationId(convId)
+                .name(host.getFullName())
+                .avatar(host.getAvatar())
+                .booking(contextInfo)
+                .build();
+    }
 
     /**
      * Helper method to format OffsetDateTime into user-friendly strings.

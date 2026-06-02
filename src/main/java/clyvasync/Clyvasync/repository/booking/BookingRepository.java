@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.booking;
 
+import clyvasync.Clyvasync.dto.projection.BookingBriefProjection;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
 import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
@@ -89,4 +90,32 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("startDate") java.time.OffsetDateTime startDate,
             @Param("endDate") java.time.OffsetDateTime endDate
     );
+    @Query(value = """
+    SELECT b.* FROM bookings b 
+    INNER JOIN homestays h ON b.homestay_id = h.id
+    WHERE b.user_id = :userId 
+      AND h.owner_id = :hostId 
+      AND b.status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
+    ORDER BY b.created_at DESC 
+    LIMIT 1
+""", nativeQuery = true)
+    Optional<Booking> findLatestActiveHomestayBooking(@Param("userId") Long userId, @Param("hostId") Long hostId);
+    @Query(value = """
+    SELECT b.id AS bookingId, 
+           b.booking_code AS bookingCode, 
+           h.name AS homestayName, 
+           b.status AS status, 
+           bd.check_in_date AS checkIn, 
+           bd.check_out_date AS checkOut, 
+           b.total_price AS totalPrice
+    FROM bookings b
+    JOIN homestays h ON b.homestay_id = h.id
+    JOIN booking_details bd ON bd.booking_id = b.id
+    WHERE b.user_id = :userId 
+      AND h.owner_id = :hostId 
+      AND b.status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
+    ORDER BY b.created_at DESC 
+    LIMIT 1
+""", nativeQuery = true)
+    Optional<BookingBriefProjection> findLatestBookingBrief(@Param("userId") Long userId, @Param("hostId") Long hostId);
 }
