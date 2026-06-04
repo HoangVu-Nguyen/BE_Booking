@@ -73,7 +73,7 @@ public class SecurityConfig {
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.disable())
                         .contentSecurityPolicy(csp -> csp
-                                .policyDirectives("frame-ancestors 'self' https://clyvasync.com")
+                                .policyDirectives("frame-ancestors 'self' https://localhost:4200")
                         )
                 )
                 .sessionManagement(session -> session

@@ -180,23 +180,6 @@ public class AuthorizationServerConfig {
         return context -> {
             Authentication auth = context.getPrincipal();
 
-            // ---------------- DÒNG LOG CHECK ĐẦU VÀO ----------------
-            System.out.println("==================================================");
-            System.out.println("[TOKEN CUSTOMIZER] Đang xây dựng Token cho TokenType: " + context.getTokenType().getValue());
-            if (auth != null) {
-                System.out.println("[TOKEN CUSTOMIZER] Authentication Type: " + auth.getClass().getName());
-                System.out.println("[TOKEN CUSTOMIZER] Auth Name (Subject): " + auth.getName());
-
-                Object rawPrincipal = auth.getPrincipal();
-                if (rawPrincipal != null) {
-                    System.out.println("[TOKEN CUSTOMIZER] Gốc Principal Class: " + rawPrincipal.getClass().getName());
-                    System.out.println("[TOKEN CUSTOMIZER] Gốc Principal Value: " + rawPrincipal.toString());
-                } else {
-                    System.out.println("[TOKEN CUSTOMIZER] Gốc Principal là NULL");
-                }
-            }
-            // --------------------------------------------------------
-
             Set<String> authorities = auth.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toSet());
@@ -204,15 +187,11 @@ public class AuthorizationServerConfig {
 
             Object principal = auth.getPrincipal();
             if (principal instanceof CustomUserDetails userDetails) {
-                System.out.println("[TOKEN CUSTOMIZER] --> Nhánh 1: Principal là CustomUserDetails. Set user_id = " + userDetails.getId());
                 context.getClaims().claim("user_id", userDetails.getId());
                 context.getClaims().claim("email", userDetails.getEmail());
             } else {
-                // Đây chính là nhánh nguy hiểm khi Refresh Token bị kích hoạt
-                System.out.println("[TOKEN CUSTOMIZER] --> Nhánh 2 (Else): Principal KHÔNG PHẢI CustomUserDetails. Set user_id = " + auth.getName());
-                context.getClaims().claim("user_id", auth.getName());
+                context.getClaims().claim("user_id", auth.getName()); // <-- ⚠️ ĐIỂM CẦN LƯU Ý
             }
-            System.out.println("==================================================");
         };
     }
 
