@@ -18,7 +18,7 @@ public class OpenApiConfig {
         final String securitySchemeName = "bearerAuth";
 
         return new OpenAPI()
-                .addServersItem(new Server().url("https://vcebook.io.vn"))
+                .addServersItem(new Server().url("https://vunguyen.tokyo"))
                 .addServersItem(new Server().url("https://localhost:8443"))
                 .info(new Info().title("My API").version("1.0"))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
