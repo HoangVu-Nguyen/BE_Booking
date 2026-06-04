@@ -96,8 +96,9 @@ public class AuthorizationServerConfig {
 
                         // 2. Set refresh token vào HttpOnly Cookie (Giữ nguyên logic của bạn)
                         if (refreshToken != null) {
+                            // Bỏ Secure, set SameSite=None (để nó gửi chéo domain)
                             String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
-                                    + "; HttpOnly; Secure; Path=/; Max-Age=" + (60 * 60 * 24 * 30) + "; SameSite=Lax";
+                                    + "; HttpOnly; Path=/; Max-Age=" + (60 * 60 * 24 * 30) + "; SameSite=None";
                             response.addHeader("Set-Cookie", cookieValue);
                         }
 
@@ -190,7 +191,7 @@ public class AuthorizationServerConfig {
                 context.getClaims().claim("user_id", userDetails.getId());
                 context.getClaims().claim("email", userDetails.getEmail());
             } else {
-                context.getClaims().claim("user_id", auth.getName()); // <-- ⚠️ ĐIỂM CẦN LƯU Ý
+                context.getClaims().claim("user_id", auth.getName());
             }
         };
     }
