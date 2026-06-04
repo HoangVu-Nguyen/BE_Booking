@@ -96,9 +96,8 @@ public class AuthorizationServerConfig {
 
                         // 2. Set refresh token vào HttpOnly Cookie (Giữ nguyên logic của bạn)
                         if (refreshToken != null) {
-                            // Bỏ Secure, set SameSite=None (để nó gửi chéo domain)
                             String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
-                                    + "; HttpOnly; Path=/; Max-Age=" + (60 * 60 * 24 * 30) + "; SameSite=None";
+                                    + "; HttpOnly; Secure; Path=/; Max-Age=" + (60 * 60 * 24 * 30) + "; SameSite=Lax";
                             response.addHeader("Set-Cookie", cookieValue);
                         }
 
@@ -199,7 +198,7 @@ public class AuthorizationServerConfig {
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-                //.issuer("https://localhost:8443")
+              //  .issuer("https://localhost:8443")
                 .issuer("https://vunguyen.tokyo")
                 .build();
     }
