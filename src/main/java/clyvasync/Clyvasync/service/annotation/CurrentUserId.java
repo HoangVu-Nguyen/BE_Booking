@@ -9,6 +9,6 @@ import java.lang.annotation.Target;
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
 
-@AuthenticationPrincipal(expression = "#this.token.claims['user_id']")
+@AuthenticationPrincipal(expression = "claims['user_id']")
 public @interface CurrentUserId {
 }
