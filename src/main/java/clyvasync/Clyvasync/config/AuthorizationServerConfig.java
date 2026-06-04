@@ -146,7 +146,7 @@ public class AuthorizationServerConfig {
     public RegisteredClientRepository registeredClientRepository() {
         JdbcRegisteredClientRepository registeredClientRepository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
-        if (registeredClientRepository.findByClientId("clyvasync-client-id") == null) {
+        if (registeredClientRepository.findByClientId(clientId) == null) {
             RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId(clientId)
                     .clientSecret(passwordEncoder.encode(clientSecret))
