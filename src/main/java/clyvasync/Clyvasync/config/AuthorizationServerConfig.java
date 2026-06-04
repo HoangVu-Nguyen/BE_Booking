@@ -98,6 +98,7 @@ public class AuthorizationServerConfig {
                         if (refreshToken != null) {
                             String cookieValue = "refresh_token=" + refreshToken.getTokenValue()
                                     + "; HttpOnly; Secure; Path=/; Max-Age=" + (60 * 60 * 24 * 30) + "; SameSite=Lax";
+                            System.out.println("RefreshToken nè thằng chó " + cookieValue);
                             response.addHeader("Set-Cookie", cookieValue);
                         }
 
