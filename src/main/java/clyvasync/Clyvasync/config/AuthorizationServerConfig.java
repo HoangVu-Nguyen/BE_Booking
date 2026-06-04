@@ -190,7 +190,7 @@ public class AuthorizationServerConfig {
                 context.getClaims().claim("user_id", userDetails.getId());
                 context.getClaims().claim("email", userDetails.getEmail());
             } else {
-                context.getClaims().claim("user_id", auth.getName());
+                context.getClaims().claim("user_id", auth.getName()); // <-- ⚠️ ĐIỂM CẦN LƯU Ý
             }
         };
     }

@@ -8,10 +8,7 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
-/*
- * Giải thích: 'claims' là map chứa các dữ liệu trong JWT.
- * 'user_id' phải khớp chính xác với key bạn đã set trong TokenCustomizer.
- */
-@AuthenticationPrincipal(expression = "claims['user_id']")
+
+@AuthenticationPrincipal(expression = "#this.token.claims['user_id']")
 public @interface CurrentUserId {
 }
