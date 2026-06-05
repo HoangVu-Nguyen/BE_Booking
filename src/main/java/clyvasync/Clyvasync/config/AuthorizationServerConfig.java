@@ -82,7 +82,17 @@ public class AuthorizationServerConfig {
 
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
                 .oidc(Customizer.withDefaults()) // <--- ĐÓNG CHẤM PHẨY Ở ĐÂY ĐỂ NGẮT CHUỖI BUILDER
+                .authorizationEndpoint(authorizationEndpoint -> authorizationEndpoint
+                        .errorResponseHandler((request, response, exception) -> {
+                            System.out.println("====== [OAUTH2 AUTHORIZE ERROR] ======");
+                            System.out.println("Lỗi chính xác là: " + exception.getMessage());
+                            exception.printStackTrace(); // In toàn bộ stack trace ra console để soi dòng code lỗi
+                            System.out.println("=======================================");
 
+                            // Để mặc định cho Spring tự xử lý tiếp giao diện lỗi sau khi in log
+                            response.sendError(400, exception.getMessage());
+                        })
+                )
         // TẠM THỜI COMMENT TOÀN BỘ CUSTOM HANDLER ĐỂ XEM SPRING CÓ TỰ ĐẺ RA REFRESH TOKEN KHÔNG
 
                 .tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseHandler((request, response, authentication) -> {
