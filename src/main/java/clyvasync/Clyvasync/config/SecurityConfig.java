@@ -60,6 +60,8 @@ public class SecurityConfig {
     private final CorsConfigurationSource corsConfigurationSource;
     private final CustomAuthenticationFailureHandler customAuthenticationFailureHandler;
     private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Value("${app.auth.issuer-url}")
+    private String issuerUrl;
 
     // ==============================================================================
     // 2. FILTER CHAIN CHO WEB APP VÀ API (Resource Server)
@@ -123,8 +125,7 @@ public class SecurityConfig {
         NimbusJwtDecoder jwtDecoder = (NimbusJwtDecoder) org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
         OAuth2TokenValidator<Jwt> withClockSkew = new DelegatingOAuth2TokenValidator<>(
                 new JwtTimestampValidator(java.time.Duration.ofSeconds(60)),
-                new JwtIssuerValidator("https://localhost:8443")
-     //   new JwtIssuerValidator("https://vunguyen.tokyo")
+                new JwtIssuerValidator(issuerUrl)
         );
         jwtDecoder.setJwtValidator(withClockSkew);
         return jwtDecoder;

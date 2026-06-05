@@ -68,6 +68,8 @@ public class AuthorizationServerConfig {
 
     @Value("${app.oauth2.post-logout-uri}")
     private String postLogoutUri;
+    @Value("${app.auth.issuer-url}")
+    private String issuerUrl;
 
     /**
      * CHAIN 1: Giao thức OAuth2
@@ -199,8 +201,7 @@ public class AuthorizationServerConfig {
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-              //  .issuer("https://localhost:8443")
-                .issuer("https://vunguyen.tokyo")
+                .issuer(issuerUrl)
                 .build();
     }
 
