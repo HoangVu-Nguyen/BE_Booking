@@ -70,16 +70,12 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Đồng bộ CORS về Bean chính chủ trong CorsConfig.java
-                .cors(Customizer.withDefaults())
-
-                // 2. Tắt CSRF để cho phép gửi POST/PUT/DELETE tự do từ Angular
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
-
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.disable())
                         .contentSecurityPolicy(csp -> csp
-                                .policyDirectives("frame-ancestors 'self' https://clyvasync.com")
+                                .policyDirectives("frame-ancestors 'self' https://localhost:4200")
                         )
                 )
                 .sessionManagement(session -> session
@@ -92,8 +88,6 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/v3/api-docs.yaml").permitAll()
                         .anyRequest().authenticated()
                 )
-                // Khuyên dùng: Nếu chỉ chạy API thuần túy, bạn có thể cân nhắc comment hoặc xóa bỏ .formLogin()
-                // để tránh xung đột redirect với Angular.
                 .formLogin(form -> form
                         .loginPage("/login")
                         .loginProcessingUrl("/login")
@@ -107,17 +101,11 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new CustomAuthenticationEntryPoint())
                 );
 
-        // ================= 💡 SẮP XẾP LẠI THỨ TỰ CÁC CUSTOM FILTER =================
-
-        // Đẩy RequestLoggingFilter lên đầu chuỗi bảo mật để ghi nhận được request OPTIONS/Preflight
-        http.addFilterBefore(requestLoggingFilter, org.springframework.security.web.context.SecurityContextHolderFilter.class);
-
-        // Các filter kiểm soát traffic, bảo mật đầu vào chạy ngay sau Logging
-        http.addFilterAfter(rateLimitingFilter, clyvasync.Clyvasync.security.filter.RequestLoggingFilter.class); // Thay đúng package filter của bạn
-        http.addFilterAfter(xssFilter, clyvasync.Clyvasync.security.filter.RateLimitingFilter.class);
-
-        // Filter xử lý Cookie Refresh Token đặt trước tầng xác thực tài khoản thông thường
+        // Thêm các custom filter của bạn
         http.addFilterBefore(refreshTokenCookieFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(rateLimitingFilter, RequestLoggingFilter.class);
+        http.addFilterAfter(xssFilter, RateLimitingFilter.class);
 
         return http.build();
     }
