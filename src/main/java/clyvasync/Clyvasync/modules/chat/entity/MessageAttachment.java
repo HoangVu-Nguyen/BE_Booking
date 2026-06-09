@@ -1,13 +1,11 @@
 package clyvasync.Clyvasync.modules.chat.entity;
-import clyvasync.Clyvasync.enums.type.ChatType;
-import jakarta.persistence.*;
-import lombok.Data;
 
+import clyvasync.Clyvasync.enums.media.MediaStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
-
 import java.time.OffsetDateTime;
+
 @Entity
 @Table(name = "message_attachments")
 @Data
@@ -16,7 +14,8 @@ public class MessageAttachment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    // ĐÃ SỬA: Bỏ nullable = false đi
+    @Column(name = "message_id")
     private Long messageId;
 
     @Column(nullable = false)
@@ -24,6 +23,11 @@ public class MessageAttachment {
 
     @Column(nullable = false)
     private String fileType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private MediaStatus status;
+
     @Column(updatable = false)
     @CreationTimestamp
     private OffsetDateTime createdAt;

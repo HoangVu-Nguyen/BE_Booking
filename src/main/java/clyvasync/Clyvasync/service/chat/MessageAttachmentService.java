@@ -2,8 +2,10 @@ package clyvasync.Clyvasync.service.chat;
 
 
 import clyvasync.Clyvasync.dto.request.AttachmentRequest;
+import clyvasync.Clyvasync.dto.request.BatchUploadRequest;
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.AttachmentResponse;
+import clyvasync.Clyvasync.dto.response.PresignedUrlResponse;
 import clyvasync.Clyvasync.modules.chat.entity.MessageAttachment;
 
 import java.util.List;
@@ -30,4 +32,6 @@ public interface MessageAttachmentService {
      */
     Map<Long, List<AttachmentResponse>> getAttachmentsForMessages(List<Long> messageIds);
     List<MessageAttachment> saveAll(List<MessageAttachment> messageAttachments);
+    List<PresignedUrlResponse> prepareBatchUpload(String userId, BatchUploadRequest batchRequest);
+
 }
