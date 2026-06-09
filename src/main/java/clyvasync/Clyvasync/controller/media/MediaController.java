@@ -19,10 +19,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MediaController {
     private final S3Service s3Service;
-    @PostMapping("/presigned-url/batch")
-    public ApiResponse<List<PresignedUrlResponse>> getBatchUploadUrls(
-            @RequestBody @Valid BatchUploadRequest request,
-            @CurrentUserId String userId) {
-        return ApiResponse.success(s3Service.generatePresignedPutUrl(userId, request));
-    }
+//    @PostMapping("/presigned-url/batch")
+//    public ApiResponse<List<PresignedUrlResponse>> getBatchUploadUrls(
+//            @RequestBody @Valid BatchUploadRequest request,
+//            @CurrentUserId String userId) {
+//        return ApiResponse.success(s3Service.generatePresignedPutUrl(userId, request));
+//    }
 }

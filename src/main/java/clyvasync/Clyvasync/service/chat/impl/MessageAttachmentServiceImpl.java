@@ -56,7 +56,7 @@ public class MessageAttachmentServiceImpl implements MessageAttachmentService {
     }
 
     @Override
-    public List<PresignedUrlResponse> prepareBatchUpload(String userId, BatchUploadRequest batchRequest) {
+    public List<PresignedUrlResponse> prepareBatchUpload(Long userId, BatchUploadRequest batchRequest) {
         List<UploadRequest> items = batchRequest.getItems();
         if (items == null || items.isEmpty()) {
             log.warn("Batch upload request is empty for user: {}", userId);
@@ -68,15 +68,14 @@ public class MessageAttachmentServiceImpl implements MessageAttachmentService {
         for (UploadRequest item : items) {
             // 1. Tạo S3 Object Key duy nhất (VD: chat/user_1/1689..._avatar.png)
             String extension = MediaUtil.getFileExtension(item.getFileName());
-            String objectKey = String.format("chat/user_%s/%s_%s%s",
-                    userId, System.currentTimeMillis(), UUID.randomUUID().toString().substring(0, 8), extension);
+            String objectKey = MediaUtil.generateObjectKey(userId,item);
 
             // 2. Gọi S3Service để lấy Presigned URL
             String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());
 
 
             MessageAttachment attachment = new MessageAttachment();
-            attachment.setFileUrl(MediaUtil.generateObjectKey(userId,item));
+            attachment.setFileUrl(objectKey);
             attachment.setFileType(item.getContentType());
             attachment.setStatus(MediaStatus.PENDING);
             pendingAttachments.add(attachment);

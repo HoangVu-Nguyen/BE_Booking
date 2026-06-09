@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface MessageAttachmentRepository extends JpaRepository<MessageAttachment,Long> {
     List<MessageAttachment> findByMessageIdIn(List<Long> messageIds);
+    List<MessageAttachment> findByFileUrlIn(List<String> fileUrls);
 }

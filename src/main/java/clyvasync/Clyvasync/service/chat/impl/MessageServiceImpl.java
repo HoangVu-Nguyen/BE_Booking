@@ -1,16 +1,19 @@
 package clyvasync.Clyvasync.service.chat.impl;
 
 import clyvasync.Clyvasync.dto.event.ChatMessageSentEvent;
+import clyvasync.Clyvasync.dto.request.AttachmentRequest;
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.AttachmentResponse;
 import clyvasync.Clyvasync.dto.response.ChatHistoryResponse;
 import clyvasync.Clyvasync.dto.response.MessageResponse;
 import clyvasync.Clyvasync.dto.response.OwnerResponse;
+import clyvasync.Clyvasync.enums.media.MediaStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.chat.entity.Message;
 import clyvasync.Clyvasync.modules.chat.entity.MessageAttachment;
 import clyvasync.Clyvasync.repository.chat.ConversationParticipantRepository;
+import clyvasync.Clyvasync.repository.chat.MessageAttachmentRepository;
 import clyvasync.Clyvasync.repository.chat.MessageRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.chat.ConversationParticipantService;
@@ -20,6 +23,7 @@ import clyvasync.Clyvasync.service.chat.MessageService;
 import clyvasync.Clyvasync.service.media.IUserPhotoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -46,12 +50,17 @@ public class MessageServiceImpl implements MessageService {
     private final ApplicationEventPublisher eventPublisher;
     private final UserService userService;
     private final ConversationParticipantRepository conversationParticipantRepository;
+    private final MessageAttachmentRepository messageAttachmentRepository;
+    @Value("${aws.cloudfront.domain}")
+    private String cdnUrl;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault());
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.systemDefault());
     @Override
     @Transactional
     public MessageResponse sendMessage(Long senderId, Long conversationId, SendMessageRequest request) {
         log.info("User {} sending message to conversation {}", senderId, conversationId);
+
+        // 1. Kiểm tra quyền truy cập phòng chat (Giữ nguyên)
         if (senderId != 0) {
             boolean isParticipant = conversationParticipantService.existsByConversationIdAndUserId(conversationId, senderId);
             if (!isParticipant) {
@@ -59,7 +68,8 @@ public class MessageServiceImpl implements MessageService {
                 throw new AppException(ResultCode.ACCESS_DENIED);
             }
         }
-        // 2. Lưu Message vào Database
+
+        // 2. Lưu Message vào Database (Giữ nguyên)
         Message message = new Message();
         message.setConversationId(conversationId);
         message.setSenderId(senderId);
@@ -67,33 +77,43 @@ public class MessageServiceImpl implements MessageService {
         message.setType(request.getType());
         Message savedMessage = messageRepository.save(message);
 
-        // 3. Xử lý Attachments (nếu có) bằng cách Batch Save
+        // 3. ĐÃ SỬA: Cập nhật các Attachment nháp từ PENDING -> COMPLETED
         List<AttachmentResponse> attachmentResponses = new ArrayList<>();
         if (request.getAttachments() != null && !request.getAttachments().isEmpty()) {
-            List<MessageAttachment> attachments = request.getAttachments().stream().map(req -> {
-                MessageAttachment att = new MessageAttachment();
+
+            // Lấy ra danh sách objectKey (hoặc fileUrl) mà Frontend gửi lên
+            List<String> objectKeys = request.getAttachments().stream()
+                    .map(AttachmentRequest::getFileUrl) // Giả định req.getFileUrl() chứa objectKey từ FE gửi lên
+                    .toList();
+            System.out.println(objectKeys);
+
+            // Tìm các bản ghi nháp đã lưu ở bước prepareBatchUpload
+            List<MessageAttachment> attachments = messageAttachmentRepository.findByFileUrlIn(objectKeys);
+
+            // Kích hoạt gắn ID tin nhắn và duyệt trạng thái hoàn thành
+            attachments.forEach(att -> {
                 att.setMessageId(savedMessage.getId());
-                att.setFileUrl(req.getFileUrl());
-                att.setFileType(req.getFileType());
-                return att;
-            }).toList();
-            messageAttachmentService.saveAll(attachments).forEach(att -> {
-                attachmentResponses.add(new AttachmentResponse(att.getId(), att.getFileUrl(), att.getFileType()));
+                att.setStatus(MediaStatus.ACTIVE); // Dùng Enum MediaStatus của ông
+            });
+
+            // Lưu cập nhật (Batch Update) và map sang Response DTO để bắn Socket
+            messageAttachmentRepository.saveAll(attachments).forEach(att -> {
+                attachmentResponses.add(new AttachmentResponse(att.getId(),att.getFileUrl(), att.getFileType()));
             });
         }
+
+        // 4. Cập nhật thời gian tin nhắn mới nhất của phòng chat (Giữ nguyên)
         conversationService.updateLastMessageAt(conversationId, OffsetDateTime.now());
 
-        // 5. Map sang Response DTO
+        // 5. Map sang Response DTO và bắn Event (Giữ nguyên)
         MessageResponse response = mapToResponse(savedMessage, senderId, attachmentResponses);
         if (senderId == 0) {
-            // Nếu là tin nhắn SYSTEM, bắn cập nhật Inbox cho TẤT CẢ các thành viên trong phòng
             List<Long> participantIds = conversationParticipantRepository.findAllParticipantIdsByConversationId(conversationId);
             for (Long pId : participantIds) {
                 eventPublisher.publishEvent(new ChatMessageSentEvent(conversationId, pId, response));
             }
         } else {
             Long receiverId = conversationParticipantRepository.findReceiverIdByConversationIdAndExcludeSender(conversationId, senderId);
-
             if (receiverId != null) {
                 eventPublisher.publishEvent(new ChatMessageSentEvent(conversationId, receiverId, response));
             }
@@ -180,6 +200,9 @@ public class MessageServiceImpl implements MessageService {
         OwnerResponse ownerResponse = userService.getOwnerInfo(currentUserId);
 
         String friendlyTime = formatTimeFriendly(msg.getCreatedAt());
+        attachments.forEach(attachmentResponse -> {
+            attachmentResponse.setFileUrl(this.cdnUrl  + attachmentResponse.getFileUrl());
+        });
 
         return MessageResponse.builder()
                 .id(msg.getId())

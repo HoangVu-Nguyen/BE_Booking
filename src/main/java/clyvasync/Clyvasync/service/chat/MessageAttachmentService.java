@@ -32,6 +32,6 @@ public interface MessageAttachmentService {
      */
     Map<Long, List<AttachmentResponse>> getAttachmentsForMessages(List<Long> messageIds);
     List<MessageAttachment> saveAll(List<MessageAttachment> messageAttachments);
-    List<PresignedUrlResponse> prepareBatchUpload(String userId, BatchUploadRequest batchRequest);
+    List<PresignedUrlResponse> prepareBatchUpload(Long userId, BatchUploadRequest batchRequest);
 
 }

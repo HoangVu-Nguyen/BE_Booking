@@ -179,6 +179,7 @@ public class UserPhotoServiceImpl implements IUserPhotoService {
 
     private String getDefaultUrlByType(ImageType imageType) {
         return switch (imageType) {
+            case CHAT -> null;
             case AVATAR -> ImageConstants.AVATAR_DEFAULT;
             case COVER -> ImageConstants.COVER_DEFAULT;
 

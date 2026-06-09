@@ -1,9 +1,12 @@
 package clyvasync.Clyvasync.controller.chat;
 
+import clyvasync.Clyvasync.dto.request.BatchUploadRequest;
 import clyvasync.Clyvasync.dto.request.SendMessageRequest;
 import clyvasync.Clyvasync.dto.response.*;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.chat.ConversationService;
+import clyvasync.Clyvasync.service.chat.MessageAttachmentService;
 import clyvasync.Clyvasync.service.chat.MessageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ public class ChatController {
 
     private final MessageService messageService;
     private final ConversationService conversationService;
+    private final MessageAttachmentService messageAttachmentService;
 
     // ==========================================
     // API INBOX (Cột 1)
@@ -92,6 +96,7 @@ public class ChatController {
             @CurrentUserId Long currentUserId) {
 
         // Trả về DTO vừa gửi (bao gồm cả ID mới tạo và format thời gian) để Angular push ngay vào mảng messages
+        System.out.println(request);
         MessageResponse response = messageService.sendMessage(currentUserId, conversationId, request);
         return ApiResponse.success(response);
     }
@@ -116,5 +121,18 @@ public class ChatController {
 
 
         return ApiResponse.success(conversationService.getHostConversation(currentUserId, targetUserId));
+    }
+    @PostMapping("/attachments/prepare")
+    public ApiResponse<List<PresignedUrlResponse>> prepareAttachments(
+            @CurrentUserId Long currentUserId,
+            @RequestBody BatchUploadRequest request) {
+
+        log.info("User {} đang xin cấp lệnh upload {} file lên S3", currentUserId, request.getItems().size());
+        List<PresignedUrlResponse> responses = messageAttachmentService.prepareBatchUpload(currentUserId, request);
+
+        return ApiResponse.<List<PresignedUrlResponse>>builder()
+                .data(responses)
+                .code(ResultCode.SUCCESS.getCode())
+                .build();
     }
 }
