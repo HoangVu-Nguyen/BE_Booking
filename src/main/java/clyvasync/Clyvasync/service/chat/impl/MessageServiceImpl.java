@@ -176,22 +176,20 @@ public class MessageServiceImpl implements MessageService {
 
     private MessageResponse mapToResponse(Message msg, Long currentUserId, List<AttachmentResponse> attachments) {
 
-        // 1. Kiểm tra xem tin nhắn này có phải của người dùng đang request không?
         boolean isMine = msg.getSenderId().equals(currentUserId);
+        OwnerResponse ownerResponse = userService.getOwnerInfo(currentUserId);
 
-        // 2. Format thời gian thân thiện (Ví dụ: "10:30" hoặc "26/05/2026")
         String friendlyTime = formatTimeFriendly(msg.getCreatedAt());
 
-        // 3. Build DTO (Sử dụng Lombok Builder)
         return MessageResponse.builder()
                 .id(msg.getId())
                 .senderId(msg.getSenderId())
-                // .senderName(...) // Có thể map từ userMap nếu cần hiển thị tên trong Group chat
-                // .senderAvatar(...) // Tương tự với Avatar
+                .senderAvatar(ownerResponse.getAvatar())
+                .senderName(ownerResponse.getFullName())
                 .content(msg.getContent())
-                .type(msg.getType()) // TEXT, IMAGE, SYSTEM
+                .type(msg.getType())
                 .time(friendlyTime)
-                .isMine(isMine) // Báo cho UI biết tin này là của mình (hiện bên phải)
+                .isMine(isMine)
                 .attachments(attachments != null ? attachments : Collections.emptyList())
                 .build();
     }
