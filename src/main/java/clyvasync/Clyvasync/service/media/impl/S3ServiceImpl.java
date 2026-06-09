@@ -23,7 +23,7 @@ public class S3ServiceImpl implements S3Service {
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
     @Value("${aws.s3.bucket-name}") private String bucketName;
-    private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
+    private static final long MAX_FILE_SIZE = 70 * 1024 * 1024; //70MB
     @Override
     public String generatePresignedPutUrl(String objectKey, String contentType, Long fileSize) {
         if (fileSize > MAX_FILE_SIZE) {
