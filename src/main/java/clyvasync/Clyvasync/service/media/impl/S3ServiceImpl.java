@@ -8,14 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.stream.Collectors;
+
 @RequiredArgsConstructor
 @Service
 @Slf4j
@@ -81,11 +81,31 @@ public class S3ServiceImpl implements S3Service {
 
     @Override
     public String getPublicUrl(String objectKey) {
-        return "";
+        return objectKey;
     }
-
     @Override
     public void deleteFiles(List<String> objectKeys) {
+        if (objectKeys == null || objectKeys.isEmpty()) return;
 
+        try {
+            List<ObjectIdentifier> identifiers = objectKeys.stream()
+                    .map(key -> ObjectIdentifier.builder().key(key).build())
+                    .collect(Collectors.toList());
+
+            // Build request xóa hàng loạt
+            Delete delete = Delete.builder().objects(identifiers).build();
+            DeleteObjectsRequest deleteReq = DeleteObjectsRequest.builder()
+                    .bucket(bucketName)
+                    .delete(delete)
+                    .build();
+
+            // Bắn 1 request duy nhất lên S3
+            s3Client.deleteObjects(deleteReq);
+            log.info(">>>> [S3] Batch deleted {} files successfully.", objectKeys.size());
+
+        } catch (Exception e) {
+            log.error(">>>> [S3] Error during batch delete: {}", e.getMessage());
+            throw new AppException(ResultCode.DELETE_FAILED);
+        }
     }
 }
