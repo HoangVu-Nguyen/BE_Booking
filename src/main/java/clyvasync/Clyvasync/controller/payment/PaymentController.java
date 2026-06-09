@@ -1,14 +1,21 @@
 package clyvasync.Clyvasync.controller.payment;
 
+import clyvasync.Clyvasync.dto.request.CardConfirmRequest;
+import clyvasync.Clyvasync.dto.request.PaymentConfirmRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.PaymentConfirmResponse;
+import clyvasync.Clyvasync.dto.response.UserPaymentMethodResponse;
 import clyvasync.Clyvasync.enums.payment.PaymentMethod;
+import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.payment.PaymentService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -57,5 +64,48 @@ public class PaymentController {
 
         log.info("[CONTROLLER IPN] Hệ thống đối tác {} gọi Webhook cập nhật đơn hàng", gateway);
         return paymentService.processPaymentIPN(gateway, params);
+    }
+    /**
+     * Bước 1: Lấy danh sách tất cả các thẻ đã liên kết của User
+     */
+    @GetMapping
+    public ApiResponse<List<UserPaymentMethodResponse>> getPaymentMethods(@CurrentUserId Long userId) {
+        List<UserPaymentMethodResponse> cards = paymentService.getPaymentMethodsByUserId(userId);
+        return ApiResponse.success(cards);
+    }
+
+    /**
+     * Bước 2: Xin Client Secret từ Stripe SetupIntent để mở Form bọc Iframe phía Angular
+     */
+    @PostMapping("/setup-intent")
+    public ApiResponse<String> getSetupIntent(@CurrentUserId Long userId) {
+        String clientSecret = paymentService.createSetupIntent(userId);
+        return ApiResponse.success(clientSecret);
+    }
+
+    /**
+     * Bước 3: Hứng mã Token an toàn từ Angular gửi lên sau khi điền thẻ thành công để COMMIT lưu DB
+     */
+    @PostMapping("/confirm")
+    public ApiResponse<Void> confirmPaymentMethod(
+            @CurrentUserId Long userId,
+            @Valid @RequestBody CardConfirmRequest request) { // Đã đổi sang dùng DTO Request sạch sẽ
+
+        paymentService.savePaymentMethod(userId, request.getPaymentMethodId());
+        return ApiResponse.success(null);
+    }
+    @PostMapping("/checkout/confirm")
+    public ResponseEntity<ApiResponse<PaymentConfirmResponse>> confirmCheckout(
+            @CurrentUserId Long userId,
+            @Valid @RequestBody PaymentConfirmRequest request,
+            jakarta.servlet.http.HttpServletRequest httpServletRequest) {
+
+        PaymentConfirmResponse response = paymentService.processCheckoutPayment(userId, request, httpServletRequest);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    @GetMapping("/success-details/{bookingCode}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSuccessDetails(@PathVariable String bookingCode) {
+        Map<String, Object> data = paymentService.getPaymentSuccessDetails(bookingCode);
+        return ResponseEntity.ok(ApiResponse.success(data));
     }
 }
