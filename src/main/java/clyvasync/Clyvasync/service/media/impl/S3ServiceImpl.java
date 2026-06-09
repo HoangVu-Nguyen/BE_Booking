@@ -8,7 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -49,7 +51,32 @@ public class S3ServiceImpl implements S3Service {
 
     @Override
     public void deleteFile(String objectKey) {
+        // 1. Validation (Chống lỗi ngớ ngẩn)
+        if (objectKey == null || objectKey.trim().isEmpty()) {
+            log.warn(">>>> [S3] Attempted to delete file with null or empty objectKey");
+            return; // Trả về luôn, không ném lỗi để tránh làm hỏng luồng Cleanup
+        }
 
+        try {
+            // 2. Build Request
+            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectKey)
+                    .build();
+
+            // 3. Thực thi
+            s3Client.deleteObject(deleteObjectRequest);
+            log.info(">>>> [S3] Successfully deleted file: {}", objectKey);
+
+        } catch (S3Exception e) {
+            // Lỗi xuất phát từ phía AWS (VD: sai quyền IAM)
+            log.error(">>>> [S3] AWS Error deleting file {}: {}", objectKey, e.awsErrorDetails().errorMessage());
+            throw new AppException(ResultCode.DELETE_FAILED);
+        } catch (Exception e) {
+            // Lỗi mạng hoặc lỗi hệ thống khác
+            log.error(">>>> [S3] Unexpected error deleting file {}: {}", objectKey, e.getMessage());
+            throw new AppException(ResultCode.DELETE_FAILED);
+        }
     }
 
     @Override
