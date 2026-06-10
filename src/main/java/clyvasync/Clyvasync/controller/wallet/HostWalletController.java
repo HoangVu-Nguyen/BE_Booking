@@ -30,10 +30,18 @@ public class HostWalletController {
 
     // 2. Host gửi yêu cầu Rút Tiền
     @PostMapping("/withdraw")
-    public ApiResponse<String> requestWithdrawal(@Valid @RequestBody WithdrawRequest request,@CurrentUserId Long currentHostId) {
-        hostWalletService.requestWithdrawal(currentHostId, request.getAmount(), request.getBankAccountInfo());
-        System.out.println(request);
-        return ApiResponse.success();
+    public ApiResponse<Void> requestWithdraw(
+            @CurrentUserId Long userId,
+            @Valid @RequestBody WithdrawRequest request) {
+
+        // Bóc tách amount và gọi hàm nối chuỗi thông minh từ DTO
+        hostWalletService.requestWithdrawal(
+                userId,
+                request.getAmount(),
+                request.toFormattedBankAccountInfo()
+        );
+
+        return ApiResponse.success(null);
     }
 
     // 3. Xem lịch sử dòng tiền (Cộng tiền phòng, trừ tiền rút...)
