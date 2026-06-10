@@ -51,10 +51,9 @@ public class S3ServiceImpl implements S3Service {
 
     @Override
     public void deleteFile(String objectKey) {
-        // 1. Validation (Chống lỗi ngớ ngẩn)
         if (objectKey == null || objectKey.trim().isEmpty()) {
             log.warn(">>>> [S3] Attempted to delete file with null or empty objectKey");
-            return; // Trả về luôn, không ném lỗi để tránh làm hỏng luồng Cleanup
+            return;
         }
 
         try {
