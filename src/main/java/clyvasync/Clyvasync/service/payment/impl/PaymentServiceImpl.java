@@ -442,4 +442,21 @@ public class PaymentServiceImpl  implements PaymentService {
             throw new AppException(ResultCode.PAYMENT_METHOD_SAVE_FAILED);
         }
     }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void setPrimaryPaymentMethod(Long userId, Long cardId) {
+        UserPaymentMethod targetCard = paymentMethodRepository.findById(cardId)
+                .orElseThrow(() -> new AppException(ResultCode.PAYMENT_METHOD_NOT_FOUND));
+
+        if (!targetCard.getUserId().equals(userId)) {
+            throw new AppException(ResultCode.PERMISSION_DENIED);
+        }
+
+        paymentMethodRepository.clearPrimaryStatusByUserId(userId);
+
+        targetCard.setIsPrimary(true);
+        paymentMethodRepository.save(targetCard);
+
+        log.info("[SET PRIMARY SUCCESS] Giảm tải N+1 thành công cho User ID #{}", userId);
+    }
 }

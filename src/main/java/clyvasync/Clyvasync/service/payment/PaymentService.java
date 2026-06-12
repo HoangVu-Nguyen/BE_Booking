@@ -70,4 +70,5 @@ public interface PaymentService {
      * @param cardId ID vật lý (Primary Key) của thẻ trong bảng user_payment_methods
      */
     void deletePaymentMethod(Long userId, Long cardId);
+    void setPrimaryPaymentMethod(Long userId, Long cardId);
 }
