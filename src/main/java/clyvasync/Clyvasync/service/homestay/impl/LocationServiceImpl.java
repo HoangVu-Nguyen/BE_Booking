@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
@@ -26,5 +27,10 @@ public class LocationServiceImpl implements LocationService {
     @Override
     public List<Location> findAllByIds(List<Integer> ids) {
         return locationRepository.findAllByIdIn(ids);
+    }
+
+    @Override
+    public Optional<Integer> findIdByNameOrSlug(String nameOrSlug) {
+        return locationRepository.findIdByNameOrSlug(nameOrSlug);
     }
 }

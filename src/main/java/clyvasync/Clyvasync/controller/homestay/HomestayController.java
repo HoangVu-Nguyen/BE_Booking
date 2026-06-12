@@ -1,10 +1,12 @@
 package clyvasync.Clyvasync.controller.homestay;
 
 
+import clyvasync.Clyvasync.dto.request.BatchUploadRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
+import clyvasync.Clyvasync.service.homestay.HomestayImageService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.tour.TourService;
@@ -30,6 +32,7 @@ public class HomestayController {
     private final HomestayService homestayService;
     private final HomestayRoomService homestayRoomService;
     private final TourService tourService;
+    private final HomestayImageService homestayImageService;
 
     @GetMapping("/search")
     public ApiResponse<Page<HomestayResponse>> searchHomestays(
@@ -117,9 +120,24 @@ public class HomestayController {
     public ApiResponse<HomestayResponse> createDraft(
             @RequestBody HomestayRequest request,
             @CurrentUserId Long ownerId) {
+        System.out.println(request);
 
         return ApiResponse.success(
                 homestayService.createHomestay(request, ownerId)
         );
     }
+    // ========================================================
+    // API CẤP PRESIGNED URL CHO BATCH UPLOAD ẢNH HOMESTAY
+    // ========================================================
+    @PostMapping("/images/presign")
+    public ApiResponse<List<PresignedUrlResponse>> prepareImageUploads(
+            @CurrentUserId Long ownerId,
+            @Valid @RequestBody BatchUploadRequest batchRequest) {
+
+        // Gọi hàm chuẩn bị lô ảnh PENDING mà ta đã định nghĩa trong HomestayService
+        List<PresignedUrlResponse> presignedUrls = homestayImageService.prepareHomestayImagesBatch(ownerId, batchRequest);
+
+        return ApiResponse.success(presignedUrls);
+    }
+
 }

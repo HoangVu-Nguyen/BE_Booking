@@ -14,5 +14,6 @@ public interface HomestayImageService {
     List<HomestayImage> findAllByIds(List<Long> homestayIds);
     List<HomestayImage> saveAll(List<HomestayImage> homestayImages);
     List<PresignedUrlResponse> prepareHomestayImagesBatch(Long ownerId, BatchUploadRequest batchRequest);
+    List<HomestayImage> findByImageUrlIn(List<String> imageUrls);
 
 }

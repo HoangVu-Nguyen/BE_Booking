@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class MessageAttachmentServiceImpl implements MessageAttachmentService {
     private final MessageAttachmentRepository messageAttachmentRepository;
     private final S3Service s3Service;
+    private final MediaUtil mediaUtil;
     @Override
     public void saveAttachments(Long messageId, List<AttachmentRequest> attachments) {
 
@@ -67,8 +68,8 @@ public class MessageAttachmentServiceImpl implements MessageAttachmentService {
         List<MessageAttachment> pendingAttachments = new ArrayList<>();
         for (UploadRequest item : items) {
             // 1. Tạo S3 Object Key duy nhất (VD: chat/user_1/1689..._avatar.png)
-            String extension = MediaUtil.getFileExtension(item.getFileName());
-            String objectKey = MediaUtil.generateObjectKey(userId,item);
+            String extension = mediaUtil.getFileExtension(item.getFileName());
+            String objectKey = mediaUtil.generateObjectKey(userId,item);
 
             // 2. Gọi S3Service để lấy Presigned URL
             String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());

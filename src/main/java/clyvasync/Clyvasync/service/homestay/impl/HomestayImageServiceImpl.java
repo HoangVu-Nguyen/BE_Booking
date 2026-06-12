@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 public class HomestayImageServiceImpl implements HomestayImageService {
     private final HomestayImageRepository homestayImageRepository;
     private final S3Service s3Service;
+    private final MediaUtil mediaUtil;
 
 
     @Override
@@ -68,7 +69,7 @@ public class HomestayImageServiceImpl implements HomestayImageService {
         List<HomestayImage> pendingImages = new ArrayList<>();
 
         for (UploadRequest item : items) {
-            String objectKey = MediaUtil.generateObjectKey(ownerId,item);
+            String objectKey = mediaUtil.generateObjectKey(ownerId,item);
 
             // 2. Lấy URL từ S3
             String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());
@@ -90,5 +91,10 @@ public class HomestayImageServiceImpl implements HomestayImageService {
 
         homestayImageRepository.saveAll(pendingImages);
         return responses;
+    }
+
+    @Override
+    public List<HomestayImage> findByImageUrlIn(List<String> imageUrls) {
+        return homestayImageRepository.findByImageUrlIn(imageUrls);
     }
 }

@@ -9,6 +9,7 @@ import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
+import clyvasync.Clyvasync.enums.media.MediaStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.mapper.homestay.AmenityMapper;
@@ -35,6 +36,7 @@ import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import clyvasync.Clyvasync.spec.HomestaySearchSpec;
 import clyvasync.Clyvasync.spec.TourSearchSpec;
+import clyvasync.Clyvasync.utils.MediaUtil;
 import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,8 +77,9 @@ public class HomestayServiceImpl implements HomestayService {
     private final RoomCalendarService roomCalendarService;
     private final BookingDetailService bookingDetailService;
     private final BookingService bookingService;
+    private final MediaUtil mediaUtil;
 
-    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService,@Lazy BookingService bookingService) {
+    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService,@Lazy BookingService bookingService,MediaUtil mediaUtil) {
         this.homestayRepository = homestayRepository;
         this.homestayMapper = homestayMapper;
         this.amenityService = amenityService;
@@ -92,35 +95,34 @@ public class HomestayServiceImpl implements HomestayService {
         this.roomCalendarService = roomCalendarService;
         this.bookingDetailService = bookingDetailService;
         this.bookingService = bookingService;
+        this.mediaUtil = mediaUtil;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
-        log.info("[HOMESTAY SERVICE] Khởi tạo bản nháp cho Owner ID: {}", ownerId);
-
         Homestay homestay = homestayMapper.toEntity(request);
         homestay.setOwnerId(ownerId);
         homestay.setStatus(HomestayStatus.DRAFT);
-        homestay.setAverageRating(BigDecimal.ZERO);
-        homestay.setReviewCount(0);
+        if (request.getCity() != null && !request.getCity().trim().isEmpty()) {
+            Optional<Integer> locationIdOpt = locationService.findIdByNameOrSlug(request.getCity().trim());
 
+            locationIdOpt.ifPresent(homestay::setLocationId);
+        }
         Homestay savedHomestay = homestayRepository.save(homestay);
 
-        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
-            List<HomestayImage> images = request.getImageUrls().stream()
-                    .map(key -> HomestayImage.builder()
-                            .homestayId(savedHomestay.getId())
-                            .imageUrl(key) // Lưu cái key của S3
-                            .isPrimary(false)
-                            .displayOrder(0)
-                            .build())
-                    .collect(Collectors.toList());
+        // 2. MAPPING ẢNH (Từ PENDING sang ACTIVE)
+        if (request.getObjectKeys() != null && !request.getObjectKeys().isEmpty()) {
+            List<HomestayImage> imagesToMap = homestayImageService.findByImageUrlIn(request.getObjectKeys());
 
-            homestayImageService.saveAll(images);
+            for (HomestayImage img : imagesToMap) {
+                img.setHomestayId(savedHomestay.getId());
+                img.setStatus(MediaStatus.ACTIVE);
+            }
+
+            homestayImageService.saveAll(imagesToMap);
         }
 
-        log.info("[HOMESTAY SERVICE] Đã tạo thành công bản nháp ID: {}", savedHomestay.getId());
         return homestayMapper.toResponse(savedHomestay);
     }
 
@@ -146,7 +148,7 @@ public class HomestayServiceImpl implements HomestayService {
         HomestayResponse response = homestayMapper.toResponse(homestay);
 
         // 3. Lắp ráp dữ liệu Hình ảnh và Tiện ích
-        response.setImageUrls(homestayImageService.getImagesByHomestayId(id)); // Cần chắc chắn hàm này có tồn tại trong Service
+        response.setImageUrls(mediaUtil.toCdnUrls(homestayImageService.getImagesByHomestayId(id))); // Cần chắc chắn hàm này có tồn tại trong Service
         response.setAmenities(amenityService.getAmenitiesByHomestayId(id));
 
         // 4. Lắp ráp tên Thành phố và Danh mục
@@ -294,7 +296,7 @@ public class HomestayServiceImpl implements HomestayService {
         // MAPPING SANG DTO
         return homestayPage.map(entity -> {
             HomestayResponse response = homestayMapper.toResponse(entity);
-            response.setImageUrls(imagesMap.getOrDefault(entity.getId(), List.of()));
+            response.setImageUrls(mediaUtil.toCdnUrls(imagesMap.getOrDefault(entity.getId(), List.of())));
             response.setCityName(locationsMap.get(entity.getLocationId()));
             response.setCategoryName(categoriesMap.get(entity.getCategoryId()));
             response.setAmenities(amenitiesMap.getOrDefault(entity.getId(), List.of()));
@@ -336,7 +338,7 @@ public class HomestayServiceImpl implements HomestayService {
         // MAPPING SANG DTO
         return homestays.stream().map(entity -> {
             HomestayResponse response = homestayMapper.toResponse(entity);
-            response.setImageUrls(imagesMap.getOrDefault(entity.getId(), List.of()));
+            response.setImageUrls(mediaUtil.toCdnUrls(imagesMap.getOrDefault(entity.getId(), List.of())));
             response.setCityName(locationsMap.get(entity.getLocationId()));
             response.setCategoryName(categoriesMap.get(entity.getCategoryId()));
             response.setAmenities(amenitiesMap.getOrDefault(entity.getId(), List.of()));
@@ -384,7 +386,9 @@ public class HomestayServiceImpl implements HomestayService {
         Homestay homestay = homestayRepository.findById(id)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
 
-        List<String> images = homestayImageService.getImagesByHomestayId(id);
+        List<String> images = mediaUtil.toCdnUrls(
+                homestayImageService.getImagesByHomestayId(id)
+        );
 
         List<AmenityResponse> amenities = amenityService.getAmenitiesByHomestayId(id);
 
@@ -590,7 +594,7 @@ public class HomestayServiceImpl implements HomestayService {
                     .toList();
 
             // Lấy ảnh đầu tiên làm ảnh đại diện
-            List<String> images = homestayImageMap.getOrDefault(home.getId(), List.of());
+            List<String> images = mediaUtil.toCdnUrls(homestayImageMap.getOrDefault(home.getId(), List.of()));
             String primaryImage = !images.isEmpty() ? images.get(0) : null;
 
             return HomeTimelineResponse.builder()
@@ -661,7 +665,7 @@ public class HomestayServiceImpl implements HomestayService {
                     .name(home.getName())
                     .type(categoriesMap.getOrDefault(home.getCategoryId(), "Homestay"))
                     .location(locationsMap.getOrDefault(home.getLocationId(), "Chưa cập nhật"))
-                    .image(coverImage)
+                    .image(mediaUtil.toCdnUrl(coverImage))
                     .price(basePrice)
                     .status(home.getStatus() != null ? home.getStatus() : HomestayStatus.AVAILABLE)
                     .stats(PropertyStats.builder()

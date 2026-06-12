@@ -18,7 +18,7 @@ public class HomestayImage {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "homestay_id", nullable = false)
+    @Column(name = "homestay_id")
     private Long homestayId;
 
     @Column(name = "image_url", nullable = false)
