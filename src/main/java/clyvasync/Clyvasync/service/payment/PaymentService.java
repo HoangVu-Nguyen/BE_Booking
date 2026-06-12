@@ -64,4 +64,11 @@ public interface PaymentService {
     List<UserPaymentMethodResponse> getPaymentMethodsByUserId(Long userId);
     PaymentConfirmResponse processCheckoutPayment(Long userId, PaymentConfirmRequest request, HttpServletRequest httpServletRequest);
     Map<String, Object> getPaymentSuccessDetails(String bookingCode);
+    /**
+     * Gỡ bỏ và xóa thẻ tín dụng đã liên kết
+     * @param userId ID của người dùng yêu cầu xóa (để check bảo mật chéo)
+     * @param cardId ID vật lý (Primary Key) của thẻ trong bảng user_payment_methods
+     */
+    void deletePaymentMethod(Long userId, Long cardId);
+    void setPrimaryPaymentMethod(Long userId, Long cardId);
 }
