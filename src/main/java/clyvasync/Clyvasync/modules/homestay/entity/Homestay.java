@@ -49,7 +49,7 @@ public class Homestay {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 50)
-    private HomestayStatus status = HomestayStatus.AVAILABLE;
+    private HomestayStatus status = HomestayStatus.DRAFT;
 
     @Column(name = "average_rating", precision = 3, scale = 2)
     private BigDecimal averageRating = BigDecimal.ZERO;

@@ -113,4 +113,13 @@ public class HomestayController {
 
         return ApiResponse.success(responseData);
     }
+    @PostMapping("/draft")
+    public ApiResponse<HomestayResponse> createDraft(
+            @RequestBody HomestayRequest request,
+            @CurrentUserId Long ownerId) {
+
+        return ApiResponse.success(
+                homestayService.createHomestay(request, ownerId)
+        );
+    }
 }

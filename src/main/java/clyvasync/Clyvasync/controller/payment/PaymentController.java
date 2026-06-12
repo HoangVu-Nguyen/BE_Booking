@@ -113,7 +113,7 @@ public class PaymentController {
         paymentService.deletePaymentMethod(userId, cardId);
         return ApiResponse.success();
     }
-    @PutMapping("/{cardId}/set-primary")
+    @PatchMapping("/{cardId}/primary")
     public ApiResponse<Void> setPrimaryCard(
             @CurrentUserId Long userId,
             @PathVariable Long cardId) {

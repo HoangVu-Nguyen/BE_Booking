@@ -95,8 +95,33 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public HomestayResponse createHomestay(HomestayRequest request, Long ownerId) {
-        return null;
+        log.info("[HOMESTAY SERVICE] Khởi tạo bản nháp cho Owner ID: {}", ownerId);
+
+        Homestay homestay = homestayMapper.toEntity(request);
+        homestay.setOwnerId(ownerId);
+        homestay.setStatus(HomestayStatus.DRAFT);
+        homestay.setAverageRating(BigDecimal.ZERO);
+        homestay.setReviewCount(0);
+
+        Homestay savedHomestay = homestayRepository.save(homestay);
+
+        if (request.getImageUrls() != null && !request.getImageUrls().isEmpty()) {
+            List<HomestayImage> images = request.getImageUrls().stream()
+                    .map(key -> HomestayImage.builder()
+                            .homestayId(savedHomestay.getId())
+                            .imageUrl(key) // Lưu cái key của S3
+                            .isPrimary(false)
+                            .displayOrder(0)
+                            .build())
+                    .collect(Collectors.toList());
+
+            homestayImageService.saveAll(images);
+        }
+
+        log.info("[HOMESTAY SERVICE] Đã tạo thành công bản nháp ID: {}", savedHomestay.getId());
+        return homestayMapper.toResponse(savedHomestay);
     }
 
     @Override

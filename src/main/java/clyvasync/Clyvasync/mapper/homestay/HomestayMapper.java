@@ -22,5 +22,6 @@ public interface HomestayMapper {
     // TRÁNH LỖI GENERIC: Chỉ định rõ hàm map cho List Images
     @Mapping(target = "imageUrls", ignore = true)
     HomestayResponse toResponse(Homestay homestay);
+    Homestay toEntity(HomestayRequest homestayRequest);
 
 }
