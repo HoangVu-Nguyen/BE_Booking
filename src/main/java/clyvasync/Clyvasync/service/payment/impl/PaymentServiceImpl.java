@@ -406,4 +406,57 @@ public class PaymentServiceImpl  implements PaymentService {
 
         return data;
     }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deletePaymentMethod(Long userId, Long cardId) {
+        UserPaymentMethod card = paymentMethodRepository.findById(cardId)
+                .orElseThrow(() -> new AppException(ResultCode.PAYMENT_METHOD_NOT_FOUND));
+
+        if (!card.getUserId().equals(userId)) {
+            throw new AppException(ResultCode.PERMISSION_DENIED);
+        }
+
+        try {
+            com.stripe.model.PaymentMethod stripeMethod = com.stripe.model.PaymentMethod.retrieve(card.getGatewayToken());
+            stripeMethod.detach();
+            log.info("[STRIPE DETACH SUCCESS] Đã gỡ thẻ {} khỏi hệ thống Stripe", card.getGatewayToken());
+
+            boolean wasPrimary = card.getIsPrimary();
+
+            paymentMethodRepository.delete(card);
+            log.info("[DB DELETE SUCCESS] Đã xóa thẻ ID #{} khỏi hệ thống.", cardId);
+
+            if (wasPrimary) {
+                List<UserPaymentMethod> remainingCards = paymentMethodRepository.findByUserIdOrderByIdAsc(userId);
+
+                if (!remainingCards.isEmpty()) {
+                    UserPaymentMethod newPrimaryCard = remainingCards.get(0);
+                    newPrimaryCard.setIsPrimary(true);
+                    paymentMethodRepository.save(newPrimaryCard);
+                    log.info("[AUTO PRIMARY SET] Thẻ ID #{} đã được đôn lên làm mặc định thay thế.", newPrimaryCard.getId());
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("❌ Thất bại khi gỡ liên kết thẻ Stripe: {}", e.getMessage());
+            throw new AppException(ResultCode.PAYMENT_METHOD_SAVE_FAILED);
+        }
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void setPrimaryPaymentMethod(Long userId, Long cardId) {
+        UserPaymentMethod targetCard = paymentMethodRepository.findById(cardId)
+                .orElseThrow(() -> new AppException(ResultCode.PAYMENT_METHOD_NOT_FOUND));
+
+        if (!targetCard.getUserId().equals(userId)) {
+            throw new AppException(ResultCode.PERMISSION_DENIED);
+        }
+
+        paymentMethodRepository.clearPrimaryStatusByUserId(userId);
+
+        targetCard.setIsPrimary(true);
+        paymentMethodRepository.save(targetCard);
+
+        log.info("[SET PRIMARY SUCCESS] Giảm tải N+1 thành công cho User ID #{}", userId);
+    }
 }
