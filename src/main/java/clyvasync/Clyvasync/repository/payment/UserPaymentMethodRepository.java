@@ -8,4 +8,5 @@ import java.util.List;
 public interface UserPaymentMethodRepository extends JpaRepository<UserPaymentMethod,Long> {
     boolean existsByUserId(Long userId);
     List<UserPaymentMethod> findByUserIdOrderByIsPrimaryDesc(Long userId);
+    List<UserPaymentMethod> findByUserIdOrderByIdAsc(Long userId);
 }

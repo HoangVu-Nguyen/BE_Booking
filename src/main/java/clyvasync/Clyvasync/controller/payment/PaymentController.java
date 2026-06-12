@@ -108,4 +108,9 @@ public class PaymentController {
         Map<String, Object> data = paymentService.getPaymentSuccessDetails(bookingCode);
         return ResponseEntity.ok(ApiResponse.success(data));
     }
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deletePaymentMethod(@CurrentUserId Long userId,@PathVariable("id")  Long cardId ) {
+        paymentService.deletePaymentMethod(userId, cardId);
+        return ApiResponse.success();
+    }
 }
