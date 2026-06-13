@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.repository.tour;
 
 import clyvasync.Clyvasync.dto.projection.TourInfoProjection;
+import clyvasync.Clyvasync.enums.type.TourBookingStatus;
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -39,4 +40,9 @@ public interface TourBookingRepository extends JpaRepository<TourBooking,Long> {
     WHERE tb.homestay_booking_id = :bookingId
 """, nativeQuery = true)
     List<TourInfoProjection> findTourInfosByHomestayBookingId(@Param("bookingId") Long bookingId);
+    @Query("SELECT t FROM TourBooking t WHERE t.homestayBookingId IN :bookingIds AND t.status = :status")
+    List<TourBooking> findAllByHomestayBookingIdInAndStatus(@Param("bookingIds") List<Long> bookingIds, @Param("status") TourBookingStatus status);
+    @Modifying
+    @Query("UPDATE TourBooking t SET t.status = :status WHERE t.id IN :ids")
+    void updateStatusByIds(@Param("ids") List<Long> ids, @Param("status") TourBookingStatus status);
 }

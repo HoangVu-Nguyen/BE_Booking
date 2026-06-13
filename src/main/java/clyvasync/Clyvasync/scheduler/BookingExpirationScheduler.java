@@ -4,7 +4,6 @@ import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.type.TourBookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
-
 import clyvasync.Clyvasync.modules.tour.entity.TourBooking;
 import clyvasync.Clyvasync.repository.booking.BookingDetailRepository;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
@@ -17,9 +16,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -38,46 +38,45 @@ public class BookingExpirationScheduler {
         java.time.OffsetDateTime draftThreshold = java.time.OffsetDateTime.now().minus(15, ChronoUnit.MINUTES);
         java.time.OffsetDateTime paymentThreshold = java.time.OffsetDateTime.now().minus(30, ChronoUnit.MINUTES);
 
-        List<Booking> expiredBookings = bookingRepository.findAllExpired(draftThreshold, paymentThreshold,BookingStatus.DRAFT,BookingStatus.AWAITING_PAYMENT);
+        List<Booking> expiredBookings = bookingRepository.findAllExpired(draftThreshold, paymentThreshold, BookingStatus.DRAFT, BookingStatus.AWAITING_PAYMENT);
 
         if (expiredBookings.isEmpty()) return;
 
-        log.info("[Clyvasync Lock] Phát hiện {} đơn hàng nháp quá hạn 15 phút. Tiến hành giải phóng...", expiredBookings.size());
+        List<Long> expiredIds = expiredBookings.stream().map(Booking::getId).toList();
+        log.info("[Clyvasync Lock] Bắt đầu giải phóng lô {} đơn hàng quá hạn.", expiredIds.size());
 
-        for (Booking booking : expiredBookings) {
-            // 1. Huỷ Booking tổng
-            booking.setStatus(BookingStatus.CANCELLED);
-            bookingRepository.save(booking);
+        bookingRepository.updateStatusByIds(expiredIds, BookingStatus.CANCELLED);
 
-            // 2. Nhả phòng (Giữ nguyên logic cũ của bác)
-            bookingDetailRepository.findBookingDetailByBookingId(booking.getId()).ifPresent(detail -> {
-                roomCalendarRepository.unlockRoomRange(
-                        detail.getRoomId(),
-                        detail.getCheckInDate(),
-                        detail.getCheckOutDate(),
-                        detail.getQuantity()
-                );
-            });
-
-            // 3. XOÁ FULL DANH SÁCH TOUR ĐI KÈM
-            // Chỗ này mình dùng findAllBy... thay vì findBy...
-            List<TourBooking> tourBookings = tourBookingRepository.findAllByHomestayBookingId(booking.getId());
-
-            for (TourBooking tourBooking : tourBookings) {
-                if (TourBookingStatus.DRAFT.equals(tourBooking.getStatus())) {
-                    // Đổi trạng thái tour từng cái
-                    tourBooking.setStatus(TourBookingStatus.CANCELLED);
-                    tourBookingRepository.save(tourBooking);
-
-                    // Cộng lại slot cho từng tour tương ứng
-                    tourAvailabilityRepository.releaseTourSlots(
-                            tourBooking.getAvailabilityId(),
-                            tourBooking.getParticipantCount()
-                    );
-                    log.info("[Clyvasync Lock] Đã nhả slot cho Tour ID: {}", tourBooking.getTourId());
-                }
-            }
+        List<BookingDetail> details = bookingDetailRepository.findByBookingIdIn(expiredIds);
+        for (BookingDetail detail : details) {
+            roomCalendarRepository.unlockRoomRange(
+                    detail.getRoomId(),
+                    detail.getCheckInDate(),
+                    detail.getCheckOutDate(),
+                    detail.getQuantity()
+            );
         }
-        log.info("[Clyvasync Lock] Đã hoàn tất dọn dẹp toàn bộ phòng và tour cho các đơn quá hạn.");
+
+
+        List<TourBooking> draftTours = tourBookingRepository.findAllByHomestayBookingIdInAndStatus(expiredIds, TourBookingStatus.DRAFT);
+
+        if (!draftTours.isEmpty()) {
+            List<Long> tourBookingIds = draftTours.stream().map(TourBooking::getId).toList();
+
+            tourBookingRepository.updateStatusByIds(tourBookingIds, TourBookingStatus.CANCELLED);
+
+
+            Map<Long, Integer> slotsToReleaseMap = draftTours.stream()
+                    .collect(Collectors.groupingBy(
+                            TourBooking::getAvailabilityId,
+                            Collectors.summingInt(TourBooking::getParticipantCount)
+                    ));
+
+            slotsToReleaseMap.forEach((availabilityId, totalSlots) -> {
+                tourAvailabilityRepository.releaseTourSlots(availabilityId, totalSlots);
+            });
+        }
+
+        log.info("[Clyvasync Lock] Hoàn tất dọn dẹp lô đơn quá hạn.");
     }
 }

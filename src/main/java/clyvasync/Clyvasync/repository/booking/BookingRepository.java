@@ -6,6 +6,7 @@ import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -119,4 +120,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
         LIMIT 1
     """, nativeQuery = true)
     Optional<BookingBriefProjection> findLatestBookingBrief(@Param("userId") Long userId, @Param("hostId") Long hostId);
+    @Modifying
+    @Query("UPDATE Booking b SET b.status = :status WHERE b.id IN :ids")
+    void updateStatusByIds(@Param("ids") List<Long> ids, @Param("status") BookingStatus status);
 }
