@@ -129,9 +129,75 @@ public class HomestayServiceImpl implements HomestayService {
     @Override
     @IsHomestayOwner
     public HomestayResponse updateHomestay(Long id, HomestayRequest request, Long ownerId) {
-        return null;
+    Homestay homestay = homestayRepository.findById(id)
+            .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+
+    if (StringUtils.hasText(request.getName())) {
+        homestay.setName(request.getName());
+    }
+    if (StringUtils.hasText(request.getDescription())) {
+        homestay.setDescription(request.getDescription());
+    }
+    if (StringUtils.hasText(request.getAddressDetail())) {
+        homestay.setAddressDetail(request.getAddressDetail());
+    }
+    if (request.getLatitude() != null) {
+        homestay.setLatitude(request.getLatitude());
+    }
+    if (request.getLongitude() != null) {
+        homestay.setLongitude(request.getLongitude());
+    }
+    if (request.getCategoryId() != null) {
+        homestay.setCategoryId(request.getCategoryId());
     }
 
+    if (StringUtils.hasText(request.getCity())) {
+        Optional<Integer> locationIdOpt = locationService.findIdByNameOrSlug(request.getCity().trim());
+        locationIdOpt.ifPresent(homestay::setLocationId);
+    }
+
+    Homestay updatedHomestay = homestayRepository.save(homestay);
+
+    if (request.getObjectKeys() != null && !request.getObjectKeys().isEmpty()) {
+        List<HomestayImage> imagesToMap = homestayImageService.findByImageUrlIn(request.getObjectKeys());
+        for (HomestayImage img : imagesToMap) {
+            img.setHomestayId(updatedHomestay.getId());
+            img.setStatus(MediaStatus.ACTIVE);
+        }
+        homestayImageService.saveAll(imagesToMap);
+    }
+
+    HomestayResponse response = homestayMapper.toResponse(updatedHomestay);
+
+    response.setImageUrls(mediaUtil.toCdnUrls(homestayImageService.getImagesByHomestayId(id)));
+    response.setAmenities(amenityService.getAmenitiesByHomestayId(id));
+
+    Map<Integer, String> locationsMap = locationService.getLocationNamesMap(List.of(updatedHomestay.getLocationId()));
+    response.setCityName(locationsMap.get(updatedHomestay.getLocationId()));
+
+    Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(List.of(updatedHomestay.getCategoryId()));
+    response.setCategoryName(categoriesMap.get(updatedHomestay.getCategoryId()));
+
+    response.setOwner(userService.getOwnerInfo(updatedHomestay.getOwnerId()));
+
+    List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(List.of(id));
+    if (summaries != null && !summaries.isEmpty()) {
+        HomestayRoomSummary summary = summaries.get(0);
+        response.setBasePrice(summary.getMinPrice());
+        response.setMaxGuests(summary.getMaxGuestsInRoom());
+        response.setNumBedrooms(summary.getTotalRooms());
+        response.setNumBathrooms(summary.getTotalRooms());
+    } else {
+        response.setBasePrice(BigDecimal.ZERO);
+        response.setMaxGuests(0);
+        response.setNumBedrooms(0);
+        response.setNumBathrooms(0);
+    }
+
+    response.setAverageRating(BigDecimal.valueOf(updatedHomestay.getAverageRating() != null ? updatedHomestay.getAverageRating().doubleValue() : 0.0));
+
+    return response;
+    }
     @Override
     @IsHomestayOwner
     public void deleteHomestay(Long id, Long ownerId) {
