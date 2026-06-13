@@ -70,11 +70,8 @@ public class HomestayImageServiceImpl implements HomestayImageService {
 
         for (UploadRequest item : items) {
             String objectKey = mediaUtil.generateObjectKey(ownerId,item);
-
-            // 2. Lấy URL từ S3
             String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());
 
-            // 3. Tạo bản ghi PENDING (Chưa gắn homestayId)
             HomestayImage image = HomestayImage.builder()
                     .homestayId(null)
                     .imageUrl(objectKey)
