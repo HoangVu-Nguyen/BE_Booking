@@ -2,28 +2,28 @@ package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.projection.RoomAvailabilityProjection;
 import clyvasync.Clyvasync.dto.projection.RoomImageProjection;
-import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
-import clyvasync.Clyvasync.dto.response.RatePlanResponse;
-import clyvasync.Clyvasync.dto.response.RoomResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.mapper.room.RoomMapper;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
-import clyvasync.Clyvasync.modules.room.RatePlanBenefitMapping;
+import clyvasync.Clyvasync.dto.response.RatePlanResponse;
+import clyvasync.Clyvasync.modules.room.RoomBed;
+import clyvasync.Clyvasync.modules.room.RoomImage;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.repository.homestay.*;
-import clyvasync.Clyvasync.repository.room.RatePlanBenefitMappingRepository;
-import clyvasync.Clyvasync.repository.room.RoomAmenityHighlightRepository;
-import clyvasync.Clyvasync.repository.room.RoomRatePlanRepository;
+import clyvasync.Clyvasync.repository.room.*;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.room.RatePlanBenefitMappingService;
 import clyvasync.Clyvasync.service.room.RoomAmenityHighlightService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +37,9 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     private final RoomMapper roomMapper;
     private final RoomAmenityHighlightService roomAmenityHighlightService;
     private final RatePlanBenefitMappingService ratePlanBenefitMappingService;
+    private final RoomRatePlanRepository roomRatePlanRepository;
+    private final RoomBedRepository roomBedRepository;
+    private final RoomImageRepository roomImageRepository;
 
     @Override
     public List<RoomResponse> getAllRoomsByHomestay(Long homestayId) {
@@ -161,6 +164,51 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
         return roomRepository.findAllByHomestayIdAndStatus(homestayId,status);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomDisplayResponse> getRoomsByHomestayId(Long homestayId) {
+        List<HomestayRoom> rooms = roomRepository.findAllByHomestayId(homestayId);
+        if (rooms.isEmpty()) return List.of();
+
+        List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
+
+        Map<Long, List<RoomBed>> bedsMap = roomBedRepository.findByRoomIdIn(roomIds).stream()
+                .collect(Collectors.groupingBy(RoomBed::getRoomId));
+
+        Map<Long, List<RoomImage>> imagesMap = roomImageRepository.findByRoomIdIn(roomIds).stream()
+                .collect(Collectors.groupingBy(RoomImage::getRoomId));
+
+        Map<Long, List<RoomRatePlan>> ratePlansMap = roomRatePlanRepository.findByRoomIdIn(roomIds).stream()
+                .collect(Collectors.groupingBy(RoomRatePlan::getRoomId));
+
+        return rooms.stream().map(room -> {
+            List<RoomBed> roomBeds = bedsMap.getOrDefault(room.getId(), List.of());
+            List<RoomImage> roomImages = imagesMap.getOrDefault(room.getId(), List.of());
+            List<RoomRatePlan> roomRates = ratePlansMap.getOrDefault(room.getId(), List.of());
+
+            BigDecimal defaultPrice = roomRates.stream()
+                    .map(RoomRatePlan::getPrice)
+                    .findFirst()
+                    .orElse(BigDecimal.ZERO);
+
+            return RoomDisplayResponse.builder()
+                    .id(room.getId())
+                    .name(room.getName())
+                    .type(room.getType())
+                    .description(room.getDescription())
+                    .maxGuests(room.getMaxGuests())
+                    .areaM2(room.getArea())
+                    .hasPrivateBathroom(room.getHasPrivateBathroom())
+                    .price(defaultPrice)
+
+                    .beds(roomBeds.stream().map(b -> new BedResponse(b.getBedType(), b.getQuantity())).toList())
+
+                    .images(roomImages.stream().map(img -> new RoomImageResponse(img.getId(), img.getImageUrl(), img.getIsCover())).toList())
+
+                    .ratePlans(roomRates.stream().map(r -> new RatePlanResponse(r.getId(), r.getName(), r.getPrice(), r.getIsNonRefundable())).toList())
+                    .build();
+        }).toList();
+    }
 
 
 }

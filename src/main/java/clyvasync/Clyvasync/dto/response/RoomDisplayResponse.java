@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.dto.response;
 
 
+import clyvasync.Clyvasync.enums.room.RoomType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +16,7 @@ import java.util.List;
 public class RoomDisplayResponse {
     private Long id;
     private String name;
-    private String type;
+    private RoomType type;
     private String description;
     private Integer maxGuests;
     private String areaM2;
@@ -27,15 +28,5 @@ public class RoomDisplayResponse {
     private List<RoomImageResponse> images;
     private List<RatePlanResponse> ratePlans;
 }
-@Data @AllArgsConstructor @NoArgsConstructor
-class BedResponse {
-    private String type;
-    private Integer quantity;
-}
 
-@Data @AllArgsConstructor @NoArgsConstructor
-class RoomImageResponse {
-    private Long id;
-    private String url;
-    private Boolean isCover;
-}
+

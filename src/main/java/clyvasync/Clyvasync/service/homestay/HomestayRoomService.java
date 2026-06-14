@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.homestay;
 
+import clyvasync.Clyvasync.dto.response.RoomDisplayResponse;
 import clyvasync.Clyvasync.dto.response.RoomResponse;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
@@ -21,4 +22,5 @@ public interface HomestayRoomService {
     List<HomestayRoom> findAllByIdIn(List<Long> homestayIds);
     Map<Long, String> getRoomImageMap(List<Long> roomIds);
     List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, RoomStatus status);
+    List<RoomDisplayResponse> getRoomsByHomestayId(Long homestayId);
 }
