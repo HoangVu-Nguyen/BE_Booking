@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BedResponse {
+    private Long id;
     private BedType type;
     private Integer quantity;
+
 }

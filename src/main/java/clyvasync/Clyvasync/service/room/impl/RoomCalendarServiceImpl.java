@@ -3,19 +3,20 @@ package clyvasync.Clyvasync.service.room.impl;
 import clyvasync.Clyvasync.dto.detail.BookingSimpleInfo;
 import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
 import clyvasync.Clyvasync.dto.request.BatchUpdateCalendarRequest;
-import clyvasync.Clyvasync.dto.response.CalendarInventoryResponse;
-import clyvasync.Clyvasync.dto.response.CalendarRoomResponse;
-import clyvasync.Clyvasync.dto.response.HomestayCalendarResponse;
-import clyvasync.Clyvasync.dto.response.OwnerResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.calendar.RoomCalendarStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
 import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
+import clyvasync.Clyvasync.modules.room.RoomBed;
 import clyvasync.Clyvasync.modules.room.RoomCalendar;
+import clyvasync.Clyvasync.modules.room.RoomImage;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
+import clyvasync.Clyvasync.repository.room.RoomBedRepository;
 import clyvasync.Clyvasync.repository.room.RoomCalendarRepository;
+import clyvasync.Clyvasync.repository.room.RoomImageRepository;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
@@ -46,14 +47,18 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
     private final RoomRatePlanService roomRatePlanService;
     private final HomestayService homestayService;
     private final UserService userService;
+    private final RoomBedRepository roomBedRepository;
+    private final RoomImageRepository roomImageRepository;
 
-    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService,@Lazy HomestayService homestayService,UserService userService) {
+    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService,@Lazy HomestayService homestayService, UserService userService, RoomBedRepository roomBedRepository, RoomImageRepository roomImageRepository) {
         this.roomCalendarRepository = roomCalendarRepository;
         this.homestayRoomService = homestayRoomService;
         this.bookingDetailService = bookingDetailService;
         this.roomRatePlanService = roomRatePlanService;
         this.homestayService = homestayService;
         this.userService = userService;
+        this.roomBedRepository = roomBedRepository;
+        this.roomImageRepository = roomImageRepository;
     }
 
     @Override
@@ -85,53 +90,86 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
     }
 
     @Override
-    public HomestayCalendarResponse getHomestayCalendar(Long ownerId,Long homestayId, LocalDate startDate, LocalDate endDate) {
+    public HomestayCalendarResponse getHomestayCalendar(Long ownerId, Long homestayId, LocalDate startDate, LocalDate endDate) {
+
         OwnerResponse ownerResponse = userService.getOwnerInfo(ownerId);
-        List<HomestayRoom> rooms = homestayRoomService.findAllByHomestayIdAndStatus(homestayId, RoomStatus.ACTIVE);
         Homestay homestay = homestayService.findById(homestayId);
-        if (rooms.isEmpty()) return new HomestayCalendarResponse();
+        List<HomestayRoom> rooms = homestayRoomService.findAllByHomestayIdAndStatus(homestayId, RoomStatus.ACTIVE);
+
+        if (rooms.isEmpty()) {
+            return new HomestayCalendarResponse();
+        }
+
         List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
+
         List<RoomCalendar> overrides = roomCalendarRepository.findCustomCalendarByRoomIdsAndDateRange(roomIds, startDate, endDate);
-        List<BookingCalendarProjection> bookings = bookingDetailService.findActiveBookingsForCalendar(roomIds, startDate, endDate);        Map<Long, Map<LocalDate, RoomCalendar>> overrideMap = overrides.stream()
+        List<BookingCalendarProjection> bookings = bookingDetailService.findActiveBookingsForCalendar(roomIds, startDate, endDate);
+        List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(roomIds);
+
+        List<RoomImage> allImages = roomImageRepository.findAllByRoomIdIn(roomIds);
+
+        Map<Long, Map<LocalDate, RoomCalendar>> overrideMap = overrides.stream()
                 .collect(Collectors.groupingBy(RoomCalendar::getRoomId,
                         Collectors.toMap(RoomCalendar::getNightDate, rc -> rc)));
 
         Map<Long, List<BookingCalendarProjection>> bookingMap = bookings.stream()
                 .collect(Collectors.groupingBy(BookingCalendarProjection::getRoomId));
-        List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(roomIds);
+
         Map<Long, List<RoomRatePlan>> ratePlanMap = allRatePlans.stream()
                 .collect(Collectors.groupingBy(RoomRatePlan::getRoomId));
 
+        Map<Long, List<RoomImage>> imagesMap = allImages.stream()
+                .collect(Collectors.groupingBy(RoomImage::getRoomId));
+        List<RoomBed> allBeds = roomBedRepository.findByRoomIdIn(roomIds);
+
+        Map<Long, List<RoomBed>> bedsMap = allBeds.stream()
+                .collect(Collectors.groupingBy(RoomBed::getRoomId));
         List<CalendarRoomResponse> result = new ArrayList<>();
+
+
         for (HomestayRoom room : rooms) {
             List<CalendarInventoryResponse> inventoryList = new ArrayList<>();
             Map<LocalDate, RoomCalendar> roomOverrides = overrideMap.getOrDefault(room.getId(), Collections.emptyMap());
             List<BookingCalendarProjection> roomBookings = bookingMap.getOrDefault(room.getId(), Collections.emptyList());
 
-            // XỬ LÝ LẤY GIÁ GỐC TỪ RATE PLAN (Lấy giá rẻ nhất làm giá đại diện hiển thị trên lịch)
             List<RoomRatePlan> roomPlans = ratePlanMap.getOrDefault(room.getId(), Collections.emptyList());
             BigDecimal basePrice = roomPlans.stream()
                     .map(RoomRatePlan::getPrice)
                     .min(BigDecimal::compareTo)
                     .orElse(BigDecimal.ZERO);
 
-            // Chạy từng ngày
+            List<RoomImage> roomImages = imagesMap.getOrDefault(room.getId(), Collections.emptyList());
+            List<RoomImageResponse> imageResponses = roomImages.stream()
+                    .map(img -> new RoomImageResponse(img.getId(), img.getImageUrl(), img.getIsCover()))
+                    .toList();
+            List<RoomBed> roomBeds = bedsMap.getOrDefault(room.getId(), Collections.emptyList());
+            List<BedResponse> bedResponses = roomBeds.stream()
+                    .map(b -> new BedResponse(b.getId(), b.getBedType(), b.getQuantity()))
+                    .toList();
+
             for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-                inventoryList.add(buildDailyCell(date, room, roomOverrides.get(date), roomBookings,allRatePlans));
+                inventoryList.add(buildDailyCell(date, room, roomOverrides.get(date), roomBookings, allRatePlans));
             }
 
             result.add(CalendarRoomResponse.builder()
                     .id(room.getId())
                     .name(room.getName())
-                            .imageUrl(room.getImageUrl())
+                    .beds(bedResponses)
+                    .images(imageResponses)
                     .tag(room.getTag())
                     .basePrice(basePrice)
                     .inventory(inventoryList)
                     .build());
         }
 
-        return HomestayCalendarResponse.builder().owner(ownerResponse).homestayId(homestay.getId()).homestayName(homestay.getName()).status(homestay.getStatus()).roomCode("PRT").rooms(result).build();
-
+        return HomestayCalendarResponse.builder()
+                .owner(ownerResponse)
+                .homestayId(homestay.getId())
+                .homestayName(homestay.getName())
+                .status(homestay.getStatus())
+                .roomCode("PRT")
+                .rooms(result)
+                .build();
     }
 
     @Override

@@ -10,9 +10,10 @@ import java.util.List;
 @Builder
 public class CalendarRoomResponse {
     private Long id;
-    private String imageUrl;
+    private List<RoomImageResponse> images;
     private String name;
     private String tag;
     private BigDecimal basePrice;
+    private List<BedResponse> beds;
     private List<CalendarInventoryResponse> inventory;
 }
