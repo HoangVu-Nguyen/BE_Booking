@@ -47,6 +47,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -58,6 +59,8 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static java.util.Optional.ofNullable;
 
 @Service
 @Slf4j
@@ -126,77 +129,118 @@ public class HomestayServiceImpl implements HomestayService {
         return homestayMapper.toResponse(savedHomestay);
     }
 
+
     @Override
     @IsHomestayOwner
     public HomestayResponse updateHomestay(Long id, HomestayRequest request, Long ownerId) {
-    Homestay homestay = homestayRepository.findById(id)
-            .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+        // 1. Fetch entity
+        Homestay homestay = homestayRepository.findById(id)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
 
-    if (StringUtils.hasText(request.getName())) {
-        homestay.setName(request.getName());
-    }
-    if (StringUtils.hasText(request.getDescription())) {
-        homestay.setDescription(request.getDescription());
-    }
-    if (StringUtils.hasText(request.getAddressDetail())) {
-        homestay.setAddressDetail(request.getAddressDetail());
-    }
-    if (request.getLatitude() != null) {
-        homestay.setLatitude(request.getLatitude());
-    }
-    if (request.getLongitude() != null) {
-        homestay.setLongitude(request.getLongitude());
-    }
-    if (request.getCategoryId() != null) {
-        homestay.setCategoryId(request.getCategoryId());
-    }
+        // 2. Update fields efficiently
+        updateHomestayFields(homestay, request);
 
-    if (StringUtils.hasText(request.getCity())) {
-        Optional<Integer> locationIdOpt = locationService.findIdByNameOrSlug(request.getCity().trim());
-        locationIdOpt.ifPresent(homestay::setLocationId);
-    }
+        // 3. Save once
+        Homestay updatedHomestay = homestayRepository.save(homestay);
 
-    Homestay updatedHomestay = homestayRepository.save(homestay);
+        // 4. Handle images
+        if (!CollectionUtils.isEmpty(request.getObjectKeys())) {
+            processHomestayImages(updatedHomestay, request);
 
-    if (request.getObjectKeys() != null && !request.getObjectKeys().isEmpty()) {
-        List<HomestayImage> imagesToMap = homestayImageService.findByImageUrlIn(request.getObjectKeys());
-        for (HomestayImage img : imagesToMap) {
-            img.setHomestayId(updatedHomestay.getId());
-            img.setStatus(MediaStatus.ACTIVE);
         }
+
+        // 5. Build response with batch queries
+        return buildHomestayResponse(updatedHomestay);
+    }
+
+    private void updateHomestayFields(Homestay homestay, HomestayRequest request) {
+        ofNullable(request.getName()).filter(StringUtils::hasText).ifPresent(homestay::setName);
+        ofNullable(request.getDescription()).filter(StringUtils::hasText).ifPresent(homestay::setDescription);
+        ofNullable(request.getAddressDetail()).filter(StringUtils::hasText).ifPresent(homestay::setAddressDetail);
+        ofNullable(request.getLatitude()).ifPresent(homestay::setLatitude);
+        ofNullable(request.getLongitude()).ifPresent(homestay::setLongitude);
+        ofNullable(request.getCategoryId()).ifPresent(homestay::setCategoryId);
+
+        if (StringUtils.hasText(request.getCity())) {
+            locationService.findIdByNameOrSlug(request.getCity().trim())
+                    .ifPresent(homestay::setLocationId);
+        }
+    }
+
+    private void processHomestayImages(Homestay homestay, HomestayRequest request) {
+        if (request == null || CollectionUtils.isEmpty(request.getObjectKeys())) {
+            return;
+        }
+
+        List<HomestayImage> imagesToMap = homestayImageService.findByImageUrlIn(request.getObjectKeys());
+
+        if (CollectionUtils.isEmpty(imagesToMap)) {
+            return;
+        }
+
+        imagesToMap.forEach(img -> {
+            img.setHomestayId(homestay.getId());
+            img.setStatus(MediaStatus.ACTIVE);
+            img.setDisplayOrder(imagesToMap.indexOf(img)); // Preserve order
+        });
+
         homestayImageService.saveAll(imagesToMap);
     }
 
-    HomestayResponse response = homestayMapper.toResponse(updatedHomestay);
+    private HomestayResponse buildHomestayResponse(Homestay homestay) {
+        HomestayResponse response = homestayMapper.toResponse(homestay);
 
-    response.setImageUrls(mediaUtil.toCdnUrls(homestayImageService.getImagesByHomestayId(id)));
-    response.setAmenities(amenityService.getAmenitiesByHomestayId(id));
+        long homestayId = homestay.getId();
 
-    Map<Integer, String> locationsMap = locationService.getLocationNamesMap(List.of(updatedHomestay.getLocationId()));
-    response.setCityName(locationsMap.get(updatedHomestay.getLocationId()));
+        response.setImageUrls(mediaUtil.toCdnUrls(
+                homestayImageService.getImagesByHomestayId(homestayId)));
+        response.setAmenities(amenityService.getAmenitiesByHomestayId(homestayId));
 
-    Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(List.of(updatedHomestay.getCategoryId()));
-    response.setCategoryName(categoriesMap.get(updatedHomestay.getCategoryId()));
+        loadLocationAndCategory(response, homestay);
 
-    response.setOwner(userService.getOwnerInfo(updatedHomestay.getOwnerId()));
+        response.setOwner(userService.getOwnerInfo(homestay.getOwnerId()));
 
-    List<HomestayRoomSummary> summaries = homestayRoomService.getRoomSummaries(List.of(id));
-    if (summaries != null && !summaries.isEmpty()) {
-        HomestayRoomSummary summary = summaries.get(0);
-        response.setBasePrice(summary.getMinPrice());
-        response.setMaxGuests(summary.getMaxGuestsInRoom());
-        response.setNumBedrooms(summary.getTotalRooms());
-        response.setNumBathrooms(summary.getTotalRooms());
-    } else {
-        response.setBasePrice(BigDecimal.ZERO);
-        response.setMaxGuests(0);
-        response.setNumBedrooms(0);
-        response.setNumBathrooms(0);
+        loadRoomSummaries(response, homestayId);
+
+        response.setAverageRating(
+                BigDecimal.valueOf(
+                        ofNullable(homestay.getAverageRating())
+                                .map(BigDecimal::doubleValue)
+                                .orElse(0.0)
+                )
+        );
+
+        return response;
     }
 
-    response.setAverageRating(BigDecimal.valueOf(updatedHomestay.getAverageRating() != null ? updatedHomestay.getAverageRating().doubleValue() : 0.0));
+    private void loadLocationAndCategory(HomestayResponse response, Homestay homestay) {
+        Map<Integer, String> locationsMap = locationService.getLocationNamesMap(
+                List.of(homestay.getLocationId()));
+        response.setCityName(locationsMap.get(homestay.getLocationId()));
 
-    return response;
+        Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(
+                List.of(homestay.getCategoryId()));
+        response.setCategoryName(categoriesMap.get(homestay.getCategoryId()));
+    }
+
+    private void loadRoomSummaries(HomestayResponse response, Long homestayId) {
+        homestayRoomService.getRoomSummaries(List.of(homestayId))
+                .stream()
+                .findFirst()
+                .ifPresentOrElse(
+                        summary -> {
+                            response.setBasePrice(summary.getMinPrice());
+                            response.setMaxGuests(summary.getMaxGuestsInRoom());
+                            response.setNumBedrooms(summary.getTotalRooms());
+                            response.setNumBathrooms(summary.getTotalRooms());
+                        },
+                        () -> {
+                            response.setBasePrice(BigDecimal.ZERO);
+                            response.setMaxGuests(0);
+                            response.setNumBedrooms(0);
+                            response.setNumBathrooms(0);
+                        }
+                );
     }
     @Override
     @IsHomestayOwner

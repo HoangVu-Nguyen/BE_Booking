@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.modules.homestay.entity;
 
 import clyvasync.Clyvasync.enums.room.RoomStatus;
+import clyvasync.Clyvasync.enums.room.RoomType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -61,6 +62,12 @@ public class HomestayRoom {
 
     @Enumerated(EnumType.STRING)
     private RoomStatus status = RoomStatus.ACTIVE;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", length = 50)
+    private RoomType type;
+
+    @Column(name = "has_private_bathroom")
+    private Boolean hasPrivateBathroom = false;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

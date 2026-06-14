@@ -12,6 +12,6 @@ import java.util.Optional;
 @Repository
 public interface LocationRepository extends JpaRepository <Location,Integer> {
     List<Location> findAllByIdIn(List<Integer> ids);
-    @Query("SELECT l.id FROM Location l WHERE LOWER(l.cityName) = LOWER(:keyword) OR LOWER(l.slug) = LOWER(:keyword)")
+    @Query("SELECT l.id FROM Location l WHERE LOWER(l.cityName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(l.slug) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     Optional<Integer> findIdByNameOrSlug(@Param("keyword") String keyword);
 }
