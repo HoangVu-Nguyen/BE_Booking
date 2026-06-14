@@ -12,4 +12,5 @@ public interface RoomBedRepository extends JpaRepository<RoomBed, Long> {
     @Query("DELETE FROM RoomBed b WHERE b.roomId = :roomId")
     void deleteByRoomId(Long roomId);
     List<RoomBed> findByRoomIdIn(List<Long> roomIds);
+    List<RoomBed> findByRoomId(Long roomId);
 }

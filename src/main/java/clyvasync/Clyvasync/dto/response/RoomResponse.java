@@ -19,11 +19,14 @@ public class RoomResponse {
     private String checkInTime;
     private Integer maxGuests;
     private Integer bedCount;
-    private Integer quantity;
-    private String imageUrl;
     private int availableQuantity;
 
     private List<AmenityHighlightResponse> highlights;
 
     private List<RatePlanResponse> ratePlans;
+    private List<RoomImageResponse> images;
+
+    private BigDecimal basePrice;
+    private List<BedResponse> beds;
+    private List<CalendarInventoryResponse> inventory;
 }

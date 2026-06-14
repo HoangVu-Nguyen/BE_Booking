@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.modules.room;
 
 
+import clyvasync.Clyvasync.enums.calendar.RoomCalendarStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -28,8 +29,9 @@ public class RoomCalendar {
     @Column(name = "night_date", nullable = false)
     private LocalDate nightDate;
 
-    @Column(name = "price_override", precision = 19, scale = 2)
-    private BigDecimal priceOverride;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 30)
+    private RoomCalendarStatus status;
 
     @Column(name = "available_quantity")
     private Integer availableQuantity;

@@ -8,4 +8,5 @@ import java.util.List;
 public interface RoomRatePlanRepository extends JpaRepository<RoomRatePlan, Long> {
     List<RoomRatePlan> findAllByRoomIdIn(List<Long> roomIds);
     List<RoomRatePlan> findByRoomIdIn(List<Long> roomIds);
+    List<RoomRatePlan> findAllRoomRatePlanByRoomId(Long roomId);
 }

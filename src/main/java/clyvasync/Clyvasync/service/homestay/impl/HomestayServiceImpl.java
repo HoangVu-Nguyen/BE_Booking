@@ -19,12 +19,15 @@ import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.homestay.entity.Location;
+import clyvasync.Clyvasync.modules.room.RatePlanCalendar;
 import clyvasync.Clyvasync.modules.room.RoomCalendar;
+import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.modules.tour.entity.Tour;
 import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
+import clyvasync.Clyvasync.repository.room.RatePlanCalendarRepository;
 import clyvasync.Clyvasync.repository.tour.TourRepository;
 import clyvasync.Clyvasync.service.annotation.IsHomestayOwner;
 import clyvasync.Clyvasync.service.auth.UserService;
@@ -32,6 +35,7 @@ import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.booking.BookingService;
 import clyvasync.Clyvasync.service.homestay.*;
 import clyvasync.Clyvasync.service.room.RoomCalendarService;
+import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import clyvasync.Clyvasync.spec.HomestaySearchSpec;
@@ -81,8 +85,10 @@ public class HomestayServiceImpl implements HomestayService {
     private final BookingDetailService bookingDetailService;
     private final BookingService bookingService;
     private final MediaUtil mediaUtil;
+    private final RatePlanCalendarRepository ratePlanCalendarRepository;
+    private final RoomRatePlanService roomRatePlanService;
 
-    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService,@Lazy BookingService bookingService,MediaUtil mediaUtil) {
+    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService) {
         this.homestayRepository = homestayRepository;
         this.homestayMapper = homestayMapper;
         this.amenityService = amenityService;
@@ -99,6 +105,8 @@ public class HomestayServiceImpl implements HomestayService {
         this.bookingDetailService = bookingDetailService;
         this.bookingService = bookingService;
         this.mediaUtil = mediaUtil;
+        this.ratePlanCalendarRepository = ratePlanCalendarRepository;
+        this.roomRatePlanService = roomRatePlanService;
     }
 
     @Override
@@ -581,29 +589,77 @@ public class HomestayServiceImpl implements HomestayService {
     @Override
     @IsHomestayOwner
     public HomestayTimelineResponse getHomestayTimeline(Long homestayId, LocalDate startDate, LocalDate endDate) {
+
         List<HomestayRoom> rooms = homestayRoomService.findAllById(homestayId);
         List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
+
         if (roomIds.isEmpty()) {
             return new HomestayTimelineResponse(homestayId, startDate, endDate, List.of());
         }
+
+        // ==========================================
+        // 1. BULK FETCH DỮ LIỆU TỒN PHÒNG & BOOKING
+        // ==========================================
         List<RoomCalendar> calendars = roomCalendarService.findCalendarsByRoomIdsAndDateRange(roomIds, startDate, endDate);
         List<BookingTimelineProjection> bookings = bookingDetailService.findOverlappingBookings(roomIds, startDate, endDate);
-        Map<Long, List<RoomCalendar>> calendarMap = calendars.stream()
-                .collect(Collectors.groupingBy(RoomCalendar::getRoomId));
+
+        // 👉 KÉO THÊM DỮ LIỆU GÓI GIÁ
+        List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(roomIds);
+        List<Long> ratePlanIds = allRatePlans.stream().map(RoomRatePlan::getId).toList();
+        List<RatePlanCalendar> rateCalendars = ratePlanCalendarRepository.findByRatePlanIdInAndNightDateBetween(ratePlanIds, startDate, endDate);
+
+        // ==========================================
+        // 2. MEMORY GROUPING (Map dữ liệu)
+        // ==========================================
+        Map<Long, Map<LocalDate, RoomCalendar>> calendarMap = calendars.stream()
+                .collect(Collectors.groupingBy(RoomCalendar::getRoomId,
+                        Collectors.toMap(RoomCalendar::getNightDate, c -> c)));
 
         Map<Long, List<BookingTimelineProjection>> bookingMap = bookings.stream()
                 .collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+
+        Map<Long, List<RoomRatePlan>> ratePlanMap = allRatePlans.stream()
+                .collect(Collectors.groupingBy(RoomRatePlan::getRoomId));
+
+        Map<Long, Map<LocalDate, RatePlanCalendar>> rateCalendarMap = rateCalendars.stream()
+                .collect(Collectors.groupingBy(RatePlanCalendar::getRatePlanId,
+                        Collectors.toMap(RatePlanCalendar::getNightDate, r -> r)));
+
+        // ==========================================
+        // 3. LẮP RÁP KẾT QUẢ CHO TIMELINE
+        // ==========================================
         List<RoomTimelineResponse> roomTimelines = rooms.stream().map(room -> {
 
-            // Map Lịch giá
-            List<DailyStatusResponse> dailyStatuses = calendarMap.getOrDefault(room.getId(), List.of())
-                    .stream()
-                    .map(c -> DailyStatusResponse.builder()
-                            .date(c.getNightDate())
-                            .price(c.getPriceOverride() != null ? c.getPriceOverride() : BigDecimal.ZERO) // Lắp giá gốc nếu cần
-                            .availableQuantity(c.getAvailableQuantity())
-                            .build())
-                    .toList();
+            List<RoomRatePlan> roomPlans = ratePlanMap.getOrDefault(room.getId(), List.of());
+            Map<LocalDate, RoomCalendar> roomCalendars = calendarMap.getOrDefault(room.getId(), Collections.emptyMap());
+
+            // 👉 CHẠY VÒNG LẶP ĐỂ ĐẢM BẢO TIMELINE KHÔNG BỊ "THỦNG" NGÀY NÀO
+            List<DailyStatusResponse> dailyStatuses = new ArrayList<>();
+            for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+                final LocalDate currentDate = date;
+                RoomCalendar cal = roomCalendars.get(currentDate);
+
+                // Thuật toán lấy giá rẻ nhất của ngày hôm đó
+                BigDecimal minPrice = roomPlans.stream()
+                        .map(rp -> {
+                            Map<LocalDate, RatePlanCalendar> rpCalMap = rateCalendarMap.getOrDefault(rp.getId(), Collections.emptyMap());
+                            // Nếu có giá đè ngày này -> Lấy giá đè. Không thì -> Lấy giá gốc
+                            return rpCalMap.containsKey(currentDate) ? rpCalMap.get(currentDate).getPrice() : rp.getPrice();
+                        })
+                        .min(BigDecimal::compareTo)
+                        .orElse(BigDecimal.ZERO);
+
+                // Số lượng tồn phòng
+                int availableQty = (cal != null && cal.getAvailableQuantity() != null)
+                        ? cal.getAvailableQuantity()
+                        : room.getQuantity();
+
+                dailyStatuses.add(DailyStatusResponse.builder()
+                        .date(currentDate)
+                        .price(minPrice)
+                        .availableQuantity(availableQty)
+                        .build());
+            }
 
             List<BookingBlockResponse> bookingBlocks = bookingMap.getOrDefault(room.getId(), List.of())
                     .stream()
@@ -622,85 +678,189 @@ public class HomestayServiceImpl implements HomestayService {
                     .dailyStatuses(dailyStatuses)
                     .bookings(bookingBlocks)
                     .build();
+
         }).toList();
 
         return new HomestayTimelineResponse(homestayId, startDate, endDate, roomTimelines);
-
-
-
-
     }
 
     @Override
     public Map<Long, HomestayTimelineResponse> getBatchTimeline(List<Long> homestayIds, LocalDate startDate, LocalDate endDate) {
-        // 1. Lấy tất cả Rooms của tất cả Homes trong list
+        // ==========================================
+        // 1. LẤY TẤT CẢ PHÒNG CỦA TẤT CẢ HOMESTAYS
+        // ==========================================
         List<HomestayRoom> allRooms = homestayRoomService.findAllByIdIn(homestayIds);
         List<Long> allRoomIds = allRooms.stream().map(HomestayRoom::getId).toList();
 
-        // 2. Query 1 lần cho lịch và 1 lần cho booking (Batch)
+        if (allRoomIds.isEmpty()) {
+            return new HashMap<>(); // Trả về map rỗng nếu không có phòng nào
+        }
+
+        // ==========================================
+        // 2. KÉO DỮ LIỆU TỒN PHÒNG & BOOKING
+        // ==========================================
         List<RoomCalendar> allCalendars = roomCalendarService.findCalendarsByRoomIdsAndDateRange(allRoomIds, startDate, endDate);
         List<BookingTimelineProjection> allBookings = bookingDetailService.findOverlappingBookings(allRoomIds, startDate, endDate);
+
+        // Lấy Avatar Users
         List<Long> userIds = allBookings.stream().map(BookingTimelineProjection::userId).toList();
+        Map<Long, String> ownerResponseMap = userService.getImageUsers(userIds);
 
-        Map<Long,String>  ownerResponseMap = userService.getImageUsers(userIds);
+        // ==========================================
+        // 3. KÉO DỮ LIỆU GÓI GIÁ & LỊCH GIÁ (MỚI)
+        // ==========================================
+        List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(allRoomIds);
+        List<Long> ratePlanIds = allRatePlans.stream().map(RoomRatePlan::getId).toList();
+        List<RatePlanCalendar> rateCalendars = ratePlanCalendarRepository.findByRatePlanIdInAndNightDateBetween(ratePlanIds, startDate, endDate);
 
-        // 3. Gom nhóm dữ liệu
-        Map<Long, List<RoomCalendar>> calendarMap = allCalendars.stream().collect(Collectors.groupingBy(RoomCalendar::getRoomId));
-        Map<Long, List<BookingTimelineProjection>> bookingMap = allBookings.stream().collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
-        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream().collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
-        Map<Long,String> roomImageMap = homestayRoomService.getRoomImageMap(allRoomIds);
-        // 4. Map sang Map<HomestayId, Timeline>
+        // Kéo Ảnh phòng
+        Map<Long, String> roomImageMap = homestayRoomService.getRoomImageMap(allRoomIds);
+
+        // ==========================================
+        // 4. MEMORY GROUPING (GOM NHÓM DỮ LIỆU TRÊN RAM)
+        // ==========================================
+        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream()
+                .collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
+
+        Map<Long, Map<LocalDate, RoomCalendar>> calendarMap = allCalendars.stream()
+                .collect(Collectors.groupingBy(RoomCalendar::getRoomId,
+                        Collectors.toMap(RoomCalendar::getNightDate, c -> c)));
+
+        Map<Long, List<BookingTimelineProjection>> bookingMap = allBookings.stream()
+                .collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+
+        // Nhóm gói giá theo roomId
+        Map<Long, List<RoomRatePlan>> ratePlanMap = allRatePlans.stream()
+                .collect(Collectors.groupingBy(RoomRatePlan::getRoomId));
+
+        // Nhóm Lịch giá theo ratePlanId -> Ngày
+        Map<Long, Map<LocalDate, RatePlanCalendar>> rateCalendarMap = rateCalendars.stream()
+                .collect(Collectors.groupingBy(RatePlanCalendar::getRatePlanId,
+                        Collectors.toMap(RatePlanCalendar::getNightDate, r -> r)));
+
+        // ==========================================
+        // 5. LẮP RÁP KẾT QUẢ CHUẨN XÁC
+        // ==========================================
         Map<Long, HomestayTimelineResponse> result = new HashMap<>();
+
         for (Long homeId : homestayIds) {
-            List<RoomTimelineResponse> roomTimelines = roomsByHomeMap.getOrDefault(homeId, List.of()).stream()
-                    .map(room -> mapToRoomTimeline(room, calendarMap, bookingMap,roomImageMap,ownerResponseMap))
-                    .toList();
+            // Lấy danh sách phòng của Homestay đang chạy
+            List<HomestayRoom> homeRooms = roomsByHomeMap.getOrDefault(homeId, Collections.emptyList());
+
+            List<RoomTimelineResponse> roomTimelines = homeRooms.stream().map(room -> {
+
+                // Bốc dữ liệu RIÊNG cho phòng này từ các kho tổng
+                Map<LocalDate, RoomCalendar> roomCals = calendarMap.getOrDefault(room.getId(), Collections.emptyMap());
+                List<RoomRatePlan> roomPlans = ratePlanMap.getOrDefault(room.getId(), Collections.emptyList());
+                List<BookingTimelineProjection> roomBookings = bookingMap.getOrDefault(room.getId(), Collections.emptyList());
+                String roomImage = roomImageMap.get(room.getId());
+
+                // Truyền vào helper mapToRoomTimeline đã được nâng cấp
+                return mapToRoomTimeline(
+                        room,
+                        startDate,
+                        endDate,
+                        roomCals,
+                        roomPlans,
+                        rateCalendarMap,
+                        roomBookings,
+                        roomImage,
+                        ownerResponseMap
+                );
+
+            }).toList();
 
             result.put(homeId, new HomestayTimelineResponse(homeId, startDate, endDate, roomTimelines));
         }
+
         return result;
     }
-
 
     @Override
     public PortfolioTimelineResponse getOwnerPortfolioTimeline(Long ownerId, int month, int year) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
 
-        // 1. Lấy toàn bộ Homestay
+        // ==========================================
+        // 1 & 2. LẤY HOMESTAY VÀ ROOMS
+        // ==========================================
         List<Homestay> allHomes = homestayRepository.findAllByOwnerId(ownerId);
         List<Long> homeIds = allHomes.stream().map(Homestay::getId).toList();
 
         if (homeIds.isEmpty()) return new PortfolioTimelineResponse(List.of());
 
-        // 2. Lấy tất cả Rooms
         List<HomestayRoom> allRooms = homestayRoomService.findAllByIdIn(homeIds);
         List<Long> allRoomIds = allRooms.stream().map(HomestayRoom::getId).toList();
-        Map<Long,String> roomImageMap = homestayRoomService.getRoomImageMap(allRoomIds);
-        System.out.println(
-                roomImageMap
-        );
+        Map<Long, String> roomImageMap = homestayRoomService.getRoomImageMap(allRoomIds);
 
-
-        // 3. Query Lịch và Booking
+        // ==========================================
+        // 3. QUERY LỊCH, BOOKING VÀ GÓI GIÁ
+        // ==========================================
         List<RoomCalendar> allCalendars = roomCalendarService.findCalendarsByRoomIdsAndDateRange(allRoomIds, startDate, endDate);
         List<BookingTimelineProjection> allBookings = bookingDetailService.findOverlappingBookings(allRoomIds, startDate, endDate);
 
-        // 4. Gom nhóm
-        Map<Long, List<RoomCalendar>> calendarMap = allCalendars.stream().collect(Collectors.groupingBy(RoomCalendar::getRoomId));
-        Map<Long, List<BookingTimelineProjection>> bookingMap = allBookings.stream().collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
-        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream().collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
-        List<Long> userIds = allBookings.stream().map(BookingTimelineProjection::userId).toList();
-        Map<Long,String>  ownerResponseMap = userService.getImageUsers(userIds);
-        System.out.println(ownerResponseMap);
+        // 👉 Kéo dữ liệu Gói giá và Lịch giá (BỔ SUNG)
+        List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(allRoomIds);
+        List<Long> ratePlanIds = allRatePlans.stream().map(RoomRatePlan::getId).toList();
+        List<RatePlanCalendar> rateCalendars = ratePlanCalendarRepository.findByRatePlanIdInAndNightDateBetween(ratePlanIds, startDate, endDate);
 
-        // Lấy Map ảnh (ID -> List<String>)
+        // ==========================================
+        // 4. GOM NHÓM DỮ LIỆU VÀO MAP TRÊN RAM
+        // ==========================================
+
+        // Đã chuyển thành Map 2 lớp: RoomId -> (NightDate -> RoomCalendar)
+        Map<Long, Map<LocalDate, RoomCalendar>> calendarMap = allCalendars.stream()
+                .collect(Collectors.groupingBy(RoomCalendar::getRoomId,
+                        Collectors.toMap(RoomCalendar::getNightDate, c -> c)));
+
+        Map<Long, List<BookingTimelineProjection>> bookingMap = allBookings.stream()
+                .collect(Collectors.groupingBy(BookingTimelineProjection::roomId));
+
+        Map<Long, List<HomestayRoom>> roomsByHomeMap = allRooms.stream()
+                .collect(Collectors.groupingBy(HomestayRoom::getHomestayId));
+
+        // Map Avatar
+        List<Long> userIds = allBookings.stream().map(BookingTimelineProjection::userId).toList();
+        Map<Long, String> ownerResponseMap = userService.getImageUsers(userIds);
+
+        // 👉 Nhóm gói giá theo roomId
+        Map<Long, List<RoomRatePlan>> ratePlanMap = allRatePlans.stream()
+                .collect(Collectors.groupingBy(RoomRatePlan::getRoomId));
+
+        // 👉 Nhóm Lịch giá: RatePlanId -> (NightDate -> RatePlanCalendar)
+        Map<Long, Map<LocalDate, RatePlanCalendar>> rateCalendarMap = rateCalendars.stream()
+                .collect(Collectors.groupingBy(RatePlanCalendar::getRatePlanId,
+                        Collectors.toMap(RatePlanCalendar::getNightDate, r -> r)));
+
+        // Map ảnh Homestay
         Map<Long, List<String>> homestayImageMap = homestayImageService.getImagesForHomestays(homeIds);
 
-        // 5. Map sang cấu trúc Portfolio
+        // ==========================================
+        // 5. MAP SANG CẤU TRÚC PORTFOLIO
+        // ==========================================
         List<HomeTimelineResponse> homeTimelines = allHomes.stream().map(home -> {
+
             List<RoomTimelineResponse> roomResponses = roomsByHomeMap.getOrDefault(home.getId(), List.of()).stream()
-                    .map(room -> mapToRoomTimeline(room, calendarMap, bookingMap,roomImageMap,ownerResponseMap))
+                    .map(room -> {
+                        // 👉 BỐC TÁCH DỮ LIỆU CỦA RIÊNG PHÒNG NÀY TỪ KHO TỔNG
+                        Map<LocalDate, RoomCalendar> roomCals = calendarMap.getOrDefault(room.getId(), Collections.emptyMap());
+                        List<RoomRatePlan> roomPlans = ratePlanMap.getOrDefault(room.getId(), Collections.emptyList());
+                        List<BookingTimelineProjection> roomBookings = bookingMap.getOrDefault(room.getId(), Collections.emptyList());
+                        String roomImage = roomImageMap.get(room.getId());
+
+                        // 👉 GỌI HÀM HELPER VỚI ĐẦY ĐỦ THAM SỐ MỚI
+                        return mapToRoomTimeline(
+                                room,
+                                startDate,
+                                endDate,
+                                roomCals,
+                                roomPlans,
+                                rateCalendarMap,
+                                roomBookings,
+                                roomImage,
+                                ownerResponseMap
+                        );
+                    })
                     .toList();
 
             // Lấy ảnh đầu tiên làm ảnh đại diện
@@ -714,6 +874,7 @@ public class HomestayServiceImpl implements HomestayService {
                     .primaryImageUrl(primaryImage)
                     .rooms(roomResponses)
                     .build();
+
         }).toList();
 
         return new PortfolioTimelineResponse(homeTimelines);
@@ -939,28 +1100,50 @@ public class HomestayServiceImpl implements HomestayService {
     }
     private RoomTimelineResponse mapToRoomTimeline(
             HomestayRoom room,
-            Map<Long, List<RoomCalendar>> calendarMap,
-            Map<Long, List<BookingTimelineProjection>> bookingMap,
-            Map<Long,String> roomImageMap,
-            Map<Long,String>  ownerResponseMap
+            LocalDate startDate,
+            LocalDate endDate,
+            Map<LocalDate, RoomCalendar> roomCalendars,                  // Map Tồn phòng của riêng phòng này
+            List<RoomRatePlan> roomPlans,                                // Danh sách gói giá của phòng này
+            Map<Long, Map<LocalDate, RatePlanCalendar>> rateCalendarMap, // Map Lịch Giá (RatePlanId -> Ngày -> Giá)
+            List<BookingTimelineProjection> roomBookings,                // Danh sách Booking của riêng phòng này
+            String roomImageUrl,                                         // Ảnh đại diện phòng
+            Map<Long, String> ownerAvatarMap                             // Map Avatar của Guest/Owner
     ) {
-        // 1. Map dữ liệu Giá theo ngày
-        List<DailyStatusResponse> dailyStatuses = calendarMap.getOrDefault(room.getId(), List.of())
-                .stream()
-                .map(c -> DailyStatusResponse.builder()
-                        .date(c.getNightDate())
-                        .price(c.getPriceOverride() != null ? c.getPriceOverride() : BigDecimal.ZERO)
-                        .availableQuantity(c.getAvailableQuantity())
-                        .build())
-                .toList();
+        // 1. Map dữ liệu Giá và Tồn theo ngày (CHẠY VÒNG LẶP ĐỂ KHÔNG THỦNG TIMELINE)
+        List<DailyStatusResponse> dailyStatuses = new ArrayList<>();
 
-        // 2. Map dữ liệu Đặt phòng (Các khối đen Marcus T, Sarah K,...)
-        List<BookingBlockResponse> bookingBlocks = bookingMap.getOrDefault(room.getId(), List.of())
-                .stream()
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            final LocalDate currentDate = date;
+            RoomCalendar cal = roomCalendars.get(currentDate);
+
+            // Thuật toán quét giá rẻ nhất cho ngày hiện tại
+            BigDecimal minPrice = roomPlans.stream()
+                    .map(rp -> {
+                        Map<LocalDate, RatePlanCalendar> rpCalMap = rateCalendarMap.getOrDefault(rp.getId(), Collections.emptyMap());
+                        // Có đè giá thì lấy giá đè, không thì lấy giá gốc
+                        return rpCalMap.containsKey(currentDate) ? rpCalMap.get(currentDate).getPrice() : rp.getPrice();
+                    })
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+
+            // Lấy số lượng phòng trống
+            int availableQty = (cal != null && cal.getAvailableQuantity() != null)
+                    ? cal.getAvailableQuantity()
+                    : room.getQuantity();
+
+            dailyStatuses.add(DailyStatusResponse.builder()
+                    .date(currentDate)
+                    .price(minPrice)
+                    .availableQuantity(availableQty)
+                    .build());
+        }
+
+        // 2. Map dữ liệu Đặt phòng (Các khối BookingBlock)
+        List<BookingBlockResponse> bookingBlocks = roomBookings.stream()
                 .map(b -> BookingBlockResponse.builder()
                         .bookingId(b.bookingId())
                         .guestName(b.guestName())
-                        .avatar(ownerResponseMap.get(b.userId()))
+                        .avatar(ownerAvatarMap.get(b.userId())) // Map Avatar cực chuẩn
                         .checkInDate(b.checkInDate())
                         .checkOutDate(b.checkOutDate())
                         .status(b.status())
@@ -973,7 +1156,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .roomName(room.getName())
                 .dailyStatuses(dailyStatuses)
                 .bookings(bookingBlocks)
-                .imageUrl(roomImageMap.get(room.getId()))
+                .imageUrl(roomImageUrl)
                 .build();
     }
     /**

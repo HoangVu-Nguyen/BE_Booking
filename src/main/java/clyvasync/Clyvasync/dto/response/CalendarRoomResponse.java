@@ -16,4 +16,5 @@ public class CalendarRoomResponse {
     private BigDecimal basePrice;
     private List<BedResponse> beds;
     private List<CalendarInventoryResponse> inventory;
+
 }
