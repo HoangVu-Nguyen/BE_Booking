@@ -2,15 +2,13 @@ package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.projection.RoomAvailabilityProjection;
 import clyvasync.Clyvasync.dto.projection.RoomImageProjection;
-import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
-import clyvasync.Clyvasync.dto.response.BedResponse;
-import clyvasync.Clyvasync.dto.response.CalendarInventoryResponse;
-import clyvasync.Clyvasync.dto.response.RatePlanResponse;
-import clyvasync.Clyvasync.dto.response.RoomDisplayResponse;
-import clyvasync.Clyvasync.dto.response.RoomImageResponse;
-import clyvasync.Clyvasync.dto.response.RoomResponse;
+import clyvasync.Clyvasync.dto.request.*;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
+import clyvasync.Clyvasync.enums.media.MediaStatus;
+import clyvasync.Clyvasync.enums.room.BedType;
 import clyvasync.Clyvasync.enums.room.RoomStatus;
+import clyvasync.Clyvasync.enums.room.RoomType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.mapper.room.RoomMapper;
@@ -19,20 +17,24 @@ import clyvasync.Clyvasync.modules.room.*;
 import clyvasync.Clyvasync.repository.homestay.HomestayRoomRepository;
 import clyvasync.Clyvasync.repository.room.*;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
+import clyvasync.Clyvasync.service.media.S3Service;
 import clyvasync.Clyvasync.service.room.RatePlanBenefitMappingService;
 import clyvasync.Clyvasync.service.room.RoomAmenityHighlightService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
+import clyvasync.Clyvasync.utils.MediaUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.util.Optional.ofNullable;
 
 @Service
 @RequiredArgsConstructor
@@ -48,7 +50,8 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     private final RoomImageRepository roomImageRepository;
     private final RoomCalendarRepository roomCalendarRepository;
     private final RatePlanCalendarRepository ratePlanCalendarRepository;
-
+    private final MediaUtil mediaUtil;
+    private final S3Service s3Service;
     @Override
     @Transactional(readOnly = true)
     public List<RoomResponse> getAllRoomsByHomestay(Long homestayId) {
@@ -366,7 +369,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
                 .type(room.getType())
                 .description(room.getDescription())
                 .maxGuests(room.getMaxGuests())
-                .areaM2(room.getArea())
+                .area(room.getArea())
                 .hasPrivateBathroom(room.getHasPrivateBathroom())
                 .price(getLowestPriceFromRatePlanEntities(ratePlans))
                 .beds(toBedResponses(beds))
@@ -398,7 +401,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     private RoomImageResponse toRoomImageResponse(RoomImage image) {
         return RoomImageResponse.builder()
                 .id(image.getId())
-                .url(image.getImageUrl())
+                .url(mediaUtil.toCdnUrl(image.getImageUrl()))
                 .isCover(image.getIsCover())
                 .displayOrder(image.getDisplayOrder())
                 .build();
@@ -503,4 +506,314 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
                 RoundingMode.HALF_UP
         );
     }
+
+
+    private String getFileExtension(String fileName) {
+        if (fileName == null || !fileName.contains(".")) return "jpg"; // Default
+        return fileName.substring(fileName.lastIndexOf(".") + 1);
+    }
+    @Override
+    @Transactional
+    public void updateRooms(Long ownerId, RoomBatchUpdateRequest request) {
+        validateRequest(ownerId, request);
+
+        for (RoomUpdateRequest roomReq : request.getRooms()) {
+            HomestayRoom room = createOrUpdateRoom(roomReq, request.getHomestayId());
+
+            updateRoomBeds(room.getId(), roomReq.getBeds());
+
+            processRoomImages(room.getId(), roomReq.getImages());
+        }
+
+    }
+    private void validateRequest(Long ownerId, RoomBatchUpdateRequest request) {
+        if (request == null || CollectionUtils.isEmpty(request.getRooms())) {
+            throw new AppException(ResultCode.INVALID_INPUT);
+        }
+        if (request.getHomestayId() == null || ownerId == null) {
+            throw new AppException(ResultCode.INVALID_INPUT);
+        }
+        // Optional: Check ownership
+        // homestayService.validateOwnership(ownerId, request.getHomestayId());
+    }
+    /**
+     * Hàm tách lọc và xử lý mảng gộp Images
+     */
+    private void processRoomImages(Long roomId, List<ImageSubmitRequest> imageRequests) {
+        if (CollectionUtils.isEmpty(imageRequests)) {
+            roomImageRepository.deleteByRoomId(roomId);
+            return;
+        }
+
+        // Tách ra 2 list: Cũ và Mới
+        List<ImageSubmitRequest> oldImagesReq = new ArrayList<>();
+        List<ImageSubmitRequest> newImagesReq = new ArrayList<>();
+
+        for (ImageSubmitRequest req : imageRequests) {
+            if (req.getId() != null) {
+                oldImagesReq.add(req);
+            } else if (req.getObjectKey() != null) {
+                newImagesReq.add(req);
+            }
+        }
+
+        // --- XỬ LÝ ẢNH CŨ ---
+        Set<Long> keepImageIds = oldImagesReq.stream()
+                .map(ImageSubmitRequest::getId)
+                .collect(Collectors.toSet());
+
+        if (keepImageIds.isEmpty()) {
+            roomImageRepository.deleteByRoomId(roomId);
+        } else {
+            // Xóa ảnh bị FE loại bỏ
+            roomImageRepository.deleteByRoomIdAndIdNotIn(roomId, new ArrayList<>(keepImageIds));
+
+            // Cập nhật isCover, sortOrder
+            List<RoomImage> existingImages = roomImageRepository.findByRoomId(roomId);
+            existingImages.forEach(img -> {
+                oldImagesReq.stream()
+                        .filter(req -> req.getId().equals(img.getId()))
+                        .findFirst()
+                        .ifPresent(req -> {
+                            img.setIsCover(req.getIsCover());
+                            img.setDisplayOrder(req.getSortOrder());
+                        });
+            });
+            roomImageRepository.saveAll(existingImages);
+        }
+
+        // --- XỬ LÝ ẢNH MỚI (PENDING -> ACTIVE) ---
+        if (!newImagesReq.isEmpty()) {
+            List<String> objectKeys = newImagesReq.stream()
+                    .map(ImageSubmitRequest::getObjectKey)
+                    .toList();
+
+            // Tìm lại các record PENDING đã tạo ở bước xin link
+            List<RoomImage> pendingImages = roomImageRepository.findByImageUrlIn(objectKeys);
+
+            for (RoomImage img : pendingImages) {
+                newImagesReq.stream()
+                        .filter(req -> req.getObjectKey().equals(img.getImageUrl()))
+                        .findFirst()
+                        .ifPresent(req -> {
+                            img.setStatus(MediaStatus.ACTIVE); // 👉 LẬT CỜ CHỐT SỔ!
+                            img.setIsCover(req.getIsCover());
+                            img.setDisplayOrder(req.getSortOrder());
+                            img.setRoomId(roomId); // Map chắc chắn vào phòng này
+                        });
+            }
+            roomImageRepository.saveAll(pendingImages);
+        }
+    }
+
+    @Override
+    @Transactional
+    public List<PresignedUrlResponse> prepareHomestayRoomImageBatch(Long ownerId, MultiRoomBatchUploadRequest request) {
+
+        if (request == null || CollectionUtils.isEmpty(request.getRooms())) {
+            return List.of();
+        }
+
+        List<RoomImage> allNewImages = new ArrayList<>();
+        List<PresignedUrlResponse> responseList = new ArrayList<>();
+
+        for (RoomImageBatch roomBatch : request.getRooms()) {
+            Long roomId = roomBatch.getRoomId();
+
+            if (CollectionUtils.isEmpty(roomBatch.getItems())) {
+                continue;
+            }
+
+            // (Tùy chọn) Validate: Check ownerId có quyền với roomId này không ở đây
+
+            // Vòng lặp 2: Duyệt qua từng ảnh của phòng đó
+            for (UploadRequest item : roomBatch.getItems()) {
+
+                // Sinh key: rooms/{roomId}/{uuid}.{ext}
+                String objectKey = mediaUtil.generateObjectKey(ownerId,item );
+
+                // Add vào list Entity để lát Save 1 cục
+                RoomImage newImage = RoomImage.builder()
+                        .roomId(roomId)
+                        .imageUrl(objectKey)
+                        .isCover(item.getIsCover() != null ? item.getIsCover() : false)
+                        .displayOrder(item.getSortOrder() != null ? item.getSortOrder() : 0)
+                        .status(MediaStatus.PENDING)
+                        .build();
+                allNewImages.add(newImage);
+
+                // Xin link S3
+                String contentType = item.getContentType() != null ? item.getContentType() : getContentType(item.getFileName());
+                String presignedUrl = s3Service.generatePresignedPutUrl(
+                        objectKey,
+                        contentType,
+                        item.getFileSize()
+                );
+
+                responseList.add(PresignedUrlResponse.builder()
+                        .roomId(roomId)
+                        .fileName(item.getFileName())
+                        .objectKey(objectKey)
+                        .uploadUrl(presignedUrl)
+                        .build());
+            }
+        }
+
+        if (!allNewImages.isEmpty()) {
+            roomImageRepository.saveAll(allNewImages);
+        }
+
+        return responseList;
+    }
+
+    private HomestayRoom createOrUpdateRoom(RoomUpdateRequest roomReq, Long homestayId) {
+        HomestayRoom room;
+
+        if (roomReq.getId() != null) {
+            room = roomRepository.findById(roomReq.getId())
+                    .orElseThrow(() -> new AppException(ResultCode.ROOM_NOT_FOUND));
+        } else {
+            room = HomestayRoom.builder()
+                    .homestayId(homestayId)
+                    .status(RoomStatus.ACTIVE)
+                    .build();
+        }
+
+        // Update fields
+        ofNullable(roomReq.getName()).ifPresent(room::setName);
+        ofNullable(roomReq.getType()).ifPresent(name -> room.setType(RoomType.valueOf(name)));
+        ofNullable(roomReq.getDescription()).ifPresent(room::setDescription);
+        ofNullable(roomReq.getMaxGuests()).ifPresent(room::setMaxGuests);
+        ofNullable(roomReq.getArea()).ifPresent(room::setArea);
+        ofNullable(roomReq.getHasPrivateBathroom()).ifPresent(room::setHasPrivateBathroom);
+
+
+        return roomRepository.save(room);
+    }
+    private void updateRoomBeds(Long roomId, List<BedRequest> bedRequests) {
+        // Delete old beds
+        roomBedRepository.deleteByRoomId(roomId);
+
+        if (CollectionUtils.isEmpty(bedRequests)) {
+            return;
+        }
+
+        // Create new beds
+        List<RoomBed> newBeds = bedRequests.stream()
+                .map(bedReq -> RoomBed.builder()
+                        .roomId(roomId)
+                        .bedType(bedReq.getType())
+                        .quantity(bedReq.getQuantity())
+                        .build()
+                )
+                .toList();
+
+        roomBedRepository.saveAll(newBeds);
+    }
+
+    /**
+     * Update existing images (keep, delete, reorder, update cover)
+     */
+    private void updateExistingImages(Long roomId, List<ExistingImageRequest> existingImageRequests) {
+        if (CollectionUtils.isEmpty(existingImageRequests)) {
+            // Delete all images if no existing images provided
+            roomImageRepository.deleteByRoomId(roomId);
+            return;
+        }
+
+        // Get IDs to keep
+        Set<Long> keepImageIds = existingImageRequests.stream()
+                .map(ExistingImageRequest::getId)
+                .collect(Collectors.toSet());
+
+        // Delete images not in the keep list
+        roomImageRepository.deleteByRoomIdAndIdNotIn(roomId, new ArrayList<>(keepImageIds));
+
+        // Update sort order and cover flag for kept images
+        List<RoomImage> imagesToUpdate = roomImageRepository.findByRoomId(roomId);
+        imagesToUpdate.forEach(img -> {
+            ExistingImageRequest req = existingImageRequests.stream()
+                    .filter(r -> r.getId().equals(img.getId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (req != null) {
+                img.setIsCover(req.getIsCover());
+                img.setDisplayOrder(req.getSortOrder());
+            }
+        });
+
+        roomImageRepository.saveAll(imagesToUpdate);
+    }
+
+    /**
+     * Process new images: create PENDING records and generate presigned URLs
+     */
+    private void processNewImages(Long roomId, Long userId, List<NewImageRequest> newImageRequests,
+                                  List<PresignedUrlResponse> uploadUrls) {
+        if (CollectionUtils.isEmpty(newImageRequests)) {
+            return;
+        }
+
+        for (NewImageRequest newImgReq : newImageRequests) {
+            // Generate object key
+            String objectKey = generateRoomImageObjectKey(userId, roomId, newImgReq.getFileName());
+
+            RoomImage newImage = RoomImage.builder()
+                    .roomId(roomId)
+                    .imageUrl(objectKey) // Lưu objectKey vào imageUrl
+                    .isCover(newImgReq.getIsCover())
+                    .displayOrder(newImgReq.getSortOrder())
+                    .build();
+            roomImageRepository.save(newImage);
+
+            // Generate presigned URL from S3
+            String presignedUrl = s3Service.generatePresignedPutUrl(
+                    objectKey,
+                    getContentType(newImgReq.getFileName()),
+                    getFileSize(newImgReq)
+            );
+
+            uploadUrls.add(PresignedUrlResponse.builder()
+                    .uploadUrl(presignedUrl)
+                    .objectKey(objectKey)
+                    .build());
+        }
+    }
+
+    /**
+     * Generate safe object key for room image: rooms/{roomId}/{uuid}.{ext}
+     */
+    private String generateRoomImageObjectKey(Long userId, Long roomId, String fileName) {
+        String extension = getFileExtension(fileName);
+        String uuid = UUID.randomUUID().toString();
+        return String.format("rooms/%d/%s.%s", roomId, uuid, extension);
+    }
+
+    /**
+     * Extract file extension from filename
+     */
+
+
+    /**
+     * Get MIME type based on file extension
+     */
+    private String getContentType(String fileName) {
+        String ext = getFileExtension(fileName).toLowerCase();
+        return switch (ext) {
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "png" -> "image/png";
+            case "webp" -> "image/webp";
+            case "gif" -> "image/gif";
+            default -> "image/jpeg";
+        };
+    }
+
+    /**
+     * Get file size (dummy implementation - adjust based on your needs)
+     */
+    private Long getFileSize(NewImageRequest newImgReq) {
+        return 5_242_880L; // 5MB default, adjust as needed
+    }
+
 }

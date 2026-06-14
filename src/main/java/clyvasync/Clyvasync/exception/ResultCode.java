@@ -84,6 +84,7 @@ public enum ResultCode {
     TOUR_NOT_FOUND_FOR_BOOKING(3030, HttpStatus.NOT_FOUND),
     TOUR_IMAGE_NOT_FOUND(3031, HttpStatus.NOT_FOUND),
     ROOM_NOT_AVAILABLE(3032, HttpStatus.BAD_REQUEST),
+    ROOM_NOT_FOUND(3033, HttpStatus.NOT_FOUND),
 
     // --- 4xxx: Booking & Payment (Đặt phòng & Thanh toán) ---
     BOOKING_NOT_FOUND(4001, HttpStatus.NOT_FOUND),

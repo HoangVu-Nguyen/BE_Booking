@@ -19,7 +19,7 @@ public class RoomDisplayResponse {
     private RoomType type;
     private String description;
     private Integer maxGuests;
-    private String areaM2;
+    private String area;
     private Boolean hasPrivateBathroom;
 
     private BigDecimal price;

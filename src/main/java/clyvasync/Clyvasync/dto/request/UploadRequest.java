@@ -9,4 +9,6 @@ public class UploadRequest {
     private String contentType; // Ví dụ: image/jpeg hoặc image/png
     private ImageType imageType;   // Dùng để phân loại: AVATAR, COVER, hoặc POST
     private Long fileSize;
+    private Boolean isCover;
+    private Integer sortOrder;
 }

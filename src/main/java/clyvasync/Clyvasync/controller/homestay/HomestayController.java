@@ -139,5 +139,12 @@ public class HomestayController {
 
         return ApiResponse.success(presignedUrls);
     }
-
+    @GetMapping("/{homestayId}/rooms")
+    public ApiResponse<List<RoomDisplayResponse>> getRoomsByHomestayId(
+            @PathVariable Long homestayId
+    ) {
+        return ApiResponse.<List<RoomDisplayResponse>>builder()
+                .data(homestayRoomService.getRoomsByHomestayId(homestayId))
+                .build();
+    }
 }

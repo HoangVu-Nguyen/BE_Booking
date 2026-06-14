@@ -9,8 +9,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class PresignedUrlResponse {
 
-    private String uploadUrl; // URL tạm thời dùng để PUT ảnh lên S3
-    private String objectKey; // Đường dẫn tương đối (ví dụ: users/1/avatars/abc.jpg) để lưu vào DB
+public class PresignedUrlResponse {
+    private Long roomId;
+    private String fileName;
+    private String objectKey;
+    private String uploadUrl;
 }

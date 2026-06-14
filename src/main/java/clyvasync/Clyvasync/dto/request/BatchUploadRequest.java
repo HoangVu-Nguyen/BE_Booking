@@ -7,5 +7,6 @@ import java.util.List;
 
 @Data
 public class BatchUploadRequest {
+    private Long targetId;
     private List<UploadRequest> items;
 }

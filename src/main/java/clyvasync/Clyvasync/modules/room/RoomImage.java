@@ -1,4 +1,5 @@
 package clyvasync.Clyvasync.modules.room;
+import clyvasync.Clyvasync.enums.media.MediaStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,6 +24,9 @@ public class RoomImage {
 
     @Column(name = "is_cover")
     private Boolean isCover = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private MediaStatus status = MediaStatus.ACTIVE;
 
     @Column(name = "display_order")
     private Integer displayOrder = 0;
