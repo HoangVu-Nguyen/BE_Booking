@@ -515,6 +515,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     @Override
     @Transactional
     public void updateRooms(Long ownerId, RoomBatchUpdateRequest request) {
+        System.out.println(request);
         validateRequest(ownerId, request);
 
         for (RoomUpdateRequest roomReq : request.getRooms()) {
@@ -540,72 +541,138 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
      * Hàm tách lọc và xử lý mảng gộp Images
      */
     private void processRoomImages(Long roomId, List<ImageSubmitRequest> imageRequests) {
+        System.out.println("processRoomImages roomId = " + roomId);
+        System.out.println("processRoomImages imageRequests = " + imageRequests);
+
         if (CollectionUtils.isEmpty(imageRequests)) {
             roomImageRepository.deleteByRoomId(roomId);
             return;
         }
 
-        // Tách ra 2 list: Cũ và Mới
         List<ImageSubmitRequest> oldImagesReq = new ArrayList<>();
         List<ImageSubmitRequest> newImagesReq = new ArrayList<>();
 
         for (ImageSubmitRequest req : imageRequests) {
             if (req.getId() != null) {
                 oldImagesReq.add(req);
-            } else if (req.getObjectKey() != null) {
+            } else if (req.getObjectKey() != null && !req.getObjectKey().isBlank()) {
                 newImagesReq.add(req);
             }
         }
 
-        // --- XỬ LÝ ẢNH CŨ ---
         Set<Long> keepImageIds = oldImagesReq.stream()
                 .map(ImageSubmitRequest::getId)
                 .collect(Collectors.toSet());
 
-        if (keepImageIds.isEmpty()) {
+        List<String> newObjectKeys = newImagesReq.stream()
+                .map(ImageSubmitRequest::getObjectKey)
+                .filter(Objects::nonNull)
+                .filter(key -> !key.isBlank())
+                .distinct()
+                .toList();
+
+        List<RoomImage> pendingImages = newObjectKeys.isEmpty()
+                ? List.of()
+                : roomImageRepository.findByRoomIdAndImageUrlIn(roomId, newObjectKeys);
+
+        Set<Long> pendingImageIds = pendingImages.stream()
+                .map(RoomImage::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Set<Long> allKeepIds = new HashSet<>();
+        allKeepIds.addAll(keepImageIds);
+        allKeepIds.addAll(pendingImageIds);
+
+        if (allKeepIds.isEmpty()) {
             roomImageRepository.deleteByRoomId(roomId);
         } else {
-            // Xóa ảnh bị FE loại bỏ
-            roomImageRepository.deleteByRoomIdAndIdNotIn(roomId, new ArrayList<>(keepImageIds));
+            roomImageRepository.deleteByRoomIdAndIdNotIn(roomId, new ArrayList<>(allKeepIds));
+        }
 
-            // Cập nhật isCover, sortOrder
-            List<RoomImage> existingImages = roomImageRepository.findByRoomId(roomId);
-            existingImages.forEach(img -> {
+        List<RoomImage> imagesToSave = new ArrayList<>();
+
+        if (!oldImagesReq.isEmpty()) {
+            List<RoomImage> existingImages = roomImageRepository.findByRoomIdAndIdIn(
+                    roomId,
+                    new ArrayList<>(keepImageIds)
+            );
+
+            for (RoomImage img : existingImages) {
                 oldImagesReq.stream()
                         .filter(req -> req.getId().equals(img.getId()))
                         .findFirst()
                         .ifPresent(req -> {
-                            img.setIsCover(req.getIsCover());
-                            img.setDisplayOrder(req.getSortOrder());
+                            img.setIsCover(Boolean.TRUE.equals(req.getIsCover()));
+                            img.setDisplayOrder(req.getSortOrder() != null ? req.getSortOrder() : 0);
                         });
-            });
-            roomImageRepository.saveAll(existingImages);
+
+                imagesToSave.add(img);
+            }
         }
 
-        // --- XỬ LÝ ẢNH MỚI (PENDING -> ACTIVE) ---
-        if (!newImagesReq.isEmpty()) {
-            List<String> objectKeys = newImagesReq.stream()
-                    .map(ImageSubmitRequest::getObjectKey)
-                    .toList();
-
-            // Tìm lại các record PENDING đã tạo ở bước xin link
-            List<RoomImage> pendingImages = roomImageRepository.findByImageUrlIn(objectKeys);
-
+        if (!pendingImages.isEmpty()) {
             for (RoomImage img : pendingImages) {
                 newImagesReq.stream()
                         .filter(req -> req.getObjectKey().equals(img.getImageUrl()))
                         .findFirst()
                         .ifPresent(req -> {
-                            img.setStatus(MediaStatus.ACTIVE); // 👉 LẬT CỜ CHỐT SỔ!
-                            img.setIsCover(req.getIsCover());
-                            img.setDisplayOrder(req.getSortOrder());
-                            img.setRoomId(roomId); // Map chắc chắn vào phòng này
+                            img.setStatus(MediaStatus.ACTIVE);
+                            img.setIsCover(Boolean.TRUE.equals(req.getIsCover()));
+                            img.setDisplayOrder(req.getSortOrder() != null ? req.getSortOrder() : 0);
+                            img.setRoomId(roomId);
                         });
+
+                imagesToSave.add(img);
             }
-            roomImageRepository.saveAll(pendingImages);
+        }
+
+        normalizeCoverImage(imagesToSave);
+
+        if (!imagesToSave.isEmpty()) {
+            List<RoomImage> savedImages = roomImageRepository.saveAllAndFlush(imagesToSave);
+
+            System.out.println("saved room images size = " + savedImages.size());
+            savedImages.forEach(img -> System.out.println(
+                    "saved image id=" + img.getId()
+                            + ", roomId=" + img.getRoomId()
+                            + ", imageUrl=" + img.getImageUrl()
+                            + ", status=" + img.getStatus()
+                            + ", isCover=" + img.getIsCover()
+            ));
         }
     }
+    private void normalizeCoverImage(List<RoomImage> images) {
+        if (CollectionUtils.isEmpty(images)) {
+            return;
+        }
 
+        List<RoomImage> sortedImages = images.stream()
+                .sorted(Comparator.comparing(
+                        image -> image.getDisplayOrder() == null ? 999 : image.getDisplayOrder()
+                ))
+                .toList();
+
+        boolean hasCover = sortedImages.stream()
+                .anyMatch(image -> Boolean.TRUE.equals(image.getIsCover()));
+
+        if (!hasCover) {
+            sortedImages.get(0).setIsCover(true);
+            return;
+        }
+
+        boolean firstCoverFound = false;
+
+        for (RoomImage image : sortedImages) {
+            if (Boolean.TRUE.equals(image.getIsCover())) {
+                if (!firstCoverFound) {
+                    firstCoverFound = true;
+                } else {
+                    image.setIsCover(false);
+                }
+            }
+        }
+    }
     @Override
     @Transactional
     public List<PresignedUrlResponse> prepareHomestayRoomImageBatch(Long ownerId, MultiRoomBatchUploadRequest request) {
@@ -658,9 +725,9 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
                         .build());
             }
         }
-
+        System.out.println( "allNewImages " + allNewImages);
         if (!allNewImages.isEmpty()) {
-            roomImageRepository.saveAll(allNewImages);
+            System.out.println(roomImageRepository.saveAll(allNewImages));
         }
 
         return responseList;
@@ -712,7 +779,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     }
 
     /**
-     * Update existing images (keep, delete, reorder, update cover)
+     * Update existing images (keep, delete, reorder, update cover)updateRooms
      */
     private void updateExistingImages(Long roomId, List<ExistingImageRequest> existingImageRequests) {
         if (CollectionUtils.isEmpty(existingImageRequests)) {

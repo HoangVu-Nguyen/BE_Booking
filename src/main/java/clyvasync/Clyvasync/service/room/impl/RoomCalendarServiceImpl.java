@@ -18,6 +18,7 @@ import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RoomCalendarService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
+import clyvasync.Clyvasync.utils.MediaUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -43,8 +44,9 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
     private final RoomImageRepository roomImageRepository;
     private final RoomRatePlanRepository roomRatePlanRepository;
     private final RatePlanCalendarRepository ratePlanCalendarRepository;
+    private final MediaUtil mediaUtil;
 
-    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService, @Lazy HomestayService homestayService, UserService userService, RoomBedRepository roomBedRepository, RoomImageRepository roomImageRepository, RoomRatePlanRepository roomRatePlanRepository, RatePlanCalendarRepository ratePlanCalendarRepository) {
+    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService, @Lazy HomestayService homestayService, UserService userService, RoomBedRepository roomBedRepository, RoomImageRepository roomImageRepository, RoomRatePlanRepository roomRatePlanRepository, RatePlanCalendarRepository ratePlanCalendarRepository,MediaUtil mediaUtil) {
         this.roomCalendarRepository = roomCalendarRepository;
         this.homestayRoomService = homestayRoomService;
         this.bookingDetailService = bookingDetailService;
@@ -55,6 +57,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         this.roomImageRepository = roomImageRepository;
         this.roomRatePlanRepository = roomRatePlanRepository;
         this.ratePlanCalendarRepository = ratePlanCalendarRepository;
+        this.mediaUtil = mediaUtil;
     }
 
     @Override
@@ -156,7 +159,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
 
             List<RoomImage> roomImages = imagesMap.getOrDefault(room.getId(), Collections.emptyList());
             List<RoomImageResponse> imageResponses = roomImages.stream()
-                    .map(img -> new RoomImageResponse(img.getId(), img.getImageUrl(), img.getIsCover()))
+                    .map(img -> new RoomImageResponse(img.getId(), this.mediaUtil.toCdnUrl(img.getImageUrl()) , img.getIsCover()))
                     .toList();
 
             List<RoomBed> roomBeds = bedsMap.getOrDefault(room.getId(), Collections.emptyList());

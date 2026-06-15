@@ -17,4 +17,8 @@ public interface RoomImageRepository extends JpaRepository<RoomImage, Long> {
 
     void deleteByRoomIdAndIdNotIn(Long roomId, List<Long> imageIds);
     List<RoomImage> findByImageUrlIn(List<String> imageUrls);
+    List<RoomImage> findByRoomIdAndIdIn(Long roomId, List<Long> ids);
+    List<RoomImage> findByRoomIdAndImageUrlIn(Long roomId, List<String> imageUrls);
+
+
 }
