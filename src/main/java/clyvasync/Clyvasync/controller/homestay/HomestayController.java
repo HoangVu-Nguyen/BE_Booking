@@ -77,6 +77,7 @@ public class HomestayController {
             @PathVariable Long id,
             @Valid @RequestBody HomestayRequest request,
             @CurrentUserId Long ownerId) {
+        System.out.println(request);
         return ApiResponse.success(homestayService.updateHomestay(id, request, ownerId));
     }
 

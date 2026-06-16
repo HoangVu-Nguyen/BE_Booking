@@ -30,4 +30,5 @@ public class HomestayRequest {
     private Integer numBedrooms;
     private Integer numBathrooms;
     private Set<Long> amenityIds;
+    private List<ImageSubmitRequest> images;
 }

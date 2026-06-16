@@ -5,6 +5,7 @@ package clyvasync.Clyvasync.service.homestay;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
+import clyvasync.Clyvasync.dto.request.MultiRoomBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import org.springframework.data.domain.Page;

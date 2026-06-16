@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.homestay;
 
 import clyvasync.Clyvasync.dto.request.BatchUploadRequest;
+import clyvasync.Clyvasync.dto.request.MultiRoomBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.PresignedUrlResponse;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
 
@@ -15,5 +16,8 @@ public interface HomestayImageService {
     List<HomestayImage> saveAll(List<HomestayImage> homestayImages);
     List<PresignedUrlResponse> prepareHomestayImagesBatch(Long ownerId, BatchUploadRequest batchRequest);
     List<HomestayImage> findByImageUrlIn(List<String> imageUrls);
+    List<PresignedUrlResponse> prepareHomestayImageBatch(Long ownerId, MultiRoomBatchUploadRequest batchRequest);
+    void evictHomestayImagesCache(Long homestayId);
+
 
 }

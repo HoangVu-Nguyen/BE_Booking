@@ -2,9 +2,7 @@ package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.detail.PropertyStats;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
-import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
-import clyvasync.Clyvasync.dto.request.HomestayRequest;
-import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
+import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
@@ -87,8 +85,9 @@ public class HomestayServiceImpl implements HomestayService {
     private final MediaUtil mediaUtil;
     private final RatePlanCalendarRepository ratePlanCalendarRepository;
     private final RoomRatePlanService roomRatePlanService;
+    private final HomestayImageRepository homestayImageRepository;
 
-    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService) {
+    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService,HomestayImageRepository homestayImageRepository) {
         this.homestayRepository = homestayRepository;
         this.homestayMapper = homestayMapper;
         this.amenityService = amenityService;
@@ -107,6 +106,7 @@ public class HomestayServiceImpl implements HomestayService {
         this.mediaUtil = mediaUtil;
         this.ratePlanCalendarRepository = ratePlanCalendarRepository;
         this.roomRatePlanService = roomRatePlanService;
+        this.homestayImageRepository = homestayImageRepository;
     }
 
     @Override
@@ -140,6 +140,7 @@ public class HomestayServiceImpl implements HomestayService {
 
     @Override
     @IsHomestayOwner
+    @Transactional
     public HomestayResponse updateHomestay(Long id, HomestayRequest request, Long ownerId) {
         // 1. Fetch entity
         Homestay homestay = homestayRepository.findById(id)
@@ -152,10 +153,10 @@ public class HomestayServiceImpl implements HomestayService {
         Homestay updatedHomestay = homestayRepository.save(homestay);
 
         // 4. Handle images
-        if (!CollectionUtils.isEmpty(request.getObjectKeys())) {
             processHomestayImages(updatedHomestay, request);
 
-        }
+
+        this.homestayImageService.evictHomestayImagesCache(id);
 
         // 5. Build response with batch queries
         return buildHomestayResponse(updatedHomestay);
@@ -176,23 +177,61 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     private void processHomestayImages(Homestay homestay, HomestayRequest request) {
-        if (request == null || CollectionUtils.isEmpty(request.getObjectKeys())) {
-            return;
+        List<ImageSubmitRequest> imageReqs = request.getImages();
+        Long homestayId = homestay.getId();
+
+        // 1. Lấy tất cả ảnh hiện có trong DB ra trước (để Hibernate quản lý các object này)
+        List<HomestayImage> existingImages = homestayImageRepository.findByHomestayId(homestayId);
+
+        // 2. Xác định các ID cần xóa
+        Set<Long> keepIds = imageReqs.stream()
+                .map(ImageSubmitRequest::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // 3. Xóa những ảnh ACTIVE không nằm trong danh sách keepIds
+        // Thay vì chạy câu lệnh delete trực tiếp, hãy để JPA quản lý danh sách object
+        List<HomestayImage> toDelete = existingImages.stream()
+                .filter(img -> MediaStatus.ACTIVE.equals(img.getStatus()) && !keepIds.contains(img.getId()))
+                .toList();
+
+        if (!toDelete.isEmpty()) {
+            homestayImageRepository.deleteAll(toDelete);
+            // Quan trọng: Xóa khỏi list đang làm việc để không bị merge nhầm
+            existingImages.removeAll(toDelete);
         }
 
-        List<HomestayImage> imagesToMap = homestayImageService.findByImageUrlIn(request.getObjectKeys());
-
-        if (CollectionUtils.isEmpty(imagesToMap)) {
-            return;
-        }
-
-        imagesToMap.forEach(img -> {
-            img.setHomestayId(homestay.getId());
-            img.setStatus(MediaStatus.ACTIVE);
-            img.setDisplayOrder(imagesToMap.indexOf(img)); // Preserve order
+        // 4. Update các ảnh còn giữ lại (existingImages hiện tại đã sạch)
+        existingImages.forEach(img -> {
+            imageReqs.stream().filter(r -> r.getId() != null && r.getId().equals(img.getId()))
+                    .findFirst().ifPresent(r -> {
+                        img.setDisplayOrder(r.getSortOrder());
+                        img.setIsPrimary(r.getIsCover());
+                    });
         });
+        homestayImageRepository.saveAll(existingImages);
 
-        homestayImageService.saveAll(imagesToMap);
+        // 5. Active các ảnh mới (PENDING -> ACTIVE)
+        List<String> newKeys = imageReqs.stream()
+                .map(ImageSubmitRequest::getObjectKey)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (!newKeys.isEmpty()) {
+            List<HomestayImage> pendingImages = homestayImageRepository.findByImageUrlIn(newKeys);
+            pendingImages.forEach(img -> {
+                ImageSubmitRequest req = imageReqs.stream()
+                        .filter(r -> r.getObjectKey() != null && r.getObjectKey().equals(img.getImageUrl()))
+                        .findFirst().orElse(null);
+                if (req != null) {
+                    img.setHomestayId(homestayId);
+                    img.setStatus(MediaStatus.ACTIVE);
+                    img.setDisplayOrder(req.getSortOrder());
+                    img.setIsPrimary(req.getIsCover());
+                }
+            });
+            homestayImageRepository.saveAll(pendingImages);
+        }
     }
 
     private HomestayResponse buildHomestayResponse(Homestay homestay) {
@@ -1055,6 +1094,8 @@ public class HomestayServiceImpl implements HomestayService {
     public Long getOwnerIdByHomestayId(Long homestayId) {
         return homestayRepository.getOwnerIdByHomestayId(homestayId);
     }
+
+
 
     private List<GlobalSearchResponse> mapHomestaysToResponse(List<Homestay> homestays) {
         if (homestays.isEmpty()) return List.of();

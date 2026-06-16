@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.request.BatchUploadRequest;
+import clyvasync.Clyvasync.dto.request.MultiRoomBatchUploadRequest;
 import clyvasync.Clyvasync.dto.request.UploadRequest;
 import clyvasync.Clyvasync.dto.response.PresignedUrlResponse;
 import clyvasync.Clyvasync.enums.media.MediaStatus;
@@ -11,9 +12,11 @@ import clyvasync.Clyvasync.service.media.S3Service;
 import clyvasync.Clyvasync.utils.MediaUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,23 +67,29 @@ public class HomestayImageServiceImpl implements HomestayImageService {
     @Override
     @Transactional
     public List<PresignedUrlResponse> prepareHomestayImagesBatch(Long ownerId, BatchUploadRequest batchRequest) {
+        Long homestayId = batchRequest.getTargetId();
         List<UploadRequest> items = batchRequest.getItems();
+
+        if (CollectionUtils.isEmpty(items)) return List.of();
+
         List<PresignedUrlResponse> responses = new ArrayList<>(items.size());
         List<HomestayImage> pendingImages = new ArrayList<>();
 
         for (UploadRequest item : items) {
-            String objectKey = mediaUtil.generateObjectKey(ownerId,item);
+            String objectKey = mediaUtil.generateObjectKey(ownerId, item);
             String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());
 
             HomestayImage image = HomestayImage.builder()
-                    .homestayId(null)
+                    .homestayId(homestayId)
                     .imageUrl(objectKey)
-                    .isPrimary(pendingImages.isEmpty())
+                    .isPrimary(item.getIsCover() != null ? item.getIsCover() : false)
+                    .displayOrder(item.getSortOrder() != null ? item.getSortOrder() : 0)
                     .status(MediaStatus.PENDING)
                     .build();
             pendingImages.add(image);
 
             responses.add(PresignedUrlResponse.builder()
+                    .fileName(item.getFileName())
                     .uploadUrl(presignedUrl)
                     .objectKey(objectKey)
                     .build());
@@ -93,5 +102,15 @@ public class HomestayImageServiceImpl implements HomestayImageService {
     @Override
     public List<HomestayImage> findByImageUrlIn(List<String> imageUrls) {
         return homestayImageRepository.findByImageUrlIn(imageUrls);
+    }
+
+    @Override
+    public List<PresignedUrlResponse> prepareHomestayImageBatch(Long ownerId, MultiRoomBatchUploadRequest batchRequest) {
+        return List.of();
+    }
+    @Override
+    @CacheEvict(value = "homestay_images", key = "#homestayId")
+    public void evictHomestayImagesCache(Long homestayId) {
+        log.info("Xóa cache ảnh cho homestay: {}", homestayId);
     }
 }
