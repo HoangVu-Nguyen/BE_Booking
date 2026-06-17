@@ -53,11 +53,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.net.URLEncoder;
 
 @Service
 @RequiredArgsConstructor
@@ -376,139 +378,283 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public List<HostBookingItemResponse> getHostBookings(Long ownerId) {
-        // 1. Tìm tất cả Homestay của Host này
-        // Giả sử bác có hàm findByOwnerId ở homestayService, nếu chưa có bác bổ sung nhé
-        List<Homestay> hostHomestays = homestayService.findByOwnerId(ownerId);
-        if (hostHomestays.isEmpty()) return List.of();
+        List<Homestay> hostHomestays = Optional
+                .ofNullable(homestayService.findByOwnerId(ownerId))
+                .orElseGet(List::of);
 
-        List<Long> homestayIds = hostHomestays.stream().map(Homestay::getId).toList();
-        Map<Long, String> homestayNameMap = hostHomestays.stream()
-                .collect(Collectors.toMap(Homestay::getId, Homestay::getName));
+        if (hostHomestays.isEmpty()) {
+            return List.of();
+        }
 
+        List<Long> homestayIds = hostHomestays.stream()
+                .map(Homestay::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
-        // 2. Lấy toàn bộ Hóa đơn thuộc các Homestay này
-        List<Booking> bookings = bookingRepository.findByHomestayIdInOrderByCreatedAtDesc(homestayIds);
-        if (bookings.isEmpty()) return List.of();
+        if (homestayIds.isEmpty()) {
+            return List.of();
+        }
 
-        // 3. Lấy toàn bộ Chi tiết đặt phòng (Booking Details) một lần duy nhất
-        List<Long> bookingIds = bookings.stream().map(Booking::getId).toList();
-        List<BookingDetail> details = bookingDetailService.findByBookingIdIn(bookingIds);
+        Map<Long, String> homestayNameMap = new HashMap<>();
+        for (Homestay home : hostHomestays) {
+            if (home.getId() != null) {
+                homestayNameMap.put(home.getId(), home.getName() != null ? home.getName() : "N/A");
+            }
+        }
+
+        List<Booking> bookings = Optional
+                .ofNullable(bookingRepository.findByHomestayIdInOrderByCreatedAtDesc(homestayIds))
+                .orElseGet(List::of);
+
+        if (bookings.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> bookingIds = bookings.stream()
+                .map(Booking::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (bookingIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<BookingDetail> details = Optional
+                .ofNullable(bookingDetailService.findByBookingIdIn(bookingIds))
+                .orElseGet(List::of);
+
         Map<Long, BookingDetail> detailMap = details.stream()
-                .collect(Collectors.toMap(BookingDetail::getBookingId, d -> d, (d1, d2) -> d1));
-        List<TourBooking> allTourBookings = tourBookingService.findByHomestayBookingIdIn(bookingIds);
+                .filter(d -> d.getBookingId() != null)
+                .collect(Collectors.toMap(
+                        BookingDetail::getBookingId,
+                        Function.identity(),
+                        (d1, d2) -> d1
+                ));
+
+        List<TourBooking> allTourBookings = Optional
+                .ofNullable(tourBookingService.findByHomestayBookingIdIn(bookingIds))
+                .orElseGet(List::of);
+
         Map<Long, List<TourBooking>> bookingToursMap = allTourBookings.stream()
+                .filter(tb -> tb.getHomestayBookingId() != null)
                 .collect(Collectors.groupingBy(TourBooking::getHomestayBookingId));
-        List<Long> coreTourIds = allTourBookings.stream().map(TourBooking::getTourId).distinct().toList();
-        Map<Long, Tour> tourMap = tourService.findAllByIds(coreTourIds).stream()
-                .collect(Collectors.toMap(Tour::getId, t -> t));
-        Map<Long, String> tourImageMap = tourImageService.getPrimaryImagesByTourIds(coreTourIds);
-        List<TourAvailability> tourAvailabilities = tourAvailabilityService.findByIdIn(coreTourIds);
-        // CODE ĐÃ SỬA LỖI (AN TOÀN TUYỆT ĐỐI)
+
+        List<Long> coreTourIds = allTourBookings.stream()
+                .map(TourBooking::getTourId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        List<Tour> tours = coreTourIds.isEmpty()
+                ? List.of()
+                : Optional.ofNullable(tourService.findAllByIds(coreTourIds))
+                .orElseGet(List::of);
+
+        Map<Long, Tour> tourMap = tours.stream()
+                .filter(t -> t.getId() != null)
+                .collect(Collectors.toMap(
+                        Tour::getId,
+                        Function.identity(),
+                        (t1, t2) -> t1
+                ));
+
+        Map<Long, String> tourImageMap = coreTourIds.isEmpty()
+                ? Map.of()
+                : Optional.ofNullable(tourImageService.getPrimaryImagesByTourIds(coreTourIds))
+                .orElseGet(Map::of);
+
+        List<TourAvailability> tourAvailabilities = coreTourIds.isEmpty()
+                ? List.of()
+                : Optional.ofNullable(tourAvailabilityService.findByIdIn(coreTourIds))
+                .orElseGet(List::of);
+
         Map<Long, TourAvailability> tourAvailabilityMap = tourAvailabilities.stream()
+                .filter(t -> t.getTourId() != null)
                 .collect(Collectors.toMap(
                         TourAvailability::getTourId,
-                        t -> t,
-                        (existing, replacement) -> existing // QUAN TRỌNG: Nếu trùng ID, giữ lại cái có sẵn, bỏ qua cái mới
+                        Function.identity(),
+                        (existing, replacement) -> existing
                 ));
-        // 4. Lấy toàn bộ Thông tin Phòng (Rooms) một lần duy nhất
-        List<Long> roomIds = details.stream().map(BookingDetail::getRoomId).distinct().toList();
-        // Bác cần thêm hàm findAllByIds vào roomService nếu chưa có
-        List<HomestayRoom> rooms = roomService.findAllByIdIn(roomIds);
-        Map<Long, String> roomNameMap = rooms.stream()
-                .collect(Collectors.toMap(HomestayRoom::getId, HomestayRoom::getName));
-        Map<Long,String> roomImageMap = rooms.stream().collect(Collectors.toMap(HomestayRoom::getId,HomestayRoom::getImageUrl));
 
-        System.out.println(roomImageMap.size());
+        List<Long> roomIds = details.stream()
+                .map(BookingDetail::getRoomId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
 
-        // 5. ĐÓNG GÓI RA DTO (Mapping)
-        return bookings.stream().map(booking -> {
-            BookingDetail detail = detailMap.get(booking.getId());
-            if (detail == null) return null;
+        List<HomestayRoom> rooms = roomIds.isEmpty()
+                ? List.of()
+                : Optional.ofNullable(roomService.findAllByIdIn(roomIds))
+                .orElseGet(List::of);
 
-            long nights = java.time.temporal.ChronoUnit.DAYS.between(detail.getCheckInDate(), detail.getCheckOutDate());
+        Map<Long, String> roomNameMap = new HashMap<>();
+        Map<Long, String> roomImageMap = new HashMap<>();
 
-            // Xử lý logic hiển thị trạng thái và số tiền đã thanh toán
-            String uiStatus = "PENDING";
-            BigDecimal paidAmount = BigDecimal.ZERO;
-
-            if (PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
-                paidAmount = booking.getTotalPrice();
+        for (HomestayRoom room : rooms) {
+            if (room.getId() == null) {
+                continue;
             }
 
-            // Phân loại chính xác trạng thái từ DB để đẩy lên UI
-            if (BookingStatus.DRAFT.equals(booking.getStatus())) {
-                uiStatus = "DRAFT"; // Khách đang thao tác, giữ chỗ 15p
-            } else if (BookingStatus.PENDING.equals(booking.getStatus())) {
-                uiStatus = "PENDING"; // Khách đã gửi yêu cầu, chờ Host duyệt
-            } else if (BookingStatus.CONFIRMED.equals(booking.getStatus())) {
-                uiStatus = "CONFIRMED"; // Khách đã thanh toán / Host đã duyệt
-            } else if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
-                uiStatus = "CANCELLED"; // Đơn đã hủy (quá 15p hoặc khách hủy)
-            }else if(BookingStatus.AWAITING_PAYMENT.equals(booking.getStatus())){
-                uiStatus = "AWAITING_PAYMENT";
+            roomNameMap.put(
+                    room.getId(),
+                    room.getName() != null ? room.getName() : "N/A"
+            );
+
+            if (room.getImageUrl() != null && !room.getImageUrl().isBlank()) {
+                roomImageMap.put(room.getId(), room.getImageUrl());
             }
-            List<MiniTourInfor> comboTours = new ArrayList<>();
-            if (bookingToursMap.containsKey(booking.getId())) {
-                // TRONG VÒNG LẶP FOR LẤY TOUR
-                for (TourBooking tb : bookingToursMap.get(booking.getId())) {
-                    Tour coreTour = tourMap.get(tb.getTourId());
-                    if (coreTour == null) continue; // Bỏ qua nếu Tour lõi bị xóa mất
+        }
 
-                    String tourName = coreTour.getName();
-                    String tourImg = tourImageMap.getOrDefault(tb.getTourId(), ImageConstants.TOUR_DEFAULT);
+        return bookings.stream()
+                .map(booking -> {
+                    BookingDetail detail = detailMap.get(booking.getId());
 
-                    BigDecimal pricePerPerson = coreTour.getPricePerPerson() != null ? coreTour.getPricePerPerson() : BigDecimal.ZERO;
-                    BigDecimal totalTourPrice = pricePerPerson.multiply(BigDecimal.valueOf(tb.getParticipantCount()));
+                    if (detail == null) {
+                        return null;
+                    }
 
-                    // ---- ĐOẠN FIX LỖI Ở ĐÂY ----
-                    // Lấy object Availability từ Map ra, có thể bị NULL
-                    TourAvailability availability = tourAvailabilityMap.get(coreTour.getId());
+                    LocalDate checkInDate = detail.getCheckInDate();
+                    LocalDate checkOutDate = detail.getCheckOutDate();
 
-                    // Check an toàn: Nếu null thì truyền null, nếu có thì lấy ngày giờ
-                    LocalDate startDate = availability != null ? availability.getStartDate() : null;
-                    LocalTime startTime = availability != null ? availability.getStartTime() : null;
-                    // ----------------------------
+                    long nights = 0;
+                    if (checkInDate != null && checkOutDate != null) {
+                        nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
+                    }
 
-                    comboTours.add(new MiniTourInfor(
-                            tourName,
-                            tourImg,
-                            totalTourPrice,
-                            tb.getParticipantCount(),
-                            startDate, // Truyền biến an toàn đã check null
-                            startTime  // Truyền biến an toàn đã check null
-                    ));
-                }
-            }
-            String displayGuestName = booking.getGuestName() != null ? booking.getGuestName() : "Khách đang điền...";
-            String displayPhone = booking.getGuestPhone() != null ? booking.getGuestPhone() : "---";
-            String displayEmail = booking.getGuestEmail() != null ? booking.getGuestEmail() : "---";
+                    String uiStatus = "PENDING";
+                    BigDecimal paidAmount = BigDecimal.ZERO;
 
-            return HostBookingItemResponse.builder()
-                    .bookingCode(booking.getBookingCode())
-                    .guestName(displayGuestName)
-                    .guestPhone(displayPhone)
-                    .guestEmail(displayEmail)
-                    .guestAvatar("https://ui-avatars.com/api/?name=" + booking.getGuestName() + "&background=random") // Sinh avatar tự động
+                    if (PaymentStatus.PAID.equals(booking.getPaymentStatus())) {
+                        paidAmount = booking.getTotalPrice() != null
+                                ? booking.getTotalPrice()
+                                : BigDecimal.ZERO;
+                    }
 
-                    .homestayName(homestayNameMap.getOrDefault(booking.getHomestayId(), "N/A"))
-                    .roomName(roomNameMap.getOrDefault(detail.getRoomId(), "N/A"))
-                    .roomImage(roomImageMap.getOrDefault(detail.getRoomId(), "N/A"))
+                    if (BookingStatus.DRAFT.equals(booking.getStatus())) {
+                        uiStatus = "DRAFT";
+                    } else if (BookingStatus.PENDING.equals(booking.getStatus())) {
+                        uiStatus = "PENDING";
+                    } else if (BookingStatus.CONFIRMED.equals(booking.getStatus())) {
+                        uiStatus = "CONFIRMED";
+                    } else if (BookingStatus.CANCELLED.equals(booking.getStatus())) {
+                        uiStatus = "CANCELLED";
+                    } else if (BookingStatus.AWAITING_PAYMENT.equals(booking.getStatus())) {
+                        uiStatus = "AWAITING_PAYMENT";
+                    }
 
-                    .adults(detail.getGuestCount()) // Tạm lấy tổng guest_count làm người lớn
-                    .children(0)
+                    List<MiniTourInfor> comboTours = new ArrayList<>();
 
-                    // Ép kiểu Date sang LocalDateTime để ghép thêm giờ In/Out cho Frontend hiện đẹp
-                    .checkInDate(detail.getCheckInDate().atTime(14, 0))
-                    .checkOutDate(detail.getCheckOutDate().atTime(12, 0))
-                    .nights(nights)
+                    List<TourBooking> bookingTours = bookingToursMap.getOrDefault(
+                            booking.getId(),
+                            List.of()
+                    );
 
-                    .source("Website Trực tiếp") // Sau này mở rộng OTA (Agoda/Booking) thì tính tiếp
-                    .totalPrice(booking.getTotalPrice())
-                    .includedTours(comboTours)
-                    .paidAmount(paidAmount)
-                    .status(uiStatus)
-                    .build();
-        }).filter(Objects::nonNull).toList();
+                    for (TourBooking tb : bookingTours) {
+                        if (tb.getTourId() == null) {
+                            continue;
+                        }
+
+                        Tour coreTour = tourMap.get(tb.getTourId());
+
+                        if (coreTour == null) {
+                            continue;
+                        }
+
+                        String tourName = coreTour.getName() != null
+                                ? coreTour.getName()
+                                : "Tour";
+
+                        String tourImg = tourImageMap.getOrDefault(
+                                tb.getTourId(),
+                                ImageConstants.TOUR_DEFAULT
+                        );
+
+                        BigDecimal pricePerPerson = coreTour.getPricePerPerson() != null
+                                ? coreTour.getPricePerPerson()
+                                : BigDecimal.ZERO;
+
+                        int participantCount = tb.getParticipantCount() != null
+                                ? tb.getParticipantCount()
+                                : 0;
+
+                        BigDecimal totalTourPrice = pricePerPerson.multiply(
+                                BigDecimal.valueOf(participantCount)
+                        );
+
+                        TourAvailability availability = tourAvailabilityMap.get(coreTour.getId());
+
+                        LocalDate startDate = availability != null
+                                ? availability.getStartDate()
+                                : null;
+
+                        LocalTime startTime = availability != null
+                                ? availability.getStartTime()
+                                : null;
+
+                        comboTours.add(new MiniTourInfor(
+                                tourName,
+                                tourImg,
+                                totalTourPrice,
+                                participantCount,
+                                startDate,
+                                startTime
+                        ));
+                    }
+
+                    String displayGuestName = booking.getGuestName() != null && !booking.getGuestName().isBlank()
+                            ? booking.getGuestName()
+                            : "Khách đang điền...";
+
+                    String displayPhone = booking.getGuestPhone() != null && !booking.getGuestPhone().isBlank()
+                            ? booking.getGuestPhone()
+                            : "---";
+
+                    String displayEmail = booking.getGuestEmail() != null && !booking.getGuestEmail().isBlank()
+                            ? booking.getGuestEmail()
+                            : "---";
+
+                    String guestAvatarName = URLEncoder.encode(
+                            displayGuestName,
+                            StandardCharsets.UTF_8
+                    );
+
+                    LocalDateTime checkInDateTime = checkInDate != null
+                            ? checkInDate.atTime(14, 0)
+                            : null;
+
+                    LocalDateTime checkOutDateTime = checkOutDate != null
+                            ? checkOutDate.atTime(12, 0)
+                            : null;
+
+                    return HostBookingItemResponse.builder()
+                            .bookingCode(booking.getBookingCode())
+                            .guestName(displayGuestName)
+                            .guestPhone(displayPhone)
+                            .guestEmail(displayEmail)
+                            .guestAvatar("https://ui-avatars.com/api/?name=" + guestAvatarName + "&background=random")
+
+                            .homestayName(homestayNameMap.getOrDefault(booking.getHomestayId(), "N/A"))
+                            .roomName(roomNameMap.getOrDefault(detail.getRoomId(), "N/A"))
+                            .roomImage(roomImageMap.getOrDefault(detail.getRoomId(), ImageConstants.ROOM_DEFAULT))
+
+                            .adults(detail.getGuestCount() != null ? detail.getGuestCount() : 0)
+                            .children(0)
+
+                            .checkInDate(checkInDateTime)
+                            .checkOutDate(checkOutDateTime)
+                            .nights(nights)
+
+                            .source("Website Trực tiếp")
+                            .totalPrice(booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO)
+                            .includedTours(comboTours)
+                            .paidAmount(paidAmount)
+                            .status(uiStatus)
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     @Override
