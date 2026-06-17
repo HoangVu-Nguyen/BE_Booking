@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@ToString
 public class HomestayRoom {
 
     @Id

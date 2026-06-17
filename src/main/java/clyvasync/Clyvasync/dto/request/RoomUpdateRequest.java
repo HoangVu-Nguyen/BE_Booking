@@ -20,7 +20,8 @@ public class RoomUpdateRequest {
     private String area;
     private Boolean hasPrivateBathroom;
     private Integer sortOrder;
-
+    private Boolean isInstantBook;
     private List<BedRequest> beds;
     private List<ImageSubmitRequest> images;
+    private List<RatePlanSubmitRequest> ratePlans;
 }

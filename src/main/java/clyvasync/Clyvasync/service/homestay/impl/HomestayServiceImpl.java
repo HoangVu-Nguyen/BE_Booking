@@ -180,7 +180,6 @@ public class HomestayServiceImpl implements HomestayService {
         List<ImageSubmitRequest> imageReqs = request.getImages();
         Long homestayId = homestay.getId();
 
-        // 1. Lấy tất cả ảnh hiện có trong DB ra trước (để Hibernate quản lý các object này)
         List<HomestayImage> existingImages = homestayImageRepository.findByHomestayId(homestayId);
 
         // 2. Xác định các ID cần xóa
@@ -261,13 +260,17 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     private void loadLocationAndCategory(HomestayResponse response, Homestay homestay) {
-        Map<Integer, String> locationsMap = locationService.getLocationNamesMap(
-                List.of(homestay.getLocationId()));
-        response.setCityName(locationsMap.get(homestay.getLocationId()));
+        if (homestay.getLocationId() != null) {
+            Map<Integer, String> locationsMap = locationService.getLocationNamesMap(
+                    List.of(homestay.getLocationId()));
+            response.setCityName(locationsMap.get(homestay.getLocationId()));
+        }
 
-        Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(
-                List.of(homestay.getCategoryId()));
-        response.setCategoryName(categoriesMap.get(homestay.getCategoryId()));
+        if (homestay.getCategoryId() != null) {
+            Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(
+                    List.of(homestay.getCategoryId()));
+            response.setCategoryName(categoriesMap.get(homestay.getCategoryId()));
+        }
     }
 
     private void loadRoomSummaries(HomestayResponse response, Long homestayId) {
@@ -543,17 +546,39 @@ public class HomestayServiceImpl implements HomestayService {
         Homestay homestay = homestayRepository.findById(id)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
 
-        List<String> images = mediaUtil.toCdnUrls(
-                homestayImageService.getImagesByHomestayId(id)
-        );
+        List<HomestayImage> homestayImages =
+                homestayImageRepository.findByHomestayId(homestay.getId());
+
+        List<HomestayImageResponse> images = homestayImages.stream()
+                .filter(img -> MediaStatus.ACTIVE.equals(img.getStatus()))
+                .sorted(Comparator.comparing(
+                        HomestayImage::getDisplayOrder,
+                        Comparator.nullsLast(Integer::compareTo)
+                ))
+                .map(img -> HomestayImageResponse.builder()
+                        .id(img.getId())
+                        .objectKey(img.getImageUrl())
+                        .imageUrl(mediaUtil.toCdnUrl(img.getImageUrl()))
+                        .isCover(img.getIsPrimary())
+                        .displayOrder(img.getDisplayOrder())
+                        .build())
+                .toList();
+
 
         List<AmenityResponse> amenities = amenityService.getAmenitiesByHomestayId(id);
 
-        String cityName = locationService.getLocationNamesMap(List.of(homestay.getLocationId()))
-                .get(homestay.getLocationId());
+        String cityName = null;
+        if (homestay.getLocationId() != null) {
+            cityName = locationService.getLocationNamesMap(List.of(homestay.getLocationId()))
+                    .get(homestay.getLocationId());
+        }
 
-        String categoryName = categoryService.getCategoryNamesMap(List.of(homestay.getCategoryId()))
-                .get(homestay.getCategoryId());
+        String categoryName = null;
+        if (homestay.getCategoryId() != null) {
+            categoryName = categoryService.getCategoryNamesMap(List.of(homestay.getCategoryId()))
+                    .get(homestay.getCategoryId());
+        }
+
         List<ReviewResponse> reviews = reviewService.getReviewsByHomestayId(id);
         List<RoomResponse> rooms;
         if (checkIn != null && checkOut != null) {
@@ -578,7 +603,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .reviewCount(homestay.getReviewCount())
                 .cityName(cityName)
                 .categoryName(categoryName)
-                .imageUrls(images)
+                .images(images)
                 .amenities(amenities)
                 .isFavorite(favoriteService.existsHomestayFavoriteByHomestayId(homestay.getId()))
                 .owner(userService.getOwnerInfo(homestay.getOwnerId()))
