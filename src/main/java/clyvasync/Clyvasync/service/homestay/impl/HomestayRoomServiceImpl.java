@@ -301,14 +301,29 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     @Override
     @Transactional(readOnly = true)
     public Map<Long, String> getRoomImageMap(List<Long> roomIds) {
-        List<RoomImageProjection> projections =
-                roomRepository.findRoomImagesByIdIn(roomIds);
+        if (roomIds == null || roomIds.isEmpty()) {
+            return Map.of();
+        }
 
-        return projections.stream()
+        List<RoomImage> images = Optional
+                .ofNullable(roomImageRepository.findByRoomIdIn(roomIds))
+                .orElseGet(List::of);
+
+        return images.stream()
+                .filter(img -> img.getRoomId() != null)
+                .filter(img -> img.getImageUrl() != null && !img.getImageUrl().isBlank())
+                .sorted(Comparator.comparing(
+                        RoomImage::getDisplayOrder,
+                        Comparator.nullsLast(Integer::compareTo)
+                ))
                 .collect(Collectors.toMap(
-                        RoomImageProjection::getRoomId,
-                        RoomImageProjection::getImageUrl,
-                        (existing, replacement) -> existing
+                        RoomImage::getRoomId,
+                        img -> {
+                            String cdnUrl = mediaUtil.toCdnUrl(img.getImageUrl());
+                            return cdnUrl != null ? cdnUrl : "";
+                        },
+                        (oldValue, newValue) -> oldValue,
+                        LinkedHashMap::new
                 ));
     }
 

@@ -180,7 +180,6 @@ public class HomestayServiceImpl implements HomestayService {
         List<ImageSubmitRequest> imageReqs = request.getImages();
         Long homestayId = homestay.getId();
 
-        // 1. Lấy tất cả ảnh hiện có trong DB ra trước (để Hibernate quản lý các object này)
         List<HomestayImage> existingImages = homestayImageRepository.findByHomestayId(homestayId);
 
         // 2. Xác định các ID cần xóa
@@ -543,9 +542,24 @@ public class HomestayServiceImpl implements HomestayService {
         Homestay homestay = homestayRepository.findById(id)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
 
-        List<String> images = mediaUtil.toCdnUrls(
-                homestayImageService.getImagesByHomestayId(id)
-        );
+        List<HomestayImage> homestayImages =
+                homestayImageRepository.findByHomestayId(homestay.getId());
+
+        List<HomestayImageResponse> images = homestayImages.stream()
+                .filter(img -> MediaStatus.ACTIVE.equals(img.getStatus()))
+                .sorted(Comparator.comparing(
+                        HomestayImage::getDisplayOrder,
+                        Comparator.nullsLast(Integer::compareTo)
+                ))
+                .map(img -> HomestayImageResponse.builder()
+                        .id(img.getId())
+                        .objectKey(img.getImageUrl())
+                        .imageUrl(mediaUtil.toCdnUrl(img.getImageUrl()))
+                        .isCover(img.getIsPrimary())
+                        .displayOrder(img.getDisplayOrder())
+                        .build())
+                .toList();
+
 
         List<AmenityResponse> amenities = amenityService.getAmenitiesByHomestayId(id);
 
@@ -578,7 +592,7 @@ public class HomestayServiceImpl implements HomestayService {
                 .reviewCount(homestay.getReviewCount())
                 .cityName(cityName)
                 .categoryName(categoryName)
-                .imageUrls(images)
+                .images(images)
                 .amenities(amenities)
                 .isFavorite(favoriteService.existsHomestayFavoriteByHomestayId(homestay.getId()))
                 .owner(userService.getOwnerInfo(homestay.getOwnerId()))

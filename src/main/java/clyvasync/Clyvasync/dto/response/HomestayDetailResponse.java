@@ -31,7 +31,7 @@ public class HomestayDetailResponse {
     private String cityName;
     private HomestayStatus status;
 
-    private List<String> imageUrls;
+    private List<HomestayImageResponse> images;
 
     private List<AmenityResponse> amenities;
 
