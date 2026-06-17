@@ -21,8 +21,10 @@ public class RoomDisplayResponse {
     private Integer maxGuests;
     private String area;
     private Boolean hasPrivateBathroom;
+    private Boolean isInstantBook;
 
     private BigDecimal price;
+
 
     private List<BedResponse> beds;
     private List<RoomImageResponse> images;

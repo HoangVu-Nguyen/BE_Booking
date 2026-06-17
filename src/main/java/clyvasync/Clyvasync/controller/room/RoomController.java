@@ -51,6 +51,7 @@ public class RoomController {
     public ApiResponse<String> updateRooms(
             @CurrentUserId Long ownerId,
             @Valid @RequestBody RoomBatchUpdateRequest request) {
+        System.out.println(request);
 
         homestayRoomService.updateRooms(ownerId, request);
 

@@ -220,6 +220,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
 
                     response.setHighlights(highlightsMap.getOrDefault(room.getId(), List.of()));
                     response.setRatePlans(roomRatePlans);
+                    response.setInstantBook(room.getIsInstantBook());
                     response.setBeds(bedsMap.getOrDefault(room.getId(), List.of()));
                     response.setImages(imagesMap.getOrDefault(room.getId(), List.of()));
                     response.setInventory(inventoryMap.getOrDefault(room.getId(), List.of()));
@@ -339,8 +340,13 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     @Override
     @Transactional(readOnly = true)
     public List<RoomDisplayResponse> getRoomsByHomestayId(Long homestayId) {
-        List<HomestayRoom> rooms = roomRepository.findAllByHomestayId(homestayId);
 
+        List<HomestayRoom> rooms = roomRepository.findAllByHomestayId(homestayId);
+        rooms.forEach(room -> {
+            if (Objects.equals(room.getId(), 217L)) {
+                System.out.println(room);
+            }
+        });
         if (rooms.isEmpty()) {
             return List.of();
         }
@@ -382,6 +388,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
                 .id(room.getId())
                 .name(room.getName())
                 .type(room.getType())
+                .isInstantBook(room.getIsInstantBook())
                 .description(room.getDescription())
                 .maxGuests(room.getMaxGuests())
                 .area(room.getArea())
@@ -537,11 +544,57 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
             HomestayRoom room = createOrUpdateRoom(roomReq, request.getHomestayId());
 
             updateRoomBeds(room.getId(), roomReq.getBeds());
+            updateRoomRatePlans(room.getId(), roomReq.getRatePlans());
+
 
             processRoomImages(room.getId(), roomReq.getImages());
         }
 
     }
+    private void updateRoomRatePlans(Long roomId, List<RatePlanSubmitRequest> ratePlanRequests) {
+        if (CollectionUtils.isEmpty(ratePlanRequests)) {
+            return;
+        }
+
+        List<Long> requestRatePlanIds = ratePlanRequests.stream()
+                .map(RatePlanSubmitRequest::getId)
+                .filter(Objects::nonNull)
+                .toList();
+
+        Map<Long, RoomRatePlan> existingRatePlanMap = requestRatePlanIds.isEmpty()
+                ? Map.of()
+                : roomRatePlanRepository.findAllById(requestRatePlanIds)
+                .stream()
+                .filter(ratePlan -> Objects.equals(ratePlan.getRoomId(), roomId))
+                .collect(Collectors.toMap(RoomRatePlan::getId, ratePlan -> ratePlan));
+
+        List<RoomRatePlan> ratePlansToSave = new ArrayList<>();
+
+        for (RatePlanSubmitRequest ratePlanReq : ratePlanRequests) {
+            RoomRatePlan ratePlan;
+
+            if (ratePlanReq.getId() != null) {
+                ratePlan = existingRatePlanMap.get(ratePlanReq.getId());
+
+                if (ratePlan == null) {
+                    throw new AppException(ResultCode.INVALID_INPUT);
+                }
+            } else {
+                ratePlan = RoomRatePlan.builder()
+                        .roomId(roomId)
+                        .build();
+            }
+
+            ofNullable(ratePlanReq.getName()).ifPresent(ratePlan::setName);
+            ofNullable(ratePlanReq.getPrice()).ifPresent(ratePlan::setPrice);
+            ofNullable(ratePlanReq.getIsNonRefundable()).ifPresent(ratePlan::setIsNonRefundable);
+
+            ratePlansToSave.add(ratePlan);
+        }
+
+        roomRatePlanRepository.saveAll(ratePlansToSave);
+    }
+
     private void validateRequest(Long ownerId, RoomBatchUpdateRequest request) {
         if (request == null || CollectionUtils.isEmpty(request.getRooms())) {
             throw new AppException(ResultCode.INVALID_INPUT);
@@ -749,6 +802,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     }
 
     private HomestayRoom createOrUpdateRoom(RoomUpdateRequest roomReq, Long homestayId) {
+        System.out.println(roomReq);
         HomestayRoom room;
 
         if (roomReq.getId() != null) {
@@ -766,6 +820,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
         ofNullable(roomReq.getType()).ifPresent(name -> room.setType(RoomType.valueOf(name)));
         ofNullable(roomReq.getDescription()).ifPresent(room::setDescription);
         ofNullable(roomReq.getMaxGuests()).ifPresent(room::setMaxGuests);
+        ofNullable(roomReq.getIsInstantBook()).ifPresent(room::setIsInstantBook);
         ofNullable(roomReq.getArea()).ifPresent(room::setArea);
         ofNullable(roomReq.getHasPrivateBathroom()).ifPresent(room::setHasPrivateBathroom);
 

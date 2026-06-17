@@ -260,13 +260,17 @@ public class HomestayServiceImpl implements HomestayService {
     }
 
     private void loadLocationAndCategory(HomestayResponse response, Homestay homestay) {
-        Map<Integer, String> locationsMap = locationService.getLocationNamesMap(
-                List.of(homestay.getLocationId()));
-        response.setCityName(locationsMap.get(homestay.getLocationId()));
+        if (homestay.getLocationId() != null) {
+            Map<Integer, String> locationsMap = locationService.getLocationNamesMap(
+                    List.of(homestay.getLocationId()));
+            response.setCityName(locationsMap.get(homestay.getLocationId()));
+        }
 
-        Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(
-                List.of(homestay.getCategoryId()));
-        response.setCategoryName(categoriesMap.get(homestay.getCategoryId()));
+        if (homestay.getCategoryId() != null) {
+            Map<Integer, String> categoriesMap = categoryService.getCategoryNamesMap(
+                    List.of(homestay.getCategoryId()));
+            response.setCategoryName(categoriesMap.get(homestay.getCategoryId()));
+        }
     }
 
     private void loadRoomSummaries(HomestayResponse response, Long homestayId) {
@@ -563,11 +567,18 @@ public class HomestayServiceImpl implements HomestayService {
 
         List<AmenityResponse> amenities = amenityService.getAmenitiesByHomestayId(id);
 
-        String cityName = locationService.getLocationNamesMap(List.of(homestay.getLocationId()))
-                .get(homestay.getLocationId());
+        String cityName = null;
+        if (homestay.getLocationId() != null) {
+            cityName = locationService.getLocationNamesMap(List.of(homestay.getLocationId()))
+                    .get(homestay.getLocationId());
+        }
 
-        String categoryName = categoryService.getCategoryNamesMap(List.of(homestay.getCategoryId()))
-                .get(homestay.getCategoryId());
+        String categoryName = null;
+        if (homestay.getCategoryId() != null) {
+            categoryName = categoryService.getCategoryNamesMap(List.of(homestay.getCategoryId()))
+                    .get(homestay.getCategoryId());
+        }
+
         List<ReviewResponse> reviews = reviewService.getReviewsByHomestayId(id);
         List<RoomResponse> rooms;
         if (checkIn != null && checkOut != null) {

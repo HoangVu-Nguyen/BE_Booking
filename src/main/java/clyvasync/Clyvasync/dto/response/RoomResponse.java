@@ -20,6 +20,7 @@ public class RoomResponse {
     private Integer maxGuests;
     private Integer bedCount;
     private int availableQuantity;
+    private boolean isInstantBook;
 
     private List<AmenityHighlightResponse> highlights;
 
