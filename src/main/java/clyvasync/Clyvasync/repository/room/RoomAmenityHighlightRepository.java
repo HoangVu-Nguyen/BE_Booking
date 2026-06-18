@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
 import clyvasync.Clyvasync.modules.room.RoomAmenityHighlight;
 import clyvasync.Clyvasync.modules.room.RoomAmenityHighlightId; // Import cái ID class
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
@@ -30,5 +31,8 @@ public interface RoomAmenityHighlightRepository extends JpaRepository<RoomAmenit
 """)
     List<Object[]> findHighlightsByRoomIds(@Param("roomIds") List<Long> roomIds);
     List<RoomAmenityHighlight> findByRoomId(Long roomId);
-    void deleteByRoomId(Long roomId);
+
+    @Modifying
+    @Query("DELETE FROM RoomAmenityHighlight r WHERE r.roomId = :roomId")
+    void deleteAllByRoomId(Long roomId);
 }

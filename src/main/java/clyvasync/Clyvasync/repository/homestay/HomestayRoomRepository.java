@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long> {
@@ -60,4 +61,6 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
     @Query("SELECT ri.id AS roomId, ri.imageUrl AS imageUrl FROM HomestayRoom ri WHERE ri.id IN :roomIds")
     List<RoomImageProjection> findRoomImagesByIdIn(@Param("roomIds") List<Long> roomIds);
     List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, String status);
+    Optional<HomestayRoom> findByIdAndHomestayId(Long id, Long homestayId);
+
 }

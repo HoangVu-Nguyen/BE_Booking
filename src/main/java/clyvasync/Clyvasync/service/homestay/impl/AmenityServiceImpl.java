@@ -5,6 +5,7 @@ import clyvasync.Clyvasync.dto.request.UpdateHomestayAmenitiesRequest;
 import clyvasync.Clyvasync.dto.request.UpdateRoomAmenityHighlightsRequest;
 import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
 import clyvasync.Clyvasync.dto.response.AmenityResponse;
+import clyvasync.Clyvasync.dto.response.RoomAmenityHighlightResponse;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.mapper.homestay.AmenityMapper;
@@ -26,10 +27,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -179,7 +178,7 @@ public class AmenityServiceImpl implements AmenityService {
 
         validateAmenityIds(amenityIds);
 
-        roomAmenityHighlightRepository.deleteByRoomId(roomId);
+        roomAmenityHighlightRepository.deleteAllByRoomId(roomId);
 
         List<RoomAmenityHighlight> newItems = highlights.stream()
                 .map(item -> {
@@ -193,15 +192,132 @@ public class AmenityServiceImpl implements AmenityService {
 
         roomAmenityHighlightRepository.saveAll(newItems);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoomAmenityHighlightResponse> getRoomAmenityHighlights(
+            Long homestayId,
+            Long roomId
+    ) {
+        validateRoomBelongsToHomestay(homestayId, roomId);
+
+        List<RoomAmenityHighlight> highlights =
+                roomAmenityHighlightRepository.findByRoomId(roomId);
+
+        if (highlights.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Integer> amenityIds = highlights.stream()
+                .map(RoomAmenityHighlight::getAmenityId)
+                .collect(Collectors.toSet());
+
+        Map<Integer, Amenity> amenityMap = amenityRepository.findAllByIdIn(amenityIds)
+                .stream()
+                .collect(Collectors.toMap(Amenity::getId, Function.identity()));
+
+        return highlights.stream()
+                .map(item -> {
+                    Amenity amenity = amenityMap.get(item.getAmenityId());
+
+                    if (amenity == null) {
+                        return null;
+                    }
+
+                    return RoomAmenityHighlightResponse.builder()
+                            .roomId(item.getRoomId())
+                            .amenityId(amenity.getId())
+                            .name(amenity.getName())
+                            .iconName(amenity.getIconName())
+                            .groupName(amenity.getGroupName())
+                            .displayValue(item.getDisplayValue())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+    @Override
+    @Transactional
+    public void updateRoomAmenityHighlights(
+            Long homestayId,
+            Long roomId,
+            UpdateRoomAmenityHighlightsRequest request
+    ) {
+        validateRoomBelongsToHomestay(homestayId, roomId);
+
+        List<RoomAmenityHighlightRequest> highlights =
+                request.getHighlights() == null
+                        ? List.of()
+                        : request.getHighlights();
+
+        Map<Integer, String> displayValueByAmenityId = new LinkedHashMap<>();
+
+        for (RoomAmenityHighlightRequest item : highlights) {
+            if (item.getAmenityId() == null) {
+                continue;
+            }
+
+            displayValueByAmenityId.put(
+                    item.getAmenityId(),
+                    normalizeDisplayValue(item.getDisplayValue())
+            );
+        }
+
+        Set<Integer> amenityIds = displayValueByAmenityId.keySet();
+
+        validateAmenityIds(amenityIds);
+
+        roomAmenityHighlightRepository.deleteAllByRoomId(roomId);
+        roomAmenityHighlightRepository.flush();
+
+        if (amenityIds.isEmpty()) {
+            return;
+        }
+
+        List<RoomAmenityHighlight> entities = amenityIds.stream()
+                .map(amenityId -> RoomAmenityHighlight.builder()
+                        .roomId(roomId)
+                        .amenityId(amenityId)
+                        .displayValue(displayValueByAmenityId.get(amenityId))
+                        .build())
+                .toList();
+
+        roomAmenityHighlightRepository.saveAll(entities);
+    }
+
+    private void validateRoomBelongsToHomestay(Long homestayId, Long roomId) {
+        HomestayRoom room = homestayRoomRepository
+                .findByIdAndHomestayId(roomId, homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.ROOM_NOT_FOUND));
+    }
+
     private void validateAmenityIds(Set<Integer> amenityIds) {
         if (amenityIds == null || amenityIds.isEmpty()) {
             return;
         }
 
-        long count = amenityRepository.findAllByIdIn(amenityIds).size();
+        List<Amenity> amenities = amenityRepository.findAllByIdIn(amenityIds);
 
-        if (count != amenityIds.size()) {
-            throw new AppException(ResultCode.INVALID_INPUT);
+        if (amenities.size() != amenityIds.size()) {
+            throw new AppException(ResultCode.FIELD_REQUIRED);
         }
+    }
+
+    private String normalizeDisplayValue(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+
+        if (trimmed.isBlank()) {
+            return null;
+        }
+
+        if (trimmed.length() > 100) {
+            return trimmed.substring(0, 100);
+        }
+
+        return trimmed;
     }
 }
