@@ -88,10 +88,10 @@ public class AmenityServiceImpl implements AmenityService {
             UpdateHomestayAmenitiesRequest request
     ) {
         Homestay homestay = homestayRepository.findById(homestayId)
-                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+                .orElseThrow(() -> new EntityNotFoundException("Không tìm thấy homestay"));
 
         if (!homestay.getOwnerId().equals(ownerId)) {
-            throw new AppException(ResultCode.ACCESS_DENIED);
+            throw new RuntimeException("Bạn không có quyền cập nhật homestay này");
         }
 
         Set<Integer> amenityIds = request.getAmenityIds() == null
@@ -100,7 +100,12 @@ public class AmenityServiceImpl implements AmenityService {
 
         validateAmenityIds(amenityIds);
 
-        homestayAmenityRepository.deleteByHomestayId(homestayId);
+        homestayAmenityRepository.deleteAllByHomestayId(homestayId);
+        homestayAmenityRepository.flush();
+
+        if (amenityIds.isEmpty()) {
+            return;
+        }
 
         List<HomestayAmenity> newItems = amenityIds.stream()
                 .map(amenityId -> {
