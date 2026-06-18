@@ -133,7 +133,7 @@ public class AmenityServiceImpl implements AmenityService {
                     Amenity amenity = amenityMap.get(item.getAmenityId());
 
                     return AmenityHighlightResponse.builder()
-                            .id(item.getAmenityId())
+                            .roomId(Long.valueOf(item.getAmenityId()))
                             .name(amenity != null ? amenity.getName() : null)
                             .icon(amenity != null ? amenity.getIconName() : null)
                             .displayValue(item.getDisplayValue())
