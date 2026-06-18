@@ -10,7 +10,7 @@ import lombok.Data;
 @Data
 @Builder
 public class AmenityHighlightResponse {
-    private Integer id;
+    private Long roomId;
     private String name;
     private String icon;
     private String displayValue;
