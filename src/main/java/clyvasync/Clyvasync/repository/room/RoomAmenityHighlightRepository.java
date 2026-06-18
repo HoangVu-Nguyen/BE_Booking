@@ -29,4 +29,6 @@ public interface RoomAmenityHighlightRepository extends JpaRepository<RoomAmenit
     WHERE rah.roomId IN :roomIds
 """)
     List<Object[]> findHighlightsByRoomIds(@Param("roomIds") List<Long> roomIds);
+    List<RoomAmenityHighlight> findByRoomId(Long roomId);
+    void deleteByRoomId(Long roomId);
 }
