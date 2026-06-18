@@ -9,9 +9,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+
 public class AmenityResponse {
     private Integer id;
     private String name;
     private String iconName;
-    private String category;
+    private String groupName;
 }

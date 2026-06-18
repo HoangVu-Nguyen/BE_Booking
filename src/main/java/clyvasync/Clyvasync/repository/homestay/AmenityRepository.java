@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface AmenityRepository extends JpaRepository<Amenity, Long> {
     @Query("SELECT a FROM Amenity a " +
@@ -19,4 +20,8 @@ public interface AmenityRepository extends JpaRepository<Amenity, Long> {
             "JOIN HomestayAmenity ha ON a.id = ha.amenityId " +
             "WHERE ha.homestayId IN :homestayIds")
     List<AmenityBatchProjection> findAmenitiesByBatch(@Param("homestayIds") List<Long> homestayIds);
+    List<Amenity> findAllByOrderByGroupNameAscNameAsc();
+
+    List<Amenity> findByGroupNameOrderByNameAsc(String groupName);
+    List<Amenity> findAllByIdIn(Set<Integer> ids);
 }

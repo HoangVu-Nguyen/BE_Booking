@@ -6,5 +6,5 @@ import java.util.Set;
 
 @Data
 public class UpdateHomestayAmenitiesRequest {
-    private Set<Long> amenityIds;
+    private Set<Integer> amenityIds;
 }

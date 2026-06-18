@@ -14,7 +14,7 @@ public interface AmenityService {
     Map<Long, List<AmenityResponse>> getAmenitiesForHomestays(List<Long> homestayIds);
     List<AmenityResponse> getAllAmenities();
 
-    List<Long> getHomestayAmenityIds(Long homestayId);
+    List<Integer> getHomestayAmenityIds(Long homestayId);
 
     void updateHomestayAmenities(Long ownerId, Long homestayId, UpdateHomestayAmenitiesRequest request);
 

@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class RoomAmenityHighlightRequest {
-    private Long amenityId;
+    private Integer amenityId;
     private String displayValue;
 }
