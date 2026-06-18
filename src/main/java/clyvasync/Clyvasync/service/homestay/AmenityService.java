@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.dto.request.UpdateHomestayAmenitiesRequest;
 import clyvasync.Clyvasync.dto.request.UpdateRoomAmenityHighlightsRequest;
 import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
 import clyvasync.Clyvasync.dto.response.AmenityResponse;
+import clyvasync.Clyvasync.dto.response.RoomAmenityHighlightResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -21,4 +22,14 @@ public interface AmenityService {
     List<AmenityHighlightResponse> getRoomAmenityHighlights(Long roomId);
 
     void updateRoomAmenityHighlights(Long ownerId, Long homestayId, Long roomId, UpdateRoomAmenityHighlightsRequest request);
+    List<RoomAmenityHighlightResponse> getRoomAmenityHighlights(
+            Long homestayId,
+            Long roomId
+    );
+
+    void updateRoomAmenityHighlights(
+            Long homestayId,
+            Long roomId,
+            UpdateRoomAmenityHighlightsRequest request
+    );
 }

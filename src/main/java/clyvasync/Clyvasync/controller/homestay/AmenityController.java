@@ -2,9 +2,9 @@ package clyvasync.Clyvasync.controller.homestay;
 
 import clyvasync.Clyvasync.dto.request.UpdateHomestayAmenitiesRequest;
 import clyvasync.Clyvasync.dto.request.UpdateRoomAmenityHighlightsRequest;
-import clyvasync.Clyvasync.dto.response.AmenityHighlightResponse;
 import clyvasync.Clyvasync.dto.response.AmenityResponse;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.RoomAmenityHighlightResponse;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.homestay.AmenityService;
 import lombok.RequiredArgsConstructor;
@@ -21,17 +21,16 @@ public class AmenityController {
 
     @GetMapping("/amenities")
     public ApiResponse<List<AmenityResponse>> getAllAmenities() {
-        return ApiResponse.<List<AmenityResponse>>builder()
-                .success(true)
-                .data(amenityService.getAllAmenities())
-                .build();
+        return ApiResponse.success(amenityService.getAllAmenities());
     }
 
     @GetMapping("/{homestayId}/amenities")
     public ApiResponse<List<Integer>> getHomestayAmenityIds(
             @PathVariable Long homestayId
     ) {
-        return ApiResponse.success(amenityService.getHomestayAmenityIds(homestayId));
+        return ApiResponse.success(
+                amenityService.getHomestayAmenityIds(homestayId)
+        );
     }
 
     @PutMapping("/{homestayId}/amenities")
@@ -41,27 +40,27 @@ public class AmenityController {
             @RequestBody UpdateHomestayAmenitiesRequest request
     ) {
         amenityService.updateHomestayAmenities(ownerId, homestayId, request);
-
         return ApiResponse.success();
     }
 
     @GetMapping("/{homestayId}/rooms/{roomId}/amenity-highlights")
-    public ApiResponse<List<AmenityHighlightResponse>> getRoomAmenityHighlights(
+    public ApiResponse<List<RoomAmenityHighlightResponse>> getRoomAmenityHighlights(
             @PathVariable Long homestayId,
             @PathVariable Long roomId
     ) {
-        return ApiResponse.success(amenityService.getRoomAmenityHighlights(roomId));
+        return ApiResponse.success(
+                amenityService.getRoomAmenityHighlights( homestayId, roomId)
+        );
     }
 
     @PutMapping("/{homestayId}/rooms/{roomId}/amenity-highlights")
     public ApiResponse<Void> updateRoomAmenityHighlights(
-           @CurrentUserId  Long ownerId,
+            @CurrentUserId Long ownerId,
             @PathVariable Long homestayId,
             @PathVariable Long roomId,
             @RequestBody UpdateRoomAmenityHighlightsRequest request
     ) {
         amenityService.updateRoomAmenityHighlights(ownerId, homestayId, roomId, request);
-
         return ApiResponse.success();
     }
 }
