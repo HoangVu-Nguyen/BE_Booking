@@ -17,6 +17,7 @@ import clyvasync.Clyvasync.repository.room.RatePlanBenefitMappingRepository;
 import clyvasync.Clyvasync.repository.room.RoomRatePlanRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RatePlanBenefitMappingService;
+import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,9 +31,8 @@ import java.util.stream.Collectors;
 public class RatePlanBenefitMappingServiceImpl implements RatePlanBenefitMappingService {
     private final RatePlanBenefitMappingRepository ratePlanBenefitMappingRepository;
     private final AmenityRepository amenityRepository;
-    private final HomestayRoomRepository homestayRoomRepository;
-    private final HomestayService homestayService;
-private final RoomRatePlanRepository roomRatePlanRepository;
+
+private final RoomRatePlanService roomRatePlanService;
     @Override
     public Map<Long, List<String>> findBenefitsByPlanIds(List<Long> planIds) {
         if (planIds.isEmpty()) return Map.of();
@@ -52,7 +52,7 @@ private final RoomRatePlanRepository roomRatePlanRepository;
             Long roomId,
             Long ratePlanId
     ) {
-        validateRoomAndRatePlan(ownerId, homestayId, roomId, ratePlanId);
+        roomRatePlanService.validateRoomAndRatePlan(ownerId, homestayId, roomId, ratePlanId);
 
         List<RatePlanBenefitMapping> mappings =
                 ratePlanBenefitMappingRepository.findByRatePlanId(ratePlanId);
@@ -99,7 +99,7 @@ private final RoomRatePlanRepository roomRatePlanRepository;
             Long ratePlanId,
             UpdateRatePlanBenefitsRequest request
     ) {
-        validateRoomAndRatePlan(ownerId, homestayId, roomId, ratePlanId);
+            roomRatePlanService.validateRoomAndRatePlan(ownerId, homestayId, roomId, ratePlanId);
 
         List<RatePlanBenefitRequest> benefits =
                 request.getBenefits() == null
@@ -141,26 +141,7 @@ private final RoomRatePlanRepository roomRatePlanRepository;
         ratePlanBenefitMappingRepository.saveAll(entities);
     }
 
-    private void validateRoomAndRatePlan(
-            Long ownerId,
-            Long homestayId,
-            Long roomId,
-            Long ratePlanId
-    ) {
-        Homestay homestay = homestayService.findById(homestayId);
-        if (!homestay.getOwnerId().equals(ownerId)) {
-            throw new AppException(ResultCode.ACCESS_DENIED);
-        }
-        HomestayRoom room = homestayRoomRepository
-                .findByIdAndHomestayId(roomId, homestayId)
-                .orElseThrow(() -> new AppException(ResultCode.ROOM_NOT_FOUND));
 
-
-
-        RoomRatePlan ratePlan = roomRatePlanRepository
-                .findByIdAndRoomId(ratePlanId, roomId)
-                .orElseThrow(() -> new AppException(ResultCode.ROOMS_NOT_FOUND));
-    }
 
     private void validateAmenityIds(Set<Integer> amenityIds) {
         if (amenityIds == null || amenityIds.isEmpty()) {
