@@ -4,9 +4,12 @@ import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface RoomRatePlanRepository extends JpaRepository<RoomRatePlan, Long> {
     List<RoomRatePlan> findAllByRoomIdIn(List<Long> roomIds);
     List<RoomRatePlan> findByRoomIdIn(List<Long> roomIds);
     List<RoomRatePlan> findAllRoomRatePlanByRoomId(Long roomId);
+    Optional<RoomRatePlan> findByIdAndRoomId(Long id, Long roomId);
+
 }
