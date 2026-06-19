@@ -1,14 +1,30 @@
 package clyvasync.Clyvasync.service.room.impl;
 
+import clyvasync.Clyvasync.dto.request.UpdateRatePlanBenefitsRequest;
+import clyvasync.Clyvasync.dto.response.HomestayResponse;
+import clyvasync.Clyvasync.dto.response.RatePlanBenefitResponse;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.homestay.entity.Amenity;
+import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
+import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.room.RatePlanBenefitMapping;
+import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
+import clyvasync.Clyvasync.repository.homestay.HomestayRoomRepository;
 import clyvasync.Clyvasync.repository.room.RatePlanBenefitMappingRepository;
+import clyvasync.Clyvasync.repository.room.RoomRatePlanRepository;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RatePlanBenefitMappingService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -16,6 +32,9 @@ import java.util.stream.Collectors;
 public class RatePlanBenefitMappingServiceImpl implements RatePlanBenefitMappingService {
     private final RatePlanBenefitMappingRepository ratePlanBenefitMappingRepository;
     private final AmenityRepository amenityRepository;
+    private final HomestayRoomRepository homestayRoomRepository;
+    private final HomestayService homestayService;
+private final RoomRatePlanRepository roomRatePlanRepository;
     @Override
     public Map<Long, List<String>> findBenefitsByPlanIds(List<Long> planIds) {
         if (planIds.isEmpty()) return Map.of();
@@ -25,5 +44,106 @@ public class RatePlanBenefitMappingServiceImpl implements RatePlanBenefitMapping
                             var amenity = amenityRepository.findById(m.getAmenityId().longValue()).orElse(null);
                             return amenity != null ? amenity.getName() : "";
                         }, Collectors.toList())));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RatePlanBenefitResponse> getRatePlanBenefits(
+            Long ownerId,
+            Long homestayId,
+            Long roomId,
+            Long ratePlanId
+    ) {
+        validateRoomAndRatePlan(ownerId, homestayId, roomId, ratePlanId);
+
+        List<RatePlanBenefitMapping> mappings =
+                ratePlanBenefitMappingRepository.findByRatePlanId(ratePlanId);
+
+        if (mappings.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Integer> amenityIds = mappings.stream()
+                .map(RatePlanBenefitMapping::getAmenityId)
+                .collect(Collectors.toSet());
+
+        Map<Integer, Amenity> amenityMap = amenityRepository.findAllByIdIn(amenityIds)
+                .stream()
+                .collect(Collectors.toMap(Amenity::getId, Function.identity()));
+
+        return mappings.stream()
+                .map(mapping -> {
+                    Amenity amenity = amenityMap.get(mapping.getAmenityId());
+
+                    if (amenity == null) {
+                        return null;
+                    }
+
+                    return RatePlanBenefitResponse.builder()
+                            .ratePlanId(mapping.getRatePlanId())
+                            .amenityId(amenity.getId())
+                            .name(amenity.getName())
+                            .iconName(amenity.getIconName())
+                            .groupName(amenity.getGroupName())
+                            .displayValue(mapping.getDisplayValue())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public void updateRatePlanBenefits(Long ownerId, Long homestayId, Long roomId, Long ratePlanId, UpdateRatePlanBenefitsRequest request) {
+
+    }
+    private void validateRoomAndRatePlan(
+            Long ownerId,
+            Long homestayId,
+            Long roomId,
+            Long ratePlanId
+    ) {
+        Homestay homestay = homestayService.findById(homestayId);
+        if (!homestay.getOwnerId().equals(ownerId)) {
+            throw new AppException(ResultCode.ACCESS_DENIED);
+        }
+        HomestayRoom room = homestayRoomRepository
+                .findByIdAndHomestayId(roomId, homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.ROOM_NOT_FOUND));
+
+
+
+        RoomRatePlan ratePlan = roomRatePlanRepository
+                .findByIdAndRoomId(ratePlanId, roomId)
+                .orElseThrow(() -> new AppException(ResultCode.ROOMS_NOT_FOUND));
+    }
+
+    private void validateAmenityIds(Set<Integer> amenityIds) {
+        if (amenityIds == null || amenityIds.isEmpty()) {
+            return;
+        }
+
+        List<Amenity> amenities = amenityRepository.findAllByIdIn(amenityIds);
+
+        if (amenities.size() != amenityIds.size()) {
+            throw new AppException(ResultCode.FIELD_REQUIRED);
+        }
+    }
+
+    private String normalizeDisplayValue(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+
+        if (trimmed.isBlank()) {
+            return null;
+        }
+
+        if (trimmed.length() > 100) {
+            return trimmed.substring(0, 100);
+        }
+
+        return trimmed;
     }
 }
