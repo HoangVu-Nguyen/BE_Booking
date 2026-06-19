@@ -7,5 +7,11 @@ import java.util.List;
 public interface RoomRatePlanService {
     List<RoomRatePlan> getAllRoomRatePlans(List<Long> roomIds);
     RoomRatePlan getById(Long id);
+     void validateRoomAndRatePlan(
+            Long ownerId,
+            Long homestayId,
+            Long roomId,
+            Long ratePlanId
+    );
 
 }
