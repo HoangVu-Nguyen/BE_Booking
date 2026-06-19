@@ -16,14 +16,14 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController()
-@RequestMapping("/api/v1/rooms")
+@RequestMapping("/api/v1/{homestayId}/rooms")
 @AllArgsConstructor
 public class RoomController {
     private final RoomCalendarService roomCalendarService;
     private final HomestayRoomService homestayRoomService;
     private final RatePlanBenefitMappingService ratePlanBenefitService;
 
-    @GetMapping("/homestays/{homestayId}/unavailable-dates")
+    @GetMapping("/unavailable-dates")
     public ApiResponse<List<LocalDate>> getUnavailableDates(
             @PathVariable Long homestayId,
             @RequestParam int month,
@@ -32,9 +32,9 @@ public class RoomController {
 
         return ApiResponse.success(roomCalendarService.getUnavailableDates(homestayId, month, year));
     }
-    @GetMapping("/homestays/{id}/rooms")
-    public ApiResponse<List<RoomDisplayResponse>> getHomestayRooms(@PathVariable Long id) {
-        return ApiResponse.success(homestayRoomService.getRoomsByHomestayId(id));
+    @GetMapping("")
+    public ApiResponse<List<RoomDisplayResponse>> getHomestayRooms(@PathVariable Long homestayId) {
+        return ApiResponse.success(homestayRoomService.getRoomsByHomestayId(homestayId));
     }
     @PostMapping("/images/presign")
     public ApiResponse<List<PresignedUrlResponse>> prepareImageUploads(
@@ -56,7 +56,7 @@ public class RoomController {
 
         return ApiResponse.success();
     }
-    @GetMapping("/{roomId}/rate-plans/{ratePlanId}/benefits")
+    @GetMapping("{roomId}/rate-plans/{ratePlanId}/benefits")
     public ApiResponse<List<RatePlanBenefitResponse>> getRatePlanBenefits(
             @CurrentUserId Long ownerId,
             @PathVariable Long homestayId,
