@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.room.impl;
 
+import clyvasync.Clyvasync.dto.request.RatePlanBenefitRequest;
 import clyvasync.Clyvasync.dto.request.UpdateRatePlanBenefitsRequest;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
 import clyvasync.Clyvasync.dto.response.RatePlanBenefitResponse;
@@ -20,10 +21,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -93,9 +91,56 @@ private final RoomRatePlanRepository roomRatePlanRepository;
     }
 
     @Override
-    public void updateRatePlanBenefits(Long ownerId, Long homestayId, Long roomId, Long ratePlanId, UpdateRatePlanBenefitsRequest request) {
+    @Transactional
+    public void updateRatePlanBenefits(
+            Long ownerId,
+            Long homestayId,
+            Long roomId,
+            Long ratePlanId,
+            UpdateRatePlanBenefitsRequest request
+    ) {
+        validateRoomAndRatePlan(ownerId, homestayId, roomId, ratePlanId);
 
+        List<RatePlanBenefitRequest> benefits =
+                request.getBenefits() == null
+                        ? List.of()
+                        : request.getBenefits();
+
+        Map<Integer, String> displayValueByAmenityId = new LinkedHashMap<>();
+
+        for (RatePlanBenefitRequest item : benefits) {
+            if (item.getAmenityId() == null) {
+                continue;
+            }
+
+            displayValueByAmenityId.put(
+                    item.getAmenityId(),
+                    normalizeDisplayValue(item.getDisplayValue())
+            );
+        }
+
+        Set<Integer> amenityIds = displayValueByAmenityId.keySet();
+
+        validateAmenityIds(amenityIds);
+
+        ratePlanBenefitMappingRepository.deleteAllByRatePlanId(ratePlanId);
+        ratePlanBenefitMappingRepository.flush();
+
+        if (amenityIds.isEmpty()) {
+            return;
+        }
+
+        List<RatePlanBenefitMapping> entities = amenityIds.stream()
+                .map(amenityId -> RatePlanBenefitMapping.builder()
+                        .ratePlanId(ratePlanId)
+                        .amenityId(amenityId)
+                        .displayValue(displayValueByAmenityId.get(amenityId))
+                        .build())
+                .toList();
+
+        ratePlanBenefitMappingRepository.saveAll(entities);
     }
+
     private void validateRoomAndRatePlan(
             Long ownerId,
             Long homestayId,
