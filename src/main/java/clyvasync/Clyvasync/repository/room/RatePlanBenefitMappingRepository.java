@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.repository.room;
 
 import clyvasync.Clyvasync.modules.room.RatePlanBenefitMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,4 +17,10 @@ public interface RatePlanBenefitMappingRepository extends JpaRepository<RatePlan
     WHERE m.ratePlanId IN :planIds
 """)
     List<Object[]> findBenefitsByPlanIds(@Param("planIds") List<Long> planIds);
+    List<RatePlanBenefitMapping> findByRatePlanId(Long ratePlanId);
+
+    @Modifying
+    @Query("DELETE FROM RatePlanBenefitMapping r WHERE r.ratePlanId = :ratePlanId")
+    void deleteAllByRatePlanId(Long ratePlanId);
+
 }

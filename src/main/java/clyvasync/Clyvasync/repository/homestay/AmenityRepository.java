@@ -24,4 +24,5 @@ public interface AmenityRepository extends JpaRepository<Amenity, Long> {
 
     List<Amenity> findByGroupNameOrderByNameAsc(String groupName);
     List<Amenity> findAllByIdIn(Set<Integer> ids);
+    List<Amenity> findAllByIdIn(List<Integer> ids);
 }
