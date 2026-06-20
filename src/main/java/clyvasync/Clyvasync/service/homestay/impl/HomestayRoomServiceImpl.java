@@ -172,7 +172,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
         Map<Long, List<AmenityHighlightResponse>> highlightsMap =
                 roomAmenityHighlightService.getHighlightsForRooms(roomIds);
 
-        Map<Long, List<String>> benefitsMap =
+        Map<Long, List<RatePlanBenefitResponse>> benefitsMap =
                 ratePlanBenefitMappingService.findBenefitsByPlanIds(ratePlanIds);
 
         Map<Long, Map<LocalDate, RatePlanCalendar>> ratePlanCalendarMap =
@@ -437,7 +437,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
 
     private RatePlanResponse toRatePlanResponse(
             RoomRatePlan ratePlan,
-            List<String> benefits
+            List<RatePlanBenefitResponse> benefits
     ) {
         return RatePlanResponse.builder()
                 .id(ratePlan.getId())
@@ -470,7 +470,7 @@ public class HomestayRoomServiceImpl implements HomestayRoomService {
     }
     private RatePlanResponse toRatePlanResponse(
             RoomRatePlan ratePlan,
-            List<String> benefits,
+            List<RatePlanBenefitResponse> benefits,
             Map<LocalDate, RatePlanCalendar> priceOverrides,
             LocalDate checkIn,
             LocalDate checkOut
