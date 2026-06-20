@@ -15,7 +15,7 @@ public  class RatePlanResponse {
     private String name;        // 'Standard', 'Luxury'
     private BigDecimal price;
     private Boolean isNonRefundable;
-    private List<String> benefits; // Danh sách các text tích xanh
+    private List<RatePlanBenefitResponse> benefits; // Danh sách các text tích xanh
 
     public RatePlanResponse(Long id, String name, BigDecimal price, Boolean isNonRefundable) {
         this.id = id;

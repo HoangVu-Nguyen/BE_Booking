@@ -23,6 +23,7 @@ import clyvasync.Clyvasync.repository.room.RoomAmenityHighlightRepository;
 import clyvasync.Clyvasync.service.homestay.AmenityService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,6 +82,7 @@ public class AmenityServiceImpl implements AmenityService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "homestay_amenities", key = "#homestayId")
     public void updateHomestayAmenities(
             Long ownerId,
             Long homestayId,

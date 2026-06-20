@@ -34,14 +34,50 @@ public class RatePlanBenefitMappingServiceImpl implements RatePlanBenefitMapping
 
 private final RoomRatePlanService roomRatePlanService;
     @Override
-    public Map<Long, List<String>> findBenefitsByPlanIds(List<Long> planIds) {
-        if (planIds.isEmpty()) return Map.of();
-        return ratePlanBenefitMappingRepository.findAllByRatePlanIdIn(planIds).stream()
-                .collect(Collectors.groupingBy(RatePlanBenefitMapping::getRatePlanId,
-                        Collectors.mapping(m -> {
-                            var amenity = amenityRepository.findById(m.getAmenityId().longValue()).orElse(null);
-                            return amenity != null ? amenity.getName() : "";
-                        }, Collectors.toList())));
+    public Map<Long, List<RatePlanBenefitResponse>> findBenefitsByPlanIds(List<Long> planIds) {
+        if (planIds == null || planIds.isEmpty()) return Map.of();
+
+        List<RatePlanBenefitMapping> mappings =
+                ratePlanBenefitMappingRepository.findAllByRatePlanIdIn(planIds);
+
+        if (mappings.isEmpty()) return Map.of();
+
+        List<Long> amenityIds = mappings.stream()
+                .map(RatePlanBenefitMapping::getAmenityId)
+                .filter(Objects::nonNull)
+                .map(Integer::longValue)
+                .distinct()
+                .toList();
+
+        Map<Integer, Amenity> amenityMap = amenityRepository.findAllById(amenityIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Amenity::getId,
+                        amenity -> amenity
+                ));
+
+        return mappings.stream()
+                .collect(Collectors.groupingBy(
+                        RatePlanBenefitMapping::getRatePlanId,
+                        Collectors.mapping(mapping -> {
+                            Amenity amenity = amenityMap.get(mapping.getAmenityId());
+
+                            String displayValue = mapping.getDisplayValue();
+
+                            if (displayValue == null || displayValue.isBlank()) {
+                                displayValue = amenity != null ? amenity.getName() : "";
+                            }
+
+                            return RatePlanBenefitResponse.builder()
+                                    .ratePlanId(mapping.getRatePlanId())
+                                    .amenityId(mapping.getAmenityId())
+                                    .name(amenity != null ? amenity.getName() : "")
+                                    .iconName(amenity != null ? amenity.getIconName() : "")
+                                    .groupName(amenity != null ? amenity.getGroupName() : "")
+                                    .displayValue(displayValue)
+                                    .build();
+                        }, Collectors.toList())
+                ));
     }
 
     @Override
