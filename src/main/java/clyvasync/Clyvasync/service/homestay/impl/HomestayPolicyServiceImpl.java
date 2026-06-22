@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,9 +50,24 @@ public class HomestayPolicyServiceImpl implements HomestayPolicyService {
     }
 
     @Override
-    public RoomPolicyResponse updatePolicy(Long ownerId, Long homestayId, UpdateHomestayPolicyRequest request) {
-        return null;
+    @Transactional
+    public RoomPolicyResponse updatePolicy(
+            Long ownerId,
+            Long homestayId,
+            UpdateHomestayPolicyRequest request
+    ) {
+        validateHomestayOwner(ownerId, homestayId);
+
+        HomestayPolicy policy = homestayPolicyRepository.findByHomestayId(homestayId)
+                .orElseGet(() -> createDefaultPolicy(homestayId));
+
+        applyRequest(policy, request);
+
+        HomestayPolicy saved = homestayPolicyRepository.save(policy);
+
+        return homestayPolicyMapper.toRoomPolicyResponse(saved);
     }
+
     private void validateHomestayOwner(Long ownerId, Long homestayId) {
         Homestay homestay = homestayRepository.findById(homestayId)
                 .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
@@ -83,5 +99,107 @@ public class HomestayPolicyServiceImpl implements HomestayPolicyService {
                 .extraNotes("Vui lòng giữ gìn vệ sinh chung và không gây ồn sau 22:00.")
                 .build();
     }
+    private void applyRequest(HomestayPolicy policy, UpdateHomestayPolicyRequest request) {
+        if (request.getCheckInFrom() != null) {
+            policy.setCheckInTime(request.getCheckInFrom());
+        }
 
+        if (request.getCheckInTo() != null) {
+            policy.setCheckInUntil(request.getCheckInTo());
+        }
+
+        if (request.getCheckOutBefore() != null) {
+            policy.setCheckOutTime(request.getCheckOutBefore());
+        }
+
+        if (request.getMinNights() != null) {
+            policy.setMinNights(request.getMinNights());
+        }
+
+        if (request.getMaxNights() != null) {
+            policy.setMaxNights(request.getMaxNights());
+        }
+
+        if (request.getBookingMode() != null) {
+            policy.setBookingMode(request.getBookingMode());
+        }
+
+        if (request.getCancellationPolicy() != null) {
+            policy.setCancellationPolicy(request.getCancellationPolicy());
+        }
+
+        if (request.getChildrenAllowed() != null) {
+            policy.setAllowsChildren(request.getChildrenAllowed());
+        }
+
+        if (request.getPetsAllowed() != null) {
+            policy.setAllowsPets(request.getPetsAllowed());
+        }
+
+        if (request.getSmokingAllowed() != null) {
+            policy.setAllowsSmoking(request.getSmokingAllowed());
+        }
+
+        if (request.getPartyAllowed() != null) {
+            policy.setAllowsParties(request.getPartyAllowed());
+        }
+
+        if (request.getQuietHoursEnabled() != null) {
+            policy.setQuietHoursEnabled(request.getQuietHoursEnabled());
+        }
+
+        if (request.getQuietFrom() != null) {
+            policy.setQuietFrom(request.getQuietFrom());
+        }
+
+        if (request.getQuietTo() != null) {
+            policy.setQuietTo(request.getQuietTo());
+        }
+
+        if (request.getDepositRequired() != null) {
+            policy.setDepositRequired(request.getDepositRequired());
+
+            if (!request.getDepositRequired()) {
+                policy.setDepositAmount(null);
+            }
+        }
+
+        if (request.getDepositAmount() != null) {
+            if (request.getDepositAmount().compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Tiền cọc không được âm");
+            }
+
+            policy.setDepositAmount(request.getDepositAmount());
+        }
+
+        if (request.getLateCheckInInstruction() != null) {
+            policy.setLateCheckInInstruction(request.getLateCheckInInstruction());
+        }
+
+        if (request.getExtraNotes() != null) {
+            policy.setExtraNotes(request.getExtraNotes());
+        }
+
+        validatePolicy(policy);
+    }
+    private void validatePolicy(HomestayPolicy policy) {
+        if (policy.getMinNights() != null && policy.getMinNights() < 1) {
+            throw new RuntimeException("Số đêm tối thiểu phải lớn hơn hoặc bằng 1");
+        }
+
+        if (
+                policy.getMaxNights() != null
+                        && policy.getMinNights() != null
+                        && policy.getMaxNights() < policy.getMinNights()
+        ) {
+            throw new RuntimeException("Số đêm tối đa không được nhỏ hơn số đêm tối thiểu");
+        }
+
+        if (
+                Boolean.TRUE.equals(policy.getDepositRequired())
+                        && policy.getDepositAmount() == null
+        ) {
+            throw new RuntimeException("Vui lòng nhập số tiền cọc");
+        }
+    }
 }
