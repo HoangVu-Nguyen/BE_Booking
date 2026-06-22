@@ -10,4 +10,5 @@ public interface HomestayPolicyRepository extends JpaRepository<HomestayPolicy,L
     Optional<HomestayPolicy> findByHomestayId(Long homestayId);
     List<HomestayPolicy> findAllByHomestayId(Long homestayId);
 
+
 }
