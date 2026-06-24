@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.room.impl;
 
+import clyvasync.Clyvasync.dto.event.RoomSearchIndexSyncEvent;
 import clyvasync.Clyvasync.dto.request.RatePlanBenefitRequest;
 import clyvasync.Clyvasync.dto.request.UpdateRatePlanBenefitsRequest;
 import clyvasync.Clyvasync.dto.response.HomestayResponse;
@@ -19,6 +20,7 @@ import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RatePlanBenefitMappingService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import lombok.AllArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 public class RatePlanBenefitMappingServiceImpl implements RatePlanBenefitMappingService {
     private final RatePlanBenefitMappingRepository ratePlanBenefitMappingRepository;
     private final AmenityRepository amenityRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
 private final RoomRatePlanService roomRatePlanService;
     @Override
@@ -175,6 +178,7 @@ private final RoomRatePlanService roomRatePlanService;
                 .toList();
 
         ratePlanBenefitMappingRepository.saveAll(entities);
+        eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, roomId));
     }
 
 
