@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.homestay.impl;
 
+import clyvasync.Clyvasync.dto.event.RoomSearchIndexSyncEvent;
 import clyvasync.Clyvasync.dto.request.RoomAmenityHighlightRequest;
 import clyvasync.Clyvasync.dto.request.UpdateHomestayAmenitiesRequest;
 import clyvasync.Clyvasync.dto.request.UpdateRoomAmenityHighlightsRequest;
@@ -25,6 +26,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,7 @@ public class AmenityServiceImpl implements AmenityService {
     private final HomestayRepository homestayRepository;
     private final RoomAmenityHighlightRepository roomAmenityHighlightRepository;
     private final HomestayRoomRepository homestayRoomRepository;
+    private final ApplicationEventPublisher eventPublisher;
     @Override
     @Cacheable(value = "homestay_amenities", key = "#homestayId")
     public List<AmenityResponse> getAmenitiesByHomestayId(Long homestayId) {
@@ -118,6 +121,7 @@ public class AmenityServiceImpl implements AmenityService {
                 .toList();
 
         homestayAmenityRepository.saveAll(newItems);
+
     }
 
 
@@ -193,6 +197,7 @@ public class AmenityServiceImpl implements AmenityService {
                 .toList();
 
         roomAmenityHighlightRepository.saveAll(newItems);
+        eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, roomId));
     }
 
     @Override
@@ -285,6 +290,7 @@ public class AmenityServiceImpl implements AmenityService {
                 .toList();
 
         roomAmenityHighlightRepository.saveAll(entities);
+        eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, roomId));
     }
 
     private void validateRoomBelongsToHomestay(Long homestayId, Long roomId) {

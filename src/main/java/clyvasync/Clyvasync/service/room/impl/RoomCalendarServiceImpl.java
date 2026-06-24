@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.room.impl;
 
 import clyvasync.Clyvasync.dto.detail.BookingSimpleInfo;
+import clyvasync.Clyvasync.dto.event.RoomSearchIndexSyncEvent;
 import clyvasync.Clyvasync.dto.projection.BookingCalendarProjection;
 import clyvasync.Clyvasync.dto.request.BatchUpdateCalendarRequest;
 import clyvasync.Clyvasync.dto.response.*;
@@ -12,6 +13,7 @@ import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
 import clyvasync.Clyvasync.modules.room.*;
 import clyvasync.Clyvasync.repository.room.*;
+import clyvasync.Clyvasync.service.ai.SearchSyncService;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingDetailService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
@@ -21,6 +23,7 @@ import clyvasync.Clyvasync.service.room.RoomRatePlanService;
 import clyvasync.Clyvasync.utils.MediaUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,8 +48,10 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
     private final RoomRatePlanRepository roomRatePlanRepository;
     private final RatePlanCalendarRepository ratePlanCalendarRepository;
     private final MediaUtil mediaUtil;
+    private final SearchSyncService searchSyncService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService, @Lazy HomestayService homestayService, UserService userService, RoomBedRepository roomBedRepository, RoomImageRepository roomImageRepository, RoomRatePlanRepository roomRatePlanRepository, RatePlanCalendarRepository ratePlanCalendarRepository,MediaUtil mediaUtil) {
+    public RoomCalendarServiceImpl(RoomCalendarRepository roomCalendarRepository, HomestayRoomService homestayRoomService, BookingDetailService bookingDetailService, RoomRatePlanService roomRatePlanService, @Lazy HomestayService homestayService, UserService userService, RoomBedRepository roomBedRepository, RoomImageRepository roomImageRepository, RoomRatePlanRepository roomRatePlanRepository, RatePlanCalendarRepository ratePlanCalendarRepository,MediaUtil mediaUtil,SearchSyncService searchSyncService,ApplicationEventPublisher eventPublisher) {
         this.roomCalendarRepository = roomCalendarRepository;
         this.homestayRoomService = homestayRoomService;
         this.bookingDetailService = bookingDetailService;
@@ -58,6 +63,8 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         this.roomRatePlanRepository = roomRatePlanRepository;
         this.ratePlanCalendarRepository = ratePlanCalendarRepository;
         this.mediaUtil = mediaUtil;
+        this.searchSyncService = searchSyncService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -209,6 +216,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
     @Transactional
     public void batchUpdateCalendar(BatchUpdateCalendarRequest request) {
         Long roomId = request.getRoomId();
+
         LocalDate startDate = request.getStartDate();
         LocalDate endDate = request.getEndDate();
 
@@ -244,9 +252,11 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         // fallback: nếu FE không gửi actionType thì update tất cả cái nào có data
         updateRoomInventoryAndStatusIfPresent(request);
         updateRatePlanPrices(request);
+
     }
     private void updateRoomInventory(BatchUpdateCalendarRequest request) {
         Long roomId = request.getRoomId();
+
         LocalDate startDate = request.getStartDate();
         LocalDate endDate = request.getEndDate();
 
@@ -297,8 +307,12 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         }
 
         if (!calendarsToSave.isEmpty()) {
+            System.out.println("call triggerSyncForRoom");
             roomCalendarRepository.saveAll(calendarsToSave);
+            eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, roomId));
+
         }
+
     }
     private void updateRoomStatus(BatchUpdateCalendarRequest request) {
         Long roomId = request.getRoomId();
@@ -364,6 +378,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
 
         if (!calendarsToSave.isEmpty()) {
             roomCalendarRepository.saveAll(calendarsToSave);
+            eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, request.getRoomId()));
         }
     }
     private void updateRoomInventoryAndStatusIfPresent(BatchUpdateCalendarRequest request) {
@@ -427,7 +442,10 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         }
 
         if (!calendarsToSave.isEmpty()) {
+
             roomCalendarRepository.saveAll(calendarsToSave);
+            eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, request.getRoomId()));
+
         }
     }
     private void updateRatePlanPrices(BatchUpdateCalendarRequest request) {
@@ -502,6 +520,7 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
 
         if (!calendarsToSave.isEmpty()) {
             ratePlanCalendarRepository.saveAll(calendarsToSave);
+            eventPublisher.publishEvent(new RoomSearchIndexSyncEvent(this, request.getRoomId()));
         }
     }
     private String buildRatePlanCalendarKey(Long ratePlanId, LocalDate nightDate) {
@@ -724,5 +743,9 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         // 3. ƯU TIÊN 3: Trạng thái Sẵn sàng (AVAILABLE)
         // Còn phòng và không bị đặt full.
         return RoomCalendarStatus.AVAILABLE;
+    }
+    private void syncSearchIndexAfterInventoryUpdate(Long roomId) {
+        HomestayRoom room = homestayRoomService.getRoomById(roomId);
+
     }
 }
