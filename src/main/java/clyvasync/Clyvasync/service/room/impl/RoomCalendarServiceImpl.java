@@ -725,4 +725,8 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
         // Còn phòng và không bị đặt full.
         return RoomCalendarStatus.AVAILABLE;
     }
+    private void syncSearchIndexAfterInventoryUpdate(Long roomId) {
+        HomestayRoom room = homestayRoomService.getRoomById(roomId);
+
+    }
 }
