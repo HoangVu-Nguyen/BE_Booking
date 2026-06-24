@@ -1,7 +1,7 @@
 services:
   # --- DATABASES ---
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     container_name: my-postgres
     restart: always
     environment:
