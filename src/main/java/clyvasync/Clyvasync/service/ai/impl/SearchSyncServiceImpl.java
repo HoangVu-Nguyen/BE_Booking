@@ -12,7 +12,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.ai.embedding.EmbeddingModel; // Import chuẩn của Spring AI
+import org.springframework.ai.embedding.EmbeddingModel;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -138,78 +138,48 @@ public class SearchSyncServiceImpl implements SearchSyncService {
                 pgVector
         );
     }
+        @Override
+        public void triggerSyncForRoom(Long roomId) {
+            String fetchSql = """
+            SELECT 
+                r.id AS room_id, 
+                r.homestay_id, 
+                h.name AS homestay_name,
+                COALESCE((SELECT l.city_name FROM locations l WHERE l.id = h.location_id), h.address_detail) AS city,
+                r.name AS room_name, 
+                COALESCE(r.bed_count, 0) AS bed_count,
+                COALESCE(r.max_guests, 0) AS max_guests,
+                COALESCE(
+                    (SELECT array_agg(DISTINCT x.amenity_id) FROM (
+                        SELECT rah.amenity_id FROM room_amenity_highlights rah WHERE rah.room_id = r.id
+                        UNION
+                        SELECT rpbm.amenity_id FROM rate_plan_benefit_mapping rpbm 
+                        JOIN room_rate_plans rrp ON rpbm.rate_plan_id = rrp.id WHERE rrp.room_id = r.id
+                    ) x),
+                    ARRAY[]::integer[]
+                ) AS amenity_ids,
+                COALESCE((SELECT MIN(price) FROM room_rate_plans WHERE room_id = r.id), 0) AS min_price,
+                (SELECT string_agg(quantity || ' ' || bed_type, ', ') FROM room_beds WHERE room_id = r.id) AS beds_text,
+                (SELECT string_agg(a.name || COALESCE(' (' || rah.display_value || ')', ''), ', ') 
+                 FROM room_amenity_highlights rah JOIN amenities a ON rah.amenity_id = a.id WHERE rah.room_id = r.id) AS room_amenities,
+                (SELECT string_agg(DISTINCT a.name, ', ') FROM rate_plan_benefit_mapping rpbm
+                 JOIN room_rate_plans rrp ON rpbm.rate_plan_id = rrp.id JOIN amenities a ON rpbm.amenity_id = a.id WHERE rrp.room_id = r.id) AS plan_benefits
+            FROM homestay_rooms r
+            JOIN homestays h ON r.homestay_id = h.id
+            WHERE r.id = ?
+        """;
 
-    @Transactional
-    public void triggerSyncForRoom(Long roomId) {
-        String fetchSql = """
-    SELECT 
-        r.id AS room_id, 
-        r.homestay_id, 
-        h.name AS homestay_name,
+            Map<String, Object> data;
+            try {
+                // 1. Lấy dữ liệu (Chỉ query, giải phóng DB connection ngay lập tức)
+                data = jdbcTemplate.queryForMap(fetchSql, roomId);
+            } catch (EmptyResultDataAccessException e) {
+                // Nếu không tìm thấy phòng (bị xóa cứng) -> Xóa index
+                deleteRoomIndex(roomId);
+                return;
+            }
 
-        COALESCE(
-            (SELECT l.city_name FROM locations l WHERE l.id = h.location_id),
-            h.address_detail
-        ) AS city,
-
-        r.name AS room_name, 
-        COALESCE(r.bed_count, 0) AS bed_count,
-        COALESCE(r.max_guests, 0) AS max_guests,
-
-        COALESCE(
-            (
-                SELECT array_agg(DISTINCT x.amenity_id)
-                FROM (
-                    SELECT rah.amenity_id
-                    FROM room_amenity_highlights rah
-                    WHERE rah.room_id = r.id
-
-                    UNION
-
-                    SELECT rpbm.amenity_id
-                    FROM rate_plan_benefit_mapping rpbm
-                    JOIN room_rate_plans rrp ON rpbm.rate_plan_id = rrp.id
-                    WHERE rrp.room_id = r.id
-                ) x
-            ),
-            ARRAY[]::integer[]
-        ) AS amenity_ids,
-
-        COALESCE(
-            (SELECT MIN(price) FROM room_rate_plans WHERE room_id = r.id),
-            0
-        ) AS min_price,
-
-        (
-            SELECT string_agg(quantity || ' ' || bed_type, ', ') 
-            FROM room_beds 
-            WHERE room_id = r.id
-        ) AS beds_text,
-
-        (
-            SELECT string_agg(a.name || COALESCE(' (' || rah.display_value || ')', ''), ', ') 
-            FROM room_amenity_highlights rah 
-            JOIN amenities a ON rah.amenity_id = a.id 
-            WHERE rah.room_id = r.id
-        ) AS room_amenities,
-
-        (
-            SELECT string_agg(DISTINCT a.name, ', ')
-            FROM rate_plan_benefit_mapping rpbm
-            JOIN room_rate_plans rrp ON rpbm.rate_plan_id = rrp.id
-            JOIN amenities a ON rpbm.amenity_id = a.id
-            WHERE rrp.room_id = r.id
-        ) AS plan_benefits
-
-    FROM homestay_rooms r
-    JOIN homestays h ON r.homestay_id = h.id
-    WHERE r.id = ?
-""";
-
-        try {
-            // 2. Lấy dữ liệu gộp
-            Map<String, Object> data = jdbcTemplate.queryForMap(fetchSql, roomId);
-
+            // 2. Trích xuất dữ liệu
             Long homestayId = ((Number) data.get("homestay_id")).longValue();
             String homestayName = (String) data.get("homestay_name");
             String roomName = (String) data.get("room_name");
@@ -217,40 +187,95 @@ public class SearchSyncServiceImpl implements SearchSyncService {
             int bedCount = ((Number) data.get("bed_count")).intValue();
             int maxGuests = ((Number) data.get("max_guests")).intValue();
             BigDecimal price = toBigDecimal(data.get("min_price"));
-
             List<Integer> amenityIds = extractIntegerArray(data.get("amenity_ids"));
-            // 3. Nối chuỗi để mớm cho AI
+
             String bedsText = (String) data.get("beds_text");
             String roomAmenities = (String) data.get("room_amenities");
             String planBenefits = (String) data.get("plan_benefits");
 
+            String safeCity = city != null ? city : "";
+            String safeAmenities = roomAmenities != null ? roomAmenities : "";
+
+            // 3. Xây dựng văn bản mồi AI (Narrative format)
             StringBuilder contextBuilder = new StringBuilder();
+            contextBuilder.append("Phòng ").append(roomName)
+                    .append(" thuộc homestay ").append(homestayName)
+                    .append(", tọa lạc tại ").append(safeCity).append(". ")
+                    .append("Sức chứa tối đa ").append(maxGuests).append(" khách ")
+                    .append("với ").append(bedCount).append(" giường. ")
+                    .append("Mức giá thấp nhất từ ").append(price).append(" VND. ");
+
             if (bedsText != null) contextBuilder.append("Cấu trúc giường: ").append(bedsText).append(". ");
-            if (roomAmenities != null) contextBuilder.append("Tiện ích phòng: ").append(roomAmenities).append(". ");
-            if (planBenefits != null) contextBuilder.append("Quyền lợi gói giá: ").append(planBenefits).append(". ");
+            if (roomAmenities != null) contextBuilder.append("Tiện ích nổi bật: ").append(safeAmenities).append(". ");
+            if (planBenefits != null) contextBuilder.append("Quyền lợi đi kèm: ").append(planBenefits).append(". ");
 
             String finalContext = contextBuilder.toString();
 
-            // 4. Gọi lại hàm sync gốc để nhúng Vector và lưu DB
-            syncRoomToIndexInternal(
-                    roomId,
-                    homestayId,
-                    homestayName + " - " + roomName,
-                    city,
-                    bedCount,
-                    maxGuests,
-                    price,
-                    BigDecimal.ZERO,
-                    0,
-                    amenityIds,
-                    finalContext
-            );
+            // 4. GỌI API EMBEDDING (An toàn: Không có Transaction nào đang mở)
+            float[] embeddingArray = embeddingModel.embed(finalContext);
 
-        } catch (EmptyResultDataAccessException e) {
-            // Nếu không tìm thấy phòng (có thể đã bị xóa cứng), ta có thể log hoặc xóa khỏi search index
+            // 5. Lưu xuống DB
+            // LƯU Ý: Để @Transactional ở hàm saveToIndex hoạt động khi gọi trong cùng 1 class,
+            // bạn có thể cần tách hàm này sang một class khác (ví dụ: HomestayIndexRepository),
+            // hoặc cứ để jdbcTemplate tự quản lý auto-commit (với 1 câu lệnh SQL thì vẫn an toàn).
+            saveToIndex(
+                    roomId, homestayId, homestayName + " - " + roomName, safeCity,
+                    bedCount, maxGuests, price, BigDecimal.ZERO, 0,
+                    amenityIds, safeAmenities, embeddingArray
+            );
+        }
+        @Transactional
+        public void saveToIndex(
+                Long roomId, Long homestayId, String fullName, String city,
+                int bedCount, int maxGuests, BigDecimal priceCurrent,
+                BigDecimal averageRating, Integer reviewCount,
+                List<Integer> amenityIds, String amenitiesTsv, float[] embeddingArray
+        ) {
+            PGvector pgVector = new PGvector(embeddingArray);
+
+            String sql = """
+            INSERT INTO homestay_search_index
+            (
+                room_id, homestay_id, name, city, bed_count, max_guests, 
+                price_current, average_rating, review_count, amenity_ids, 
+                amenities_tsv, embedding
+            )
+            VALUES
+            (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?::integer[],
+                to_tsvector('simple', COALESCE(?, '')),
+                ?
+            )
+            ON CONFLICT (room_id) DO UPDATE SET
+                homestay_id = EXCLUDED.homestay_id,
+                name = EXCLUDED.name,
+                city = EXCLUDED.city,
+                bed_count = EXCLUDED.bed_count,
+                max_guests = EXCLUDED.max_guests,
+                price_current = EXCLUDED.price_current,
+                average_rating = EXCLUDED.average_rating,
+                review_count = EXCLUDED.review_count,
+                amenity_ids = EXCLUDED.amenity_ids,
+                amenities_tsv = EXCLUDED.amenities_tsv,
+                embedding = EXCLUDED.embedding
+        """;
+
+            jdbcTemplate.update(
+                    sql,
+                    roomId, homestayId, fullName, city, bedCount, maxGuests,
+                    priceCurrent, averageRating, reviewCount,
+                    toPgIntArrayLiteral(amenityIds), amenitiesTsv, pgVector
+            );
+        }
+
+        /**
+         * Xóa Index khi phòng không còn tồn tại
+         */
+        @Transactional
+        public void deleteRoomIndex(Long roomId) {
             jdbcTemplate.update("DELETE FROM homestay_search_index WHERE room_id = ?", roomId);
         }
-    }
     @Override
     public List<HomestaySearchResultResponse> hybridSearch(String query, int limit) {
         if (query == null || query.isBlank()) {
