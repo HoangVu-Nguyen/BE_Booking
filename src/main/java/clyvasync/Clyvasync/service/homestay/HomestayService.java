@@ -47,5 +47,6 @@ public interface HomestayService {
     List<PropertySummaryResponse> getHostProperties(Long hostId);
     HostPortfolioSummaryResponse getPortfolioSummary(Long hostId);
     Long getOwnerIdByHomestayId(Long homestayId);
+    HomestaySearchResultResponse mapToHomestay(java.sql.ResultSet rs) throws java.sql.SQLException;
 
 }

@@ -4,6 +4,7 @@ package clyvasync.Clyvasync.controller.search;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.response.GlobalSearchResponse;
 import clyvasync.Clyvasync.dto.response.ApiResponse; // (Hoặc wrapper của bác)
+import clyvasync.Clyvasync.service.ai.SearchSyncService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,7 @@ import java.util.List;
 public class GlobalSearchController {
 
     private final HomestayService homestayService;
+    private final SearchSyncService searchSyncService;
 
 
     @GetMapping("/cinematic")
@@ -44,5 +46,9 @@ public class GlobalSearchController {
         System.out.println(request);
 
         return ApiResponse.success(homestayService.cinematicSearch(request));
+    }
+    @GetMapping("/rooms")
+    public ApiResponse<?> searchRooms(@RequestParam String query) {
+        return ApiResponse.success(searchSyncService.hybridSearch(query,10));
     }
 }

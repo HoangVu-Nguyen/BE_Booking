@@ -1292,4 +1292,17 @@ public class HomestayServiceImpl implements HomestayService {
 
         return resultMap;
     }
+    @Override
+    public HomestaySearchResultResponse mapToHomestay(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return HomestaySearchResultResponse.builder()
+                .roomId(rs.getLong("room_id"))
+                .homestayId(rs.getLong("homestay_id"))
+                .name(rs.getString("name"))
+                .city(rs.getString("city"))
+                .price(rs.getBigDecimal("price_current"))
+                .bedCount(rs.getInt("bed_count"))
+                .maxGuests(rs.getInt("max_guests"))
+                .matchScore(1.0 - rs.getDouble("vector_distance"))
+                .build();
+    }
 }

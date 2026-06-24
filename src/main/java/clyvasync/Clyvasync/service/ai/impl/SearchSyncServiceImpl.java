@@ -1,52 +1,113 @@
 package clyvasync.Clyvasync.service.ai.impl;
 
+import clyvasync.Clyvasync.dto.record.SearchIntent;
+import clyvasync.Clyvasync.dto.response.HomestaySearchResultResponse;
+import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
+import clyvasync.Clyvasync.service.SearchIntentExtractor;
 import clyvasync.Clyvasync.service.ai.SearchSyncService;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
 import com.pgvector.PGvector;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ai.embedding.EmbeddingModel; // Import chuẩn của Spring AI
 
-import java.util.Map;
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class SearchSyncServiceImpl implements SearchSyncService {
 
     private final JdbcTemplate jdbcTemplate;
     private final EmbeddingModel embeddingModel;
+    private final HomestayService homestayService;
+    private final SearchIntentExtractor searchIntentExtractor;
 
-    public SearchSyncServiceImpl(JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel) {
+    public SearchSyncServiceImpl(JdbcTemplate jdbcTemplate, EmbeddingModel embeddingModel, @Lazy HomestayService homestayService,SearchIntentExtractor searchIntentExtractor) {
         this.jdbcTemplate = jdbcTemplate;
         this.embeddingModel = embeddingModel;
+        this.homestayService = homestayService;
+        this.searchIntentExtractor = searchIntentExtractor;
     }
 
-    @Override // Đừng quên override từ interface
+    @Override
     @Transactional
-    public void syncRoomToIndex(Long roomId, Long homestayId, String homestayName, String city, int beds, int guests, double price, String allAmenitiesText) {
+    public void syncRoomToIndex(
+            Long roomId,
+            Long homestayId,
+            String homestayName,
+            String city,
+            int beds,
+            int guests,
+            double price,
+            String allAmenitiesText
+    ) {
+        syncRoomToIndexInternal(
+                roomId,
+                homestayId,
+                homestayName,
+                city,
+                beds,
+                guests,
+                BigDecimal.valueOf(price),
+                BigDecimal.ZERO,
+                0,
+                List.of(),
+                allAmenitiesText
+        );
+    }
+    private void syncRoomToIndexInternal(
+            Long roomId,
+            Long homestayId,
+            String homestayName,
+            String city,
+            int beds,
+            int guests,
+            BigDecimal price,
+            BigDecimal averageRating,
+            Integer reviewCount,
+            List<Integer> amenityIds,
+            String allAmenitiesText
+    ) {
+        String safeAmenities = allAmenitiesText != null ? allAmenitiesText : "";
+        String safeCity = city != null ? city : "";
 
-        // 0. Xử lý an toàn chuỗi tiện ích (Tránh lỗi Null)
-        String safeAmenities = (allAmenitiesText != null) ? allAmenitiesText : "";
+        String textToEmbed = "Homestay " + homestayName
+                + " tại " + safeCity
+                + ". Số giường: " + beds
+                + ". Số khách tối đa: " + guests
+                + ". Giá: " + price
+                + ". Tiện ích: " + safeAmenities;
 
-        // 1. Gọi AI để nhúng (embed) toàn bộ nội dung thành Vector
-        // Lời gọi này sẽ tự động chạy qua API của Gemini nhờ cấu hình application.properties
-        String textToEmbed = "Homestay " + homestayName + " tại " + city + ". Tiện ích: " + safeAmenities;
         float[] embeddingArray = embeddingModel.embed(textToEmbed);
         PGvector pgVector = new PGvector(embeddingArray);
 
-        // 2. Định dạng lại chuỗi tiện ích cho PostgreSQL Full-text Search (tsquery)
-        // Ví dụ: "wifi, hồ bơi" -> "wifi & hồ_bơi"
-        String tsQueryFormat = "";
-        if (!safeAmenities.trim().isEmpty()) {
-            tsQueryFormat = safeAmenities.replace(", ", " & ").replace(" ", "_");
-        }
-
-        // 3. Câu lệnh SQL
-        // 3. Câu lệnh SQL đã được tối ưu
         String sql = """
-        INSERT INTO homestay_search_index 
-        (room_id, homestay_id, name, city, bed_count, max_guests, price_current, amenities_tsv, embedding)
-        VALUES (?, ?, ?, ?, ?, ?, ?, to_tsvector('simple', COALESCE(?, '')), ?)
+        INSERT INTO homestay_search_index
+        (
+            room_id,
+            homestay_id,
+            name,
+            city,
+            bed_count,
+            max_guests,
+            price_current,
+            average_rating,
+            review_count,
+            amenity_ids,
+            amenities_tsv,
+            embedding
+        )
+        VALUES
+        (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?::integer[],
+            to_tsvector('simple', COALESCE(?, '')),
+            ?
+        )
         ON CONFLICT (room_id) DO UPDATE SET
             homestay_id = EXCLUDED.homestay_id,
             name = EXCLUDED.name,
@@ -54,16 +115,28 @@ public class SearchSyncServiceImpl implements SearchSyncService {
             bed_count = EXCLUDED.bed_count,
             max_guests = EXCLUDED.max_guests,
             price_current = EXCLUDED.price_current,
-            amenities_tsv = to_tsvector('simple', COALESCE(EXCLUDED.amenities_tsv::text, '')),
+            average_rating = EXCLUDED.average_rating,
+            review_count = EXCLUDED.review_count,
+            amenity_ids = EXCLUDED.amenity_ids,
+            amenities_tsv = EXCLUDED.amenities_tsv,
             embedding = EXCLUDED.embedding
     """;
 
-        // 4. Lưu xuống database (Đã sửa 1L thành homestayId để dữ liệu động)
-        // Nếu tsQueryFormat rỗng, postgres có thể báo lỗi to_tsquery, ta truyền một từ khóa vô thưởng vô phạt hoặc để null tùy logic.
-        // Ở đây tạm truyền chuỗi đã format.
-        jdbcTemplate.update(sql, roomId, homestayId, homestayName, city, beds, guests, price,
-                tsQueryFormat.isEmpty() ? null : tsQueryFormat,
-                pgVector);
+        jdbcTemplate.update(
+                sql,
+                roomId,
+                homestayId,
+                homestayName,
+                safeCity,
+                beds,
+                guests,
+                price,
+                averageRating == null ? BigDecimal.ZERO : averageRating,
+                reviewCount == null ? 0 : reviewCount,
+                toPgIntArrayLiteral(amenityIds),
+                safeAmenities,
+                pgVector
+        );
     }
 
     @Transactional
@@ -73,33 +146,53 @@ public class SearchSyncServiceImpl implements SearchSyncService {
         r.id AS room_id, 
         r.homestay_id, 
         h.name AS homestay_name,
-        
-        -- ĐÃ SỬA LỖI: Thêm định danh l.name rõ ràng
-        COALESCE((SELECT l.city_name FROM locations l WHERE l.id = h.location_id), h.address_detail) AS city,
-        
+
+        COALESCE(
+            (SELECT l.city_name FROM locations l WHERE l.id = h.location_id),
+            h.address_detail
+        ) AS city,
+
         r.name AS room_name, 
-        r.bed_count, 
-        r.max_guests,
-        
-        -- Lấy giá rẻ nhất từ các gói giá của phòng này làm giá hiển thị
-        COALESCE((SELECT MIN(price) FROM room_rate_plans WHERE room_id = r.id), 0) AS min_price,
-        
-        -- Gom các loại giường (VD: 1 DOUBLE, 2 SINGLE)
+        COALESCE(r.bed_count, 0) AS bed_count,
+        COALESCE(r.max_guests, 0) AS max_guests,
+
+        COALESCE(
+            (
+                SELECT array_agg(DISTINCT x.amenity_id)
+                FROM (
+                    SELECT rah.amenity_id
+                    FROM room_amenity_highlights rah
+                    WHERE rah.room_id = r.id
+
+                    UNION
+
+                    SELECT rpbm.amenity_id
+                    FROM rate_plan_benefit_mapping rpbm
+                    JOIN room_rate_plans rrp ON rpbm.rate_plan_id = rrp.id
+                    WHERE rrp.room_id = r.id
+                ) x
+            ),
+            ARRAY[]::integer[]
+        ) AS amenity_ids,
+
+        COALESCE(
+            (SELECT MIN(price) FROM room_rate_plans WHERE room_id = r.id),
+            0
+        ) AS min_price,
+
         (
             SELECT string_agg(quantity || ' ' || bed_type, ', ') 
             FROM room_beds 
             WHERE room_id = r.id
         ) AS beds_text,
-        
-        -- Gom các tiện ích nổi bật của phòng (kèm theo display_value nếu có)
+
         (
             SELECT string_agg(a.name || COALESCE(' (' || rah.display_value || ')', ''), ', ') 
             FROM room_amenity_highlights rah 
             JOIN amenities a ON rah.amenity_id = a.id 
             WHERE rah.room_id = r.id
         ) AS room_amenities,
-        
-        -- Gom các quyền lợi đi kèm từ TẤT CẢ các gói giá của phòng
+
         (
             SELECT string_agg(DISTINCT a.name, ', ')
             FROM rate_plan_benefit_mapping rpbm
@@ -123,8 +216,9 @@ public class SearchSyncServiceImpl implements SearchSyncService {
             String city = (String) data.get("city");
             int bedCount = ((Number) data.get("bed_count")).intValue();
             int maxGuests = ((Number) data.get("max_guests")).intValue();
-            double price = ((Number) data.get("min_price")).doubleValue();
+            BigDecimal price = toBigDecimal(data.get("min_price"));
 
+            List<Integer> amenityIds = extractIntegerArray(data.get("amenity_ids"));
             // 3. Nối chuỗi để mớm cho AI
             String bedsText = (String) data.get("beds_text");
             String roomAmenities = (String) data.get("room_amenities");
@@ -138,11 +232,253 @@ public class SearchSyncServiceImpl implements SearchSyncService {
             String finalContext = contextBuilder.toString();
 
             // 4. Gọi lại hàm sync gốc để nhúng Vector và lưu DB
-            syncRoomToIndex(roomId, homestayId, homestayName + " - " + roomName, city, bedCount, maxGuests, price, finalContext);
+            syncRoomToIndexInternal(
+                    roomId,
+                    homestayId,
+                    homestayName + " - " + roomName,
+                    city,
+                    bedCount,
+                    maxGuests,
+                    price,
+                    BigDecimal.ZERO,
+                    0,
+                    amenityIds,
+                    finalContext
+            );
 
         } catch (EmptyResultDataAccessException e) {
             // Nếu không tìm thấy phòng (có thể đã bị xóa cứng), ta có thể log hoặc xóa khỏi search index
             jdbcTemplate.update("DELETE FROM homestay_search_index WHERE room_id = ?", roomId);
         }
+    }
+    @Override
+    public List<HomestaySearchResultResponse> hybridSearch(String query, int limit) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+
+        SearchIntent intent = searchIntentExtractor.extract(query);
+        System.out.println("Intent: " + intent);
+
+        String semanticQuery = intent.semanticQuery() != null && !intent.semanticQuery().isBlank()
+                ? intent.semanticQuery().trim()
+                : query.trim();
+
+        float[] queryVector = embeddingModel.embed(semanticQuery);
+        PGvector pgVector = new PGvector(queryVector);
+
+        StringBuilder sql = new StringBuilder("""
+        SELECT *
+        FROM (
+            SELECT
+                *,
+                (embedding <=> ?::vector) AS vector_distance,
+                COALESCE(
+                    ts_rank(
+                        COALESCE(amenities_tsv, to_tsvector('simple', '')),
+                        plainto_tsquery('simple', ?)
+                    ),
+                    0
+                ) AS rank_score
+            FROM homestay_search_index
+            WHERE embedding IS NOT NULL
+    """);
+
+        List<Object> params = new ArrayList<>();
+        params.add(pgVector);
+        params.add(semanticQuery);
+
+        if (intent.city() != null && !intent.city().isBlank()) {
+            sql.append(" AND LOWER(city) LIKE LOWER(?) ");
+            params.add("%" + intent.city().trim() + "%");
+        }
+
+        if (intent.maxGuests() != null) {
+            sql.append(" AND max_guests >= ? ");
+            params.add(intent.maxGuests());
+        }
+
+        if (intent.minBeds() != null) {
+            sql.append(" AND bed_count >= ? ");
+            params.add(intent.minBeds());
+        }
+
+        BigDecimal minPrice = intent.minPrice();
+        BigDecimal maxPrice = intent.maxPrice();
+
+        if (intent.targetPrice() != null) {
+            BigDecimal targetPrice = intent.targetPrice();
+
+            if (minPrice == null) {
+                minPrice = targetPrice.multiply(BigDecimal.valueOf(0.8));
+            }
+
+            if (maxPrice == null) {
+                maxPrice = targetPrice.multiply(BigDecimal.valueOf(1.2));
+            }
+        }
+
+        if (minPrice != null) {
+            sql.append(" AND price_current >= ? ");
+            params.add(minPrice);
+        }
+
+        if (maxPrice != null) {
+            sql.append(" AND price_current <= ? ");
+            params.add(maxPrice);
+        }
+
+        if (intent.mustHaveAmenityIds() != null && !intent.mustHaveAmenityIds().isEmpty()) {
+            sql.append(" AND COALESCE(amenity_ids, ARRAY[]::integer[]) @> ?::integer[] ");
+            params.add(toPgIntArrayLiteral(intent.mustHaveAmenityIds()));
+        }
+
+        if (intent.mustNotHaveAmenityIds() != null && !intent.mustNotHaveAmenityIds().isEmpty()) {
+            sql.append(" AND NOT (COALESCE(amenity_ids, ARRAY[]::integer[]) && ?::integer[]) ");
+            params.add(toPgIntArrayLiteral(intent.mustNotHaveAmenityIds()));
+        }
+
+        sql.append("""
+            ) AS sub
+            ORDER BY
+                CASE
+                    WHEN ? = 'PRICE_NEAR' THEN ABS(price_current - ?::numeric)
+                    ELSE NULL
+                END ASC NULLS LAST,
+
+                CASE
+                    WHEN ? = 'PRICE_ASC' THEN price_current
+                    ELSE NULL
+                END ASC NULLS LAST,
+
+                CASE
+                    WHEN ? = 'PRICE_DESC' THEN price_current
+                    ELSE NULL
+                END DESC NULLS LAST,
+
+                CASE
+                    WHEN ? = 'RATING_DESC' THEN average_rating
+                    ELSE NULL
+                END DESC NULLS LAST,
+
+                (
+                    vector_distance * 0.65
+                    + (1.0 / (rank_score + 1)) * 0.35
+                ) ASC
+            LIMIT ?
+    """);
+
+        String sortBy = normalizeSortBy(intent.sortBy(), intent.targetPrice());
+        BigDecimal targetPriceForSort = intent.targetPrice() != null
+                ? intent.targetPrice()
+                : BigDecimal.ZERO;
+
+        params.add(sortBy);
+        params.add(targetPriceForSort);
+
+        params.add(sortBy);
+        params.add(sortBy);
+        params.add(sortBy);
+
+        params.add(safeLimit);
+
+        return jdbcTemplate.query(
+                sql.toString(),
+                params.toArray(),
+                (rs, rowNum) -> homestayService.mapToHomestay(rs)
+        );
+    }
+    private String normalizeSortBy(String sortBy, BigDecimal targetPrice) {
+        if (sortBy == null || sortBy.isBlank()) {
+            return "RELEVANCE";
+        }
+
+        String normalized = sortBy.trim().toUpperCase();
+
+        if ("PRICE_NEAR".equals(normalized) && targetPrice == null) {
+            return "RELEVANCE";
+        }
+
+        return switch (normalized) {
+            case "PRICE_NEAR", "PRICE_ASC", "PRICE_DESC", "RATING_DESC" -> normalized;
+            default -> "RELEVANCE";
+        };
+    }
+
+    private String toPgIntArrayLiteral(Collection<Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return "{}";
+        }
+
+        return values.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(String::valueOf)
+                .collect(Collectors.joining(",", "{", "}"));
+    }
+    private List<Integer> extractIntegerArray(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+
+        try {
+            if (value instanceof java.sql.Array sqlArray) {
+                Object array = sqlArray.getArray();
+
+                if (array instanceof Integer[] integers) {
+                    return Arrays.stream(integers)
+                            .filter(Objects::nonNull)
+                            .distinct()
+                            .toList();
+                }
+
+                if (array instanceof Number[] numbers) {
+                    return Arrays.stream(numbers)
+                            .filter(Objects::nonNull)
+                            .map(Number::intValue)
+                            .distinct()
+                            .toList();
+                }
+
+                if (array instanceof Object[] objects) {
+                    return Arrays.stream(objects)
+                            .filter(Objects::nonNull)
+                            .map(item -> ((Number) item).intValue())
+                            .distinct()
+                            .toList();
+                }
+            }
+
+            if (value instanceof Object[] objects) {
+                return Arrays.stream(objects)
+                        .filter(Objects::nonNull)
+                        .map(item -> ((Number) item).intValue())
+                        .distinct()
+                        .toList();
+            }
+
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Không parse được amenity_ids: " + value, e);
+        }
+
+        return List.of();
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+
+        if (value instanceof BigDecimal bigDecimal) {
+            return bigDecimal;
+        }
+
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+
+        return new BigDecimal(value.toString());
     }
 }
