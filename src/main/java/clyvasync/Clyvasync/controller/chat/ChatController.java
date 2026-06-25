@@ -140,12 +140,5 @@ public class ChatController {
                 .code(ResultCode.SUCCESS.getCode())
                 .build();
     }
-    @PostMapping("/api/chat")
-    public String chat(@RequestBody String userMessage) {
-        return chatClient.prompt()
-                .user(userMessage)
-                .tools(homestaySearchTool)
-                .call()
-                .content();
-    }
+
 }
