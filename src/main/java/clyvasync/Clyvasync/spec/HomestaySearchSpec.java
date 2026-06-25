@@ -106,12 +106,13 @@ public class HomestaySearchSpec {
             List<Predicate> predicates = new ArrayList<>();
 
             // 1. LỌC ĐỊA ĐIỂM
-//            if (StringUtils.hasText(filters.location())) {
-//                String searchPattern = "%" + filters.location().trim().toLowerCase() + "%";
-//                Predicate matchCity = cb.like(cb.lower(cb.function("unaccent", String.class, root.get("city"))),
-//                        cb.function("unaccent", String.class, cb.literal(searchPattern)));
-//                predicates.add(cb.or(matchCity));
-//            }
+            if (StringUtils.hasText(filters.location())) {
+                String searchPattern = "%" + filters.location().trim().toLowerCase() + "%";
+                System.out.println(searchPattern);
+                Predicate matchCity = cb.like(cb.lower(cb.function("unaccent", String.class, root.get("city"))),
+                        cb.function("unaccent", String.class, cb.literal(searchPattern)));
+                predicates.add(cb.or(matchCity));
+            }
             if (StringUtils.hasText(filters.homestayName())) {
                 Expression<String> normalizedName = cb.lower(
                         cb.function("unaccent", String.class, root.get("name"))
@@ -144,18 +145,25 @@ public class HomestaySearchSpec {
 //            if (filters.guests() != null && filters.guests() > 0) {
 //                predicates.add(cb.greaterThanOrEqualTo(root.get("maxGuests"), filters.guests()));
 //            }
-//            if (filters.bedrooms() != null && filters.bedrooms() > 0) {
-//                predicates.add(cb.greaterThanOrEqualTo(root.get("bedCount"), filters.bedrooms()));
-//            }
+            if (filters.bedrooms() != null && filters.bedrooms() > 0) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("bedCount"), filters.bedrooms()));
+            }
 
-            // 3. LỌC TIỆN ÍCH CỨNG (Quét mảng integer[] bằng array_position)
-//            if (filters.amenityIds() != null && !filters.amenityIds().isEmpty()) {
-//                for (Integer amenityId : filters.amenityIds()) {
-//                    // Tương đương SQL: array_position(amenity_ids, id) IS NOT NULL
-//                    Expression<Integer> arrayPosFunc = cb.function("array_position", Integer.class, root.get("amenityIds"), cb.literal(amenityId));
-//                    predicates.add(cb.isNotNull(arrayPosFunc));
-//                }
-//            }
+         //    3. LỌC TIỆN ÍCH CỨNG (Quét mảng integer[] bằng array_position)
+            if (filters.amenityIds() != null && !filters.amenityIds().isEmpty()) {
+                predicates.add(cb.isNotNull(root.get("amenityIds")));
+
+                for (Integer amenityId : filters.amenityIds()) {
+                    Expression<Integer> arrayPosFunc = cb.function(
+                            "array_position",
+                            Integer.class,
+                            root.get("amenityIds"),
+                            cb.literal(amenityId)
+                    );
+
+                    predicates.add(cb.isNotNull(arrayPosFunc));
+                }
+            }
 
             // 4. LỌC CHÍNH SÁCH (Móc nối Subquery từ homestayId sang bảng homestay_policies)
 //            if (filters.policyFilter() != null) {

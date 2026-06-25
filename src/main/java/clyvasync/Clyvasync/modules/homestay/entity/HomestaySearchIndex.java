@@ -62,7 +62,5 @@ public class HomestaySearchIndex {
 //    @Column(name = "amenities_tsv", columnDefinition = "tsvector")
 //    private String amenitiesTsv;
 
-    @JdbcTypeCode(SqlTypes.VECTOR)
-    @Column(name = "embedding", columnDefinition = "vector(768)")
-    private float[] embedding;
+
 }

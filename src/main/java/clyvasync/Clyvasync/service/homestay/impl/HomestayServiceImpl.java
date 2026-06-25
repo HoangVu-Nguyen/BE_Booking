@@ -1362,7 +1362,10 @@ public class HomestayServiceImpl implements HomestayService {
                     .collect(Collectors.toList());
 
             // Đổi chuỗi văn bản sang mảng vector số
-            String vectorString = embeddingModel.embed(request.semanticQuery()).toString();
+            float[] embedding = embeddingModel.embed(request.semanticQuery());
+
+            String vectorString = Arrays.toString(embedding)
+                    .replace(" ", "");
 
             // Quét vector trên bảng Index
             finalIndexedResults = homestaySearchIndexRepository.findSemanticWithinCandidates(candidateRoomIds, vectorString, 5);
