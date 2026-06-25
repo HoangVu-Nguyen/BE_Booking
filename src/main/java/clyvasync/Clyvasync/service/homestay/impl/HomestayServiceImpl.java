@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.service.homestay.impl;
 
 import clyvasync.Clyvasync.dto.detail.PropertyStats;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
+import clyvasync.Clyvasync.dto.record.AiSearchRequest;
 import clyvasync.Clyvasync.dto.request.*;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.dto.summary.HomestayRoomSummary;
@@ -13,10 +14,7 @@ import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.mapper.homestay.AmenityMapper;
 import clyvasync.Clyvasync.mapper.homestay.HomestayMapper;
 import clyvasync.Clyvasync.modules.auth.entity.User;
-import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
-import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
-import clyvasync.Clyvasync.modules.homestay.entity.HomestayRoom;
-import clyvasync.Clyvasync.modules.homestay.entity.Location;
+import clyvasync.Clyvasync.modules.homestay.entity.*;
 import clyvasync.Clyvasync.modules.room.RatePlanCalendar;
 import clyvasync.Clyvasync.modules.room.RoomCalendar;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
@@ -25,6 +23,7 @@ import clyvasync.Clyvasync.modules.tour.entity.TourImage;
 import clyvasync.Clyvasync.repository.homestay.AmenityRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
+import clyvasync.Clyvasync.repository.homestay.HomestaySearchIndexRepository;
 import clyvasync.Clyvasync.repository.room.RatePlanCalendarRepository;
 import clyvasync.Clyvasync.repository.tour.TourRepository;
 import clyvasync.Clyvasync.service.annotation.IsHomestayOwner;
@@ -42,6 +41,7 @@ import clyvasync.Clyvasync.utils.MediaUtil;
 import jakarta.persistence.criteria.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -86,8 +86,10 @@ public class HomestayServiceImpl implements HomestayService {
     private final RatePlanCalendarRepository ratePlanCalendarRepository;
     private final RoomRatePlanService roomRatePlanService;
     private final HomestayImageRepository homestayImageRepository;
+    private final HomestaySearchIndexRepository homestaySearchIndexRepository;
+    private final EmbeddingModel embeddingModel;
 
-    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService,HomestayImageRepository homestayImageRepository) {
+    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService, HomestayImageRepository homestayImageRepository, HomestaySearchIndexRepository homestaySearchIndexRepository,EmbeddingModel embeddingModel) {
         this.homestayRepository = homestayRepository;
         this.homestayMapper = homestayMapper;
         this.amenityService = amenityService;
@@ -107,6 +109,8 @@ public class HomestayServiceImpl implements HomestayService {
         this.ratePlanCalendarRepository = ratePlanCalendarRepository;
         this.roomRatePlanService = roomRatePlanService;
         this.homestayImageRepository = homestayImageRepository;
+        this.homestaySearchIndexRepository = homestaySearchIndexRepository;
+        this.embeddingModel = embeddingModel;
     }
 
     @Override
@@ -1304,5 +1308,92 @@ public class HomestayServiceImpl implements HomestayService {
                 .maxGuests(rs.getInt("max_guests"))
                 .matchScore(1.0 - rs.getDouble("vector_distance"))
                 .build();
+    }
+
+    @Override
+    public List<GlobalSearchResponse> aiHybridSearch(AiSearchRequest request) {
+        log.info("[AI INDEX SEARCH] Khởi chạy phễu lọc trên Search Index.");
+
+        // TẦNG 1: Tìm danh sách candidate thỏa mãn bộ lọc cứng trên bảng Index
+        log.info("[AI INDEX SEARCH] Khởi chạy phễu lọc trên Search Index.");
+        log.info("[AI INDEX SEARCH] Request nhận vào: {}", request);
+
+        var spec = HomestaySearchSpec.buildAiSpec(request);
+        log.info("[AI INDEX SEARCH] Chuẩn bị gọi homestaySearchIndexRepository.findAll...");
+
+        List<HomestaySearchIndex> candidates ;
+        try {
+            log.info("[AI INDEX SEARCH] Chuẩn bị gọi homestaySearchIndexRepository.findAll...");
+
+            candidates = homestaySearchIndexRepository
+                    .findAll(spec, PageRequest.of(0, 50))
+                    .getContent();
+
+            log.info("[AI INDEX SEARCH] Đã gọi findAll xong.");
+            log.info("[AI INDEX SEARCH] Candidates size: {}", candidates.size());
+
+        } catch (Exception e) {
+            // NẾU CÓ LỖI, NÓ SẼ IN ĐỎ CHÓT Ở ĐÂY CHO ÔNG THẤY
+            log.error("[AI INDEX SEARCH] LỖI RỒI ÔNG ƠI RỚT TẠI FINDALL: ", e);
+            return new ArrayList<>(); // Trả về rỗng để khỏi sập luồng tiếp theo
+        }
+
+        log.info("[AI INDEX SEARCH] Đã gọi findAll xong.");
+        log.info("[AI INDEX SEARCH] Candidates size: {}", candidates.size());
+
+        candidates.forEach(c -> log.info(
+                "[AI INDEX SEARCH] Candidate roomId={}, homestayId={}, name={}, rating={}",
+                c.getRoomId(),
+                c.getHomestayId(),
+                c.getName(),
+                c.getAverageRating()
+        ));
+
+        if (candidates.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<HomestaySearchIndex> finalIndexedResults;
+
+        // TẦNG 2: Nếu có chuỗi ngữ nghĩa, tiến hành quét Vector
+        if (StringUtils.hasText(request.semanticQuery())) {
+            List<Long> candidateRoomIds = candidates.stream()
+                    .map(HomestaySearchIndex::getRoomId)
+                    .collect(Collectors.toList());
+
+            // Đổi chuỗi văn bản sang mảng vector số
+            String vectorString = embeddingModel.embed(request.semanticQuery()).toString();
+
+            // Quét vector trên bảng Index
+            finalIndexedResults = homestaySearchIndexRepository.findSemanticWithinCandidates(candidateRoomIds, vectorString, 5);
+        } else {
+            // Nếu không có ngữ nghĩa, lấy top phòng theo điểm đánh giá trực tiếp từ Index
+            finalIndexedResults = candidates.stream()
+                    .sorted((r1, r2) -> r2.getAverageRating().compareTo(r1.getAverageRating()))
+                    .limit(5)
+                    .collect(Collectors.toList());
+        }
+
+        // TẦNG 3: Map trực tiếp kết quả từ thực thể Index sang DTO phản hồi
+        // TẦNG 3: Map trực tiếp kết quả từ thực thể Index sang DTO phản hồi
+        return finalIndexedResults.stream()
+                .map(idx -> new GlobalSearchResponse(
+                        idx.getHomestayId(), // Trả về ID của Homestay để FE gọi API chi tiết
+                        idx.getName(),
+                        idx.getCity(),
+                        idx.getPriceCurrent(),
+
+                        // Tạm thời để list rỗng. Xem phần lưu ý bên dưới để tối ưu!
+                        new ArrayList<>(),
+
+                        "HOMESTAY", // Fix cứng vì luồng này chỉ tìm Homestay
+
+                        // Xử lý an toàn Null và ép kiểu từ BigDecimal sang Double
+                        idx.getAverageRating() != null ? idx.getAverageRating().doubleValue() : 0.0,
+
+                        idx.getMaxGuests(),
+                        idx.getBedCount()
+                ))
+                .collect(Collectors.toList());
     }
 }

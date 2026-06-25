@@ -231,7 +231,7 @@ public class SearchSyncServiceImpl implements SearchSyncService {
                 BigDecimal averageRating, Integer reviewCount,
                 List<Integer> amenityIds, String amenitiesTsv, float[] embeddingArray
         ) {
-            PGvector pgVector = new PGvector(embeddingArray);
+
 
             String sql = """
             INSERT INTO homestay_search_index
@@ -265,7 +265,7 @@ public class SearchSyncServiceImpl implements SearchSyncService {
                     sql,
                     roomId, homestayId, fullName, city, bedCount, maxGuests,
                     priceCurrent, averageRating, reviewCount,
-                    toPgIntArrayLiteral(amenityIds), amenitiesTsv, pgVector
+                    toPgIntArrayLiteral(amenityIds), amenitiesTsv,embeddingArray
             );
         }
 

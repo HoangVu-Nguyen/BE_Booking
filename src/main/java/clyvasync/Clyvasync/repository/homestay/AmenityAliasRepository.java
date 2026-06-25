@@ -21,7 +21,7 @@ public interface AmenityAliasRepository extends JpaRepository<AmenityAlias, Long
             Integer amenityId,
             String normalizedAlias
     );
-    @Query(value = "SELECT amenity_id FROM amenity_alias " +
+    @Query(value = "SELECT amenity_id FROM amenity_aliases " +
             "WHERE similarity(normalized_alias, :keyword) > 0.4 " +
             "ORDER BY similarity(normalized_alias, :keyword) DESC LIMIT 1",
             nativeQuery = true)

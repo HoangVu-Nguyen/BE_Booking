@@ -1,7 +1,11 @@
 package clyvasync.Clyvasync.tool;
 
+import clyvasync.Clyvasync.dto.record.AiSearchRequest;
+import clyvasync.Clyvasync.dto.record.AmenityMappingResult;
+import clyvasync.Clyvasync.dto.record.PolicyFilterRequest;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.response.GlobalSearchResponse;
+import clyvasync.Clyvasync.service.homestay.AmenityMappingService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import lombok.AllArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
@@ -16,6 +20,7 @@ import java.util.List;
 @AllArgsConstructor
 public class HomestaySearchTool {
     private final HomestayService homestayService;
+    private final AmenityMappingService amenityMappingService;
 
 
     @Tool(description = "BẮT BUỘC SỬ DỤNG công cụ này khi người dùng có nhu cầu tìm kiếm homestay, phòng nghỉ, khách sạn.")
@@ -43,13 +48,18 @@ public class HomestaySearchTool {
 
             @ToolParam(description = "Giá TỐI ĐA người dùng muốn tìm (VNĐ)", required = false)
             Double maxPrice,
+            @ToolParam(description = "Tên riêng hoặc từ khóa cụ thể của homestay nếu khách nhắc đến (Ví dụ: Cloudy Hill, Mây Lang Thang...). Nếu không nhắc thì để null.")
+            String homestayName,
 
-            // --- 4. NHÓM CHÍNH SÁCH (POLICIES) ---
-            @ToolParam(description = "Khách có mang theo thú cưng không? Trả về true nếu có", required = false)
-            Boolean allowPets,
-
-            @ToolParam(description = "Khách có yêu cầu phòng được phép hút thuốc không? Trả về true nếu có", required = false)
-            Boolean allowSmoking,
+            @ToolParam(description = "Mảng chứa CÁC MÃ CHÍNH SÁCH mà khách yêu cầu. " +
+                    "CHỈ ĐƯỢC CHỌN TỪ DANH SÁCH SAU: " +
+                    "'PETS' (mang thú cưng), " +
+                    "'SMOKING' (được hút thuốc), " +
+                    "'PARTIES' (được tổ chức tiệc), " +
+                    "'CHILDREN' (cho phép trẻ em), " +
+                    "'NO_DEPOSIT' (không yêu cầu đặt cọc). " +
+                    "Ví dụ: Khách nói 'có thể dắt chó và không bắt cọc' thì trả về mảng ['PETS', 'NO_DEPOSIT'].")
+            List<String> policyCodes,
             @ToolParam(description = "Mảng chữ chứa tiện ích. VD: ['wifi', 'bể bơi']")
             List<String> requestedAmenities,
 
@@ -62,34 +72,35 @@ public class HomestaySearchTool {
         System.out.println("📅 Check-in/out   : " + checkInDate + " -> " + checkOutDate);
         System.out.println("👥 Số khách/giường: " + guests + " khách, " + bedrooms + " giường");
         System.out.println("💰 Mức giá        : " + minPrice + " -> " + maxPrice);
-        System.out.println("🐶 Thú cưng       : " + allowPets);
-        System.out.println("🚬 Hút thuốc      : " + allowSmoking);
         System.out.println("🧠 Ngữ nghĩa      : " + semanticQuery);
         System.out.println("=============================================");
         System.out.println("AI bóc ra tiện ích: " + requestedAmenities);
 
         List<Integer> actualAmenityIds = new ArrayList<>();
-
+        AmenityMappingResult mappingResult = amenityMappingService.processAiAmenities(requestedAmenities);
+        System.out.println(mappingResult.mappedIds());
+        String finalSemanticQuery = (semanticQuery != null ? semanticQuery : "")
+                + " " + mappingResult.unmappedKeywords();
+        PolicyFilterRequest policyFilter = extractPolicies(policyCodes);
         // Lưu ý: Ông cần vào class GlobalSearchRequest để bổ sung thêm các trường này
         // để nó khớp với constructor dưới đây.
-        GlobalSearchRequest request = new GlobalSearchRequest(
+        AiSearchRequest request = new AiSearchRequest(
                 location,
-                null, // category
-                minPrice != null ? BigDecimal.valueOf(minPrice) : null,
-                maxPrice != null ? BigDecimal.valueOf(maxPrice) : null,
+                homestayName,
                 guests,
                 bedrooms,
-                null, // minRating
-                null, // amenityIds (Có thể null vì ta dùng semanticQuery để quét rồi)
-                checkInDate,  // Thêm trường này vào Request
-                checkOutDate, // Thêm trường này vào Request
-                allowPets,    // Thêm trường này vào Request
-                allowSmoking  // Thêm trường này vào Request
+                minPrice,
+                maxPrice,
+                checkInDate,
+                checkOutDate,
+                mappingResult.mappedIds(), // Danh sách ID tiện ích (Tầng 1)
+                policyFilter,              // Bộ lọc chính sách (Tầng 1)
+                finalSemanticQuery.trim()  // Chuỗi ngữ nghĩa dồn lại cho pgvector (Tầng 2)
         );
 
         System.out.println("⏳ ĐANG GỌI SERVICE DB VỚI DỮ LIỆU: " + request);
 
-        List<GlobalSearchResponse> results = homestayService.cinematicSearch(request);
+        List<GlobalSearchResponse> results = homestayService.aiHybridSearch(request);
 
         if (results == null || results.isEmpty()) {
             System.out.println("❌ Không tìm thấy phòng nào khớp yêu cầu!");
@@ -103,5 +114,18 @@ public class HomestaySearchTool {
             return results.subList(0, 5);
         }
         return results;
+    }
+    private PolicyFilterRequest extractPolicies(List<String> policyCodes) {
+        if (policyCodes == null || policyCodes.isEmpty()) {
+            return new PolicyFilterRequest(null, null, null, null, null);
+        }
+
+        return new PolicyFilterRequest(
+                policyCodes.contains("PETS") ? true : null,
+                policyCodes.contains("SMOKING") ? true : null,
+                policyCodes.contains("PARTIES") ? true : null,
+                policyCodes.contains("CHILDREN") ? true : null,
+                policyCodes.contains("NO_DEPOSIT") ? true : null
+        );
     }
 }

@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.dto.request;
 
+import clyvasync.Clyvasync.dto.record.PolicyFilterRequest;
 import lombok.Data;
 import org.springframework.ai.tool.annotation.ToolParam;
 
@@ -15,18 +16,11 @@ public record GlobalSearchRequest(
         Integer bedrooms,
 
         Double minRating,
-        List<Integer> amenityIds,
-        String checkInDate,
+        List<Integer> amenityIds
 
-        String checkOutDate,
-        Boolean allowPets,
-
-        Boolean allowSmoking
 
 
 
 ) {
-    public GlobalSearchRequest(String keyword, String category, BigDecimal minPrice, BigDecimal maxPrice, Integer guests, Integer bedrooms, Double minRating, List<Integer> amenityIds) {
-        this(keyword, category, minPrice, maxPrice, guests, bedrooms, minRating, amenityIds, "", "", null, null);
-    }
+
 }
