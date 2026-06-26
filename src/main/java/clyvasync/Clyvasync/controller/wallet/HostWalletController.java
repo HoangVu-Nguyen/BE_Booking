@@ -1,4 +1,4 @@
-package clyvasync.Clyvasync.controller.wallet.controller;
+package clyvasync.Clyvasync.controller.wallet;
 
 import clyvasync.Clyvasync.dto.request.WithdrawRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;

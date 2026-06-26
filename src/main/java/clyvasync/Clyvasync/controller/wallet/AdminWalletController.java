@@ -2,6 +2,8 @@ package clyvasync.Clyvasync.controller.wallet;
 
 import clyvasync.Clyvasync.dto.request.WithdrawApprovalRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.LedgerKpiResponse;
+import clyvasync.Clyvasync.dto.response.TransactionResponse;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionType;
 import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
@@ -35,5 +37,21 @@ public class AdminWalletController {
 
         return ApiResponse.success(walletTransactionService
                 .findByTransactionTypeAndStatus(TransactionType.WITHDRAWAL, TransactionStatus.PENDING, PageRequest.of(page, size)));
+    }
+    @GetMapping("/transactions")
+    public ApiResponse<Page<TransactionResponse>> getTransactions(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String type,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Page<TransactionResponse> result = walletTransactionService.getTransactions(search, type, page, size);
+        return ApiResponse.success(result);
+    }
+
+    @GetMapping("/kpi")
+    public ApiResponse<LedgerKpiResponse> getLedgerKpi() {
+        LedgerKpiResponse kpiData = walletTransactionService.getKpi();
+        return ApiResponse.success(kpiData);
     }
 }

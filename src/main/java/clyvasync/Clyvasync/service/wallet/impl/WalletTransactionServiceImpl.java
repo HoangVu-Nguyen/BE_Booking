@@ -1,5 +1,8 @@
 package clyvasync.Clyvasync.service.wallet.impl;
 
+import clyvasync.Clyvasync.dto.projection.LedgerTransactionProjection;
+import clyvasync.Clyvasync.dto.response.LedgerKpiResponse;
+import clyvasync.Clyvasync.dto.response.TransactionResponse;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionType;
@@ -9,6 +12,7 @@ import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
 import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
+import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.wallet.WalletTransactionRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
@@ -16,6 +20,7 @@ import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -33,6 +38,7 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
     private final HomestayService homestayService;
     private final RoomRatePlanService roomRatePlanService;
     private final HostWalletService hostWalletService;
+    private final BookingRepository bookingRepo;
 
     @Override
     @Transactional
@@ -147,6 +153,90 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
         }
     }
 
+    @Override
+    public Page<TransactionResponse> getTransactions(String search, String type, int page, int size) {
+        Page<LedgerTransactionProjection> rawData = walletTransactionRepository.findLedgerTransactions(
+                search, type, PageRequest.of(page, size)
+        );
+
+        return rawData.map(row -> {
+            String dbType = row.type() != null ? row.type() : "";
+            String uiType = switch (dbType) {
+                // Nhóm TIỀN VÀO (Mũi tên Xanh lá)
+                case "BOOKING_REVENUE",
+                     "CANCELLATION_FEE_REVENUE",
+                     "ESCROW_RELEASE" -> "PAYMENT_IN";
+
+                // Nhóm RÚT TIỀN (Mũi tên Tím đi lên)
+                case "WITHDRAWAL",
+                     "WITHDRAW_APPROVED" -> "PAYOUT_OUT";
+
+                // Nhóm HOÀN / TRẢ LẠI (Mũi tên Đỏ quay đầu)
+                case "REFUND_DEDUCTION",
+                     "WITHDRAW_REJECTED" -> "REFUND";
+
+                default -> "PAYMENT_IN"; // Fallback an toàn
+            };
+
+            BigDecimal gross = row.gross() != null ? row.gross() : row.txnAmount();
+            BigDecimal platformFee = row.fee() != null ? row.fee() : BigDecimal.ZERO;
+            BigDecimal netToHost = row.net() != null ? row.net() : row.txnAmount();
+
+            return TransactionResponse.builder()
+                    .id("TXN-" + String.format("%06d", row.txnId()))
+                    .date(row.txnDate().toLocalDateTime())
+                    .type(uiType)
+                    .status(row.status())
+
+                    .guest(row.guestName() != null ? TransactionResponse.GuestDto.builder()
+                            .name(row.guestName())
+                            .avatar(row.guestAvatar())
+                            .build() : null)
+
+                    .host(TransactionResponse.HostDto.builder()
+                            .name(row.hostName())
+                            .build())
+
+                    .paymentDetails(parsePaymentInfo(row.type(), row.bankInfo()))
+                    .amounts(TransactionResponse.AmountsDto.builder()
+                            .gross(gross)
+                            .platformFee(platformFee)
+                            .netToHost(netToHost)
+                            .build())
+                    .build();
+        });
+    }
+
+
+    private TransactionResponse.PaymentDetailsDto parsePaymentInfo(String dbType, String bankInfo) {
+        if ("BOOKING_REVENUE".equals(dbType)) {
+            return TransactionResponse.PaymentDetailsDto.builder()
+                    .method("VNPay")
+                    .build();
+        }
+
+        if (bankInfo != null && bankInfo.contains("-")) {
+            String[] parts = bankInfo.split("-");
+            String bankName = parts[0].trim();
+
+            String last4 = "";
+            if (parts.length > 1) {
+                String accountNum = parts[1].trim();
+                last4 = accountNum.length() > 4 ? accountNum.substring(accountNum.length() - 4) : accountNum;
+            }
+
+            return TransactionResponse.PaymentDetailsDto.builder()
+                    .method("BANK")
+                    .bank(bankName)
+                    .last4(last4)
+                    .build();
+        }
+
+        return TransactionResponse.PaymentDetailsDto.builder()
+                .method("SYSTEM")
+                .build();
+    }
+
     private void createTransactionRecord(Long walletId, Long bookingId, BigDecimal amount, TransactionType type, String desc) {
         WalletTransaction tx = new WalletTransaction();
         tx.setWalletId(walletId);
@@ -156,5 +246,20 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
         tx.setStatus(TransactionStatus.COMPLETED);
         tx.setDescription(desc);
         walletTransactionRepository.save(tx);
+    }
+    @Override
+    public LedgerKpiResponse getKpi() {
+        BigDecimal totalGmv = bookingRepo.sumTotalGmv();
+        BigDecimal netRevenue = bookingRepo.sumTotalPlatformFee();
+
+        BigDecimal hostDebt = walletTransactionRepository.sumTotalHostDebt();
+        BigDecimal totalRefunds = walletTransactionRepository.sumTotalRefunds();
+
+        return LedgerKpiResponse.builder()
+                .totalGmv(totalGmv != null ? totalGmv : BigDecimal.ZERO)
+                .netRevenue(netRevenue != null ? netRevenue : BigDecimal.ZERO)
+                .hostDebt(hostDebt != null ? hostDebt : BigDecimal.ZERO)
+                .totalRefunds(totalRefunds != null ? totalRefunds : BigDecimal.ZERO)
+                .build();
     }
 }
