@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.wallet.impl;
 
 import clyvasync.Clyvasync.dto.projection.LedgerTransactionProjection;
+import clyvasync.Clyvasync.dto.response.LedgerKpiResponse;
 import clyvasync.Clyvasync.dto.response.TransactionResponse;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
@@ -11,6 +12,7 @@ import clyvasync.Clyvasync.modules.booking.entity.BookingDetail;
 import clyvasync.Clyvasync.modules.room.RoomRatePlan;
 import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
 import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
+import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.wallet.WalletTransactionRepository;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.room.RoomRatePlanService;
@@ -36,6 +38,7 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
     private final HomestayService homestayService;
     private final RoomRatePlanService roomRatePlanService;
     private final HostWalletService hostWalletService;
+    private final BookingRepository bookingRepo;
 
     @Override
     @Transactional
@@ -157,10 +160,22 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
         );
 
         return rawData.map(row -> {
-            String uiType = switch (row.type()) {
-                case "BOOKING_REVENUE" -> "PAYMENT_IN";
-                case "WITHDRAWAL" -> "PAYOUT_OUT";
-                default -> "REFUND";
+            String dbType = row.type() != null ? row.type() : "";
+            String uiType = switch (dbType) {
+                // Nhóm TIỀN VÀO (Mũi tên Xanh lá)
+                case "BOOKING_REVENUE",
+                     "CANCELLATION_FEE_REVENUE",
+                     "ESCROW_RELEASE" -> "PAYMENT_IN";
+
+                // Nhóm RÚT TIỀN (Mũi tên Tím đi lên)
+                case "WITHDRAWAL",
+                     "WITHDRAW_APPROVED" -> "PAYOUT_OUT";
+
+                // Nhóm HOÀN / TRẢ LẠI (Mũi tên Đỏ quay đầu)
+                case "REFUND_DEDUCTION",
+                     "WITHDRAW_REJECTED" -> "REFUND";
+
+                default -> "PAYMENT_IN"; // Fallback an toàn
             };
 
             BigDecimal gross = row.gross() != null ? row.gross() : row.txnAmount();
@@ -169,7 +184,7 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
 
             return TransactionResponse.builder()
                     .id("TXN-" + String.format("%06d", row.txnId()))
-                    .date(row.txnDate())
+                    .date(row.txnDate().toLocalDateTime())
                     .type(uiType)
                     .status(row.status())
 
@@ -231,5 +246,20 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
         tx.setStatus(TransactionStatus.COMPLETED);
         tx.setDescription(desc);
         walletTransactionRepository.save(tx);
+    }
+    @Override
+    public LedgerKpiResponse getKpi() {
+        BigDecimal totalGmv = bookingRepo.sumTotalGmv();
+        BigDecimal netRevenue = bookingRepo.sumTotalPlatformFee();
+
+        BigDecimal hostDebt = walletTransactionRepository.sumTotalHostDebt();
+        BigDecimal totalRefunds = walletTransactionRepository.sumTotalRefunds();
+
+        return LedgerKpiResponse.builder()
+                .totalGmv(totalGmv != null ? totalGmv : BigDecimal.ZERO)
+                .netRevenue(netRevenue != null ? netRevenue : BigDecimal.ZERO)
+                .hostDebt(hostDebt != null ? hostDebt : BigDecimal.ZERO)
+                .totalRefunds(totalRefunds != null ? totalRefunds : BigDecimal.ZERO)
+                .build();
     }
 }

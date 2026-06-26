@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Data;
 
@@ -9,7 +10,9 @@ import java.time.LocalDateTime;
 @Data
 @Builder
 public class TransactionResponse {
-    private String id;                  // Mã TXN (VD: TXN-12345)
+    private String id;
+    // Mã TXN (VD: TXN-12345)
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime date;         // Thời gian giao dịch
     private String type;                // PAYMENT_IN, PAYOUT_OUT, REFUND
     private GuestDto guest;
