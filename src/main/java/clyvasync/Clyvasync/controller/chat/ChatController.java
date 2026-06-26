@@ -8,9 +8,11 @@ import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.chat.ConversationService;
 import clyvasync.Clyvasync.service.chat.MessageAttachmentService;
 import clyvasync.Clyvasync.service.chat.MessageService;
+import clyvasync.Clyvasync.tool.HomestaySearchTool;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -28,6 +30,9 @@ public class ChatController {
     private final MessageService messageService;
     private final ConversationService conversationService;
     private final MessageAttachmentService messageAttachmentService;
+    private final ChatClient chatClient;
+    private final HomestaySearchTool homestaySearchTool;
+
 
     // ==========================================
     // API INBOX (Cột 1)
@@ -135,4 +140,5 @@ public class ChatController {
                 .code(ResultCode.SUCCESS.getCode())
                 .build();
     }
+
 }
