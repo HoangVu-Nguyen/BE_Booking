@@ -6,7 +6,7 @@ public record AiSearchRequest(
         String location,
         String homestayName,
         Integer guests,
-        Integer bedrooms,
+        Integer  bedCount,
         Double minPrice,
         Double maxPrice,
         String checkInDate,

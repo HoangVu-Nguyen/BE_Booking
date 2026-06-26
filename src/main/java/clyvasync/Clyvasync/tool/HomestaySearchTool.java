@@ -7,6 +7,7 @@ import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.response.GlobalSearchResponse;
 import clyvasync.Clyvasync.service.homestay.AmenityMappingService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.tool.criteria.HomeSearchCriteria;
 import lombok.AllArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -24,77 +25,35 @@ public class HomestaySearchTool {
 
 
     @Tool(description = "BẮT BUỘC SỬ DỤNG công cụ này khi người dùng có nhu cầu tìm kiếm homestay, phòng nghỉ, khách sạn.")
-    public List<GlobalSearchResponse> searchHomestay(
-            // --- 1. NHÓM ĐỊA ĐIỂM ---
-            @ToolParam(description = "Tên thành phố hoặc địa danh (Ví dụ: Đà Lạt, Vũng Tàu, Quận 1...)")
-            String location,
-
-            // --- 2. NHÓM THỜI GIAN & SỨC CHỨA ---
-            @ToolParam(description = "Ngày nhận phòng (Check-in), định dạng YYYY-MM-DD", required = false)
-            String checkInDate,
-
-            @ToolParam(description = "Ngày trả phòng (Check-out), định dạng YYYY-MM-DD", required = false)
-            String checkOutDate,
-
-            @ToolParam(description = "Tổng số lượng khách (người lớn + trẻ em)", required = false)
-            Integer guests,
-
-            @ToolParam(description = "Số lượng phòng ngủ hoặc giường", required = false)
-            Integer bedrooms,
-
-            // --- 3. NHÓM TÀI CHÍNH ---
-            @ToolParam(description = "Giá TỐI THIỂU người dùng muốn tìm (VNĐ)", required = false)
-            Double minPrice,
-
-            @ToolParam(description = "Giá TỐI ĐA người dùng muốn tìm (VNĐ)", required = false)
-            Double maxPrice,
-            @ToolParam(description = "Tên riêng hoặc từ khóa cụ thể của homestay nếu khách nhắc đến (Ví dụ: Cloudy Hill, Mây Lang Thang...). Nếu không nhắc thì để null.")
-            String homestayName,
-
-            @ToolParam(description = "Mảng chứa CÁC MÃ CHÍNH SÁCH mà khách yêu cầu. " +
-                    "CHỈ ĐƯỢC CHỌN TỪ DANH SÁCH SAU: " +
-                    "'PETS' (mang thú cưng), " +
-                    "'SMOKING' (được hút thuốc), " +
-                    "'PARTIES' (được tổ chức tiệc), " +
-                    "'CHILDREN' (cho phép trẻ em), " +
-                    "'NO_DEPOSIT' (không yêu cầu đặt cọc). " +
-                    "Ví dụ: Khách nói 'có thể dắt chó và không bắt cọc' thì trả về mảng ['PETS', 'NO_DEPOSIT'].")
-            List<String> policyCodes,
-            @ToolParam(description = "Mảng chữ chứa tiện ích. VD: ['wifi', 'bể bơi']")
-            List<String> requestedAmenities,
-
-            // --- 5. NHÓM NGỮ NGHĨA & TIỆN ÍCH (AI SẼ GOM HẾT VÀO ĐÂY) ---
-            @ToolParam(description = "Gom TẤT CẢ các yêu cầu về tiện ích (hồ bơi, wifi, máy chiếu, bồn tắm...) và cảm giác (view đẹp, yên tĩnh, lãng mạn...) thành một câu tìm kiếm tự nhiên. KHÔNG đưa giá, địa điểm, ngày tháng vào đây.")
-            String semanticQuery
-    ) {
+    public List<GlobalSearchResponse> searchHomestay(HomeSearchCriteria homeSearchCriteria
+                                                     ) {
         System.out.println("\n====== 🤖 GEMINI ĐÃ BÓC TÁCH THÔNG TIN ======");
-        System.out.println("📍 Địa điểm       : " + location);
-        System.out.println("📅 Check-in/out   : " + checkInDate + " -> " + checkOutDate);
-        System.out.println("👥 Số khách/giường: " + guests + " khách, " + bedrooms + " giường");
-        System.out.println("💰 Mức giá        : " + minPrice + " -> " + maxPrice);
-        System.out.println("🧠 Ngữ nghĩa      : " + semanticQuery);
+        System.out.println("📍 Địa điểm       : " + homeSearchCriteria.location());
+        System.out.println("📅 Check-in/out   : " + homeSearchCriteria.checkInDate() + " -> " + homeSearchCriteria.checkOutDate());
+        System.out.println("👥 Số khách/giường: " + homeSearchCriteria.guests() + " khách, " + homeSearchCriteria.bedCount() + " giường");
+        System.out.println("💰 Mức giá        : " + homeSearchCriteria.minPrice() + " -> " + homeSearchCriteria.maxPrice());
+        System.out.println("🧠 Ngữ nghĩa      : " + homeSearchCriteria.semanticQuery());
         System.out.println("=============================================");
-        System.out.println("AI bóc ra tiện ích: " + requestedAmenities);
+        System.out.println("AI bóc ra tiện ích: " + homeSearchCriteria.requestedAmenities());
 
-        List<Integer> actualAmenityIds = new ArrayList<>();
-        AmenityMappingResult mappingResult = amenityMappingService.processAiAmenities(requestedAmenities);
+        AmenityMappingResult mappingResult = amenityMappingService.processAiAmenities(homeSearchCriteria.requestedAmenities());
         System.out.println(mappingResult.mappedIds());
-        String finalSemanticQuery = (semanticQuery != null ? semanticQuery : "")
+        String finalSemanticQuery = (homeSearchCriteria.semanticQuery() != null ? homeSearchCriteria.semanticQuery() : "")
                 + " " + mappingResult.unmappedKeywords();
-        PolicyFilterRequest policyFilter = extractPolicies(policyCodes);
+       // PolicyFilterRequest policyFilter = extractPolicies(policyCodes);
         // Lưu ý: Ông cần vào class GlobalSearchRequest để bổ sung thêm các trường này
         // để nó khớp với constructor dưới đây.
         AiSearchRequest request = new AiSearchRequest(
-                location,
-                homestayName,
-                guests,
-                bedrooms,
-                minPrice,
-                maxPrice,
-                checkInDate,
-                checkOutDate,
+                homeSearchCriteria.location(),
+                homeSearchCriteria.homestayName(),
+                homeSearchCriteria.guests(),
+                homeSearchCriteria.bedCount(),
+                homeSearchCriteria.minPrice(),
+                homeSearchCriteria.maxPrice(),
+                homeSearchCriteria.checkInDate(),
+                homeSearchCriteria.checkOutDate(),
                 mappingResult.mappedIds(), // Danh sách ID tiện ích (Tầng 1)
-                policyFilter,              // Bộ lọc chính sách (Tầng 1)
+                null,              // Bộ lọc chính sách (Tầng 1)
                 finalSemanticQuery.trim()  // Chuỗi ngữ nghĩa dồn lại cho pgvector (Tầng 2)
         );
 

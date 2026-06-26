@@ -142,11 +142,11 @@ public class HomestaySearchSpec {
 //            if (filters.maxPrice() != null) {
 //                predicates.add(cb.lessThanOrEqualTo(root.get("priceCurrent"), filters.maxPrice()));
 //            }
-//            if (filters.guests() != null && filters.guests() > 0) {
-//                predicates.add(cb.greaterThanOrEqualTo(root.get("maxGuests"), filters.guests()));
-//            }
-            if (filters.bedrooms() != null && filters.bedrooms() > 0) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("bedCount"), filters.bedrooms()));
+            if (filters.guests() != null && filters.guests() > 0) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("maxGuests"), filters.guests()));
+            }
+            if (filters.bedCount() != null && filters.bedCount() > 0) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("bedCount"), filters.bedCount()));
             }
 
          //    3. LỌC TIỆN ÍCH CỨNG (Quét mảng integer[] bằng array_position)
