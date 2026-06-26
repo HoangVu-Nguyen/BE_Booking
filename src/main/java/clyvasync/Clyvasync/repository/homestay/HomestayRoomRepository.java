@@ -62,5 +62,45 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
     List<RoomImageProjection> findRoomImagesByIdIn(@Param("roomIds") List<Long> roomIds);
     List<HomestayRoom> findAllByHomestayIdAndStatus(Long homestayId, String status);
     Optional<HomestayRoom> findByIdAndHomestayId(Long id, Long homestayId);
-
+    @Query(value = """
+    SELECT r.id 
+    FROM homestay_rooms r
+    WHERE r.id IN (:roomIds)
+      AND r.status = 'ACTIVE'
+      AND (
+          SELECT MIN(
+              -- ĐỌC DỮ LIỆU TỪ LỊCH: Nếu BLOCKED thì ép về 0, nếu không thì lấy available_quantity
+              COALESCE((
+                  SELECT CASE 
+                             WHEN rc.status != 'AVAILABLE' THEN 0 
+                             ELSE rc.available_quantity 
+                         END
+                  FROM room_calendar rc 
+                  WHERE rc.room_id = r.id AND rc.night_date = d.night_date
+              ), r.quantity)
+              - 
+              -- SỐ LƯỢNG PHÒNG ĐÃ BỊ ĐẶT
+              COALESCE((
+                  SELECT SUM(bd.quantity) 
+                  FROM booking_details bd
+                  INNER JOIN bookings b ON bd.booking_id = b.id
+                  WHERE bd.room_id = r.id
+                    AND b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED')
+                    AND bd.check_in_date <= d.night_date
+                    AND bd.check_out_date > d.night_date
+              ), 0)
+          )
+          -- VÒNG LẶP ĐÊM
+          FROM generate_series(
+              CAST(:checkIn AS DATE), 
+              CAST(:checkOut AS DATE) - INTERVAL '1 day', 
+              INTERVAL '1 day'
+      ) AS d(night_date)
+  ) > 0
+""", nativeQuery = true)
+    List<Long> getAvailableRoomIds(
+            @Param("roomIds") List<Long> roomIds,
+            @Param("checkIn") LocalDate checkIn,
+            @Param("checkOut") LocalDate checkOut
+    );
 }
