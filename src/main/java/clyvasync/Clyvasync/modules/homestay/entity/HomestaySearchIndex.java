@@ -4,6 +4,7 @@ import com.pgvector.PGvector;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
@@ -57,14 +58,9 @@ public class HomestaySearchIndex {
     /**
      * Dùng cho PostgreSQL full-text search.
      */
-    @JdbcTypeCode(SqlTypes.OTHER)
-    @Column(name = "amenities_tsv", columnDefinition = "tsvector")
-    private String amenitiesTsv;
+//    @JdbcTypeCode(SqlTypes.OTHER)
+//    @Column(name = "amenities_tsv", columnDefinition = "tsvector")
+//    private String amenitiesTsv;
 
-    /**
-     * Vector embedding.
-     */
-    @JdbcTypeCode(SqlTypes.OTHER)
-    @Column(name = "embedding", columnDefinition = "vector(1536)")
-    private PGvector embedding;
+
 }

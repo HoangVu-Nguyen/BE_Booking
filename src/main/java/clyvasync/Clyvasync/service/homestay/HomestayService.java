@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.service.homestay;
 
 
 
+import clyvasync.Clyvasync.dto.record.AiSearchRequest;
 import clyvasync.Clyvasync.dto.request.GlobalSearchRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
@@ -48,5 +49,5 @@ public interface HomestayService {
     HostPortfolioSummaryResponse getPortfolioSummary(Long hostId);
     Long getOwnerIdByHomestayId(Long homestayId);
     HomestaySearchResultResponse mapToHomestay(java.sql.ResultSet rs) throws java.sql.SQLException;
-
+    List<GlobalSearchResponse> aiHybridSearch(AiSearchRequest request);
 }
