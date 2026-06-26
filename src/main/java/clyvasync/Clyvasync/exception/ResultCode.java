@@ -140,6 +140,7 @@ public enum ResultCode {
     IMAGE_METADATA_INVALID(7005, HttpStatus.BAD_REQUEST),
     CANNOT_DELETE_PRIMARY_IMAGE(7006, HttpStatus.BAD_REQUEST),
     MAX_IMAGES_REACHED(7007, HttpStatus.BAD_REQUEST),
+    DATA_ERROR(7008, HttpStatus.BAD_REQUEST),
 
     // --- 8xxx: Validation Errors ---
     INVALID_EMAIL(8001, HttpStatus.BAD_REQUEST),
@@ -197,7 +198,9 @@ public enum ResultCode {
     INVALID_TRANSACTION_TYPE(14014, HttpStatus.BAD_REQUEST),
     WITHDRAWAL_ALREADY_PROCESSED(14015, HttpStatus.BAD_REQUEST),
     ESCROW_RELEASE_FAILED(14016, HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_STATUS(14017,HttpStatus.BAD_REQUEST);
+    INVALID_STATUS(14017,HttpStatus.BAD_REQUEST),
+
+    PROFILE_NOT_FOUND(15000, HttpStatus.NOT_FOUND);
 
     private final int code;
     private final HttpStatusCode statusCode;

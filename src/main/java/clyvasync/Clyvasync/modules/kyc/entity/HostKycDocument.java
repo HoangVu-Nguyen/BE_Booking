@@ -30,6 +30,8 @@ public class HostKycDocument {
 
     @Column(name = "file_url", columnDefinition = "TEXT", nullable = false)
     private String fileUrl;
+    @Column(name = "file_name", nullable = false)
+    private String fileName;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 50, nullable = false)
