@@ -29,6 +29,7 @@ public class KycController {
     @PostMapping("/pre-upload")
     public ApiResponse<List<PreUploadResponse>> preUpload(
             @RequestBody KycBatchUploadRequest request) {
+        System.out.println(request);
 
         return ApiResponse.success(hostKycService.prepareUploads(request.getProfileId(), request));
     }

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @AllArgsConstructor
@@ -68,31 +69,43 @@ public class HostKycServiceImpl implements HostKycService {
             throw new AppException(ResultCode.PROFILE_NOT_FOUND);
         }
 
-        // 1. Chuẩn bị entity
         List<HostKycDocument> documents = request.getItems().stream()
-                .map(item -> HostKycDocument.builder()
-                        .profileId(profileId)
-                        .documentType(item.getDocumentType())
-                        .fileName(item.getFileName())
-                        .status(KycDocumentStatus.PENDING)
-                        .build())
-                .collect(Collectors.toList());
+                .map(item -> {
+
+                    String objectKey = mediaUtil.generateObjectKey(profileId, item);
+
+                    return HostKycDocument.builder()
+                            .profileId(profileId)
+                            .documentType(item.getDocumentType())
+                            .fileName(item.getFileName())
+                            .status(KycDocumentStatus.PENDING)
+                            .fileUrl(objectKey)
+                            .build();
+
+                })
+                .toList();
 
         List<HostKycDocument> savedDocs = documentRepository.saveAll(documents);
 
-        return java.util.stream.IntStream.range(0, savedDocs.size())
+        return IntStream.range(0, savedDocs.size())
                 .mapToObj(i -> {
+
                     HostKycDocument doc = savedDocs.get(i);
+
                     KycDocumentMeta meta = request.getItems().get(i);
 
-                    // Gọi MediaUtil để lấy path chuẩn
-                    String objectKey = mediaUtil.generateObjectKey(profileId, meta);
-
                     String uploadUrl = s3Service.generatePresignedPutUrl(
-                            objectKey, meta.getContentType(), meta.getFileSize());
+                            doc.getFileUrl(),
+                            meta.getContentType(),
+                            meta.getFileSize());
 
-                    return new PreUploadResponse(doc.getId(), meta.getFileName(), objectKey, uploadUrl);
+                    return new PreUploadResponse(
+                            doc.getId(),
+                            meta.getFileName(),
+                            doc.getFileUrl(),
+                            uploadUrl);
+
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 }
