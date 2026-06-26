@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.wallet;
 
+import clyvasync.Clyvasync.dto.response.TransactionResponse;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionType;
@@ -40,4 +41,5 @@ public interface WalletTransactionService {
     void save(WalletTransaction walletTransaction);
     Page<WalletTransaction> findByTransactionTypeAndStatus(TransactionType type, TransactionStatus status, Pageable pageable);
     PaymentStatus processCancellationRefund(Long homestayId, Long bookingId, String bookingCode, BigDecimal totalPaid, BookingDetail detail);
+    Page<TransactionResponse> getTransactions(String search, String type, int page, int size);
 }

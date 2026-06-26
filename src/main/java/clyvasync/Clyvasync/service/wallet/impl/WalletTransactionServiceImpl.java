@@ -1,5 +1,7 @@
 package clyvasync.Clyvasync.service.wallet.impl;
 
+import clyvasync.Clyvasync.dto.projection.LedgerTransactionProjection;
+import clyvasync.Clyvasync.dto.response.TransactionResponse;
 import clyvasync.Clyvasync.enums.type.PaymentStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionStatus;
 import clyvasync.Clyvasync.enums.wallet.TransactionType;
@@ -16,6 +18,7 @@ import clyvasync.Clyvasync.service.wallet.HostWalletService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -145,6 +148,78 @@ public class WalletTransactionServiceImpl implements WalletTransactionService {
         } else {
             return PaymentStatus.PARTIALLY_REFUNDED;
         }
+    }
+
+    @Override
+    public Page<TransactionResponse> getTransactions(String search, String type, int page, int size) {
+        Page<LedgerTransactionProjection> rawData = walletTransactionRepository.findLedgerTransactions(
+                search, type, PageRequest.of(page, size)
+        );
+
+        return rawData.map(row -> {
+            String uiType = switch (row.type()) {
+                case "BOOKING_REVENUE" -> "PAYMENT_IN";
+                case "WITHDRAWAL" -> "PAYOUT_OUT";
+                default -> "REFUND";
+            };
+
+            BigDecimal gross = row.gross() != null ? row.gross() : row.txnAmount();
+            BigDecimal platformFee = row.fee() != null ? row.fee() : BigDecimal.ZERO;
+            BigDecimal netToHost = row.net() != null ? row.net() : row.txnAmount();
+
+            return TransactionResponse.builder()
+                    .id("TXN-" + String.format("%06d", row.txnId()))
+                    .date(row.txnDate())
+                    .type(uiType)
+                    .status(row.status())
+
+                    .guest(row.guestName() != null ? TransactionResponse.GuestDto.builder()
+                            .name(row.guestName())
+                            .avatar(row.guestAvatar())
+                            .build() : null)
+
+                    .host(TransactionResponse.HostDto.builder()
+                            .name(row.hostName())
+                            .build())
+
+                    .paymentDetails(parsePaymentInfo(row.type(), row.bankInfo()))
+                    .amounts(TransactionResponse.AmountsDto.builder()
+                            .gross(gross)
+                            .platformFee(platformFee)
+                            .netToHost(netToHost)
+                            .build())
+                    .build();
+        });
+    }
+
+
+    private TransactionResponse.PaymentDetailsDto parsePaymentInfo(String dbType, String bankInfo) {
+        if ("BOOKING_REVENUE".equals(dbType)) {
+            return TransactionResponse.PaymentDetailsDto.builder()
+                    .method("VNPay")
+                    .build();
+        }
+
+        if (bankInfo != null && bankInfo.contains("-")) {
+            String[] parts = bankInfo.split("-");
+            String bankName = parts[0].trim();
+
+            String last4 = "";
+            if (parts.length > 1) {
+                String accountNum = parts[1].trim();
+                last4 = accountNum.length() > 4 ? accountNum.substring(accountNum.length() - 4) : accountNum;
+            }
+
+            return TransactionResponse.PaymentDetailsDto.builder()
+                    .method("BANK")
+                    .bank(bankName)
+                    .last4(last4)
+                    .build();
+        }
+
+        return TransactionResponse.PaymentDetailsDto.builder()
+                .method("SYSTEM")
+                .build();
     }
 
     private void createTransactionRecord(Long walletId, Long bookingId, BigDecimal amount, TransactionType type, String desc) {
