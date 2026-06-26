@@ -48,7 +48,6 @@ public class UserPaymentMethod {
     @Column(name = "stripe_customer_id", length = 50)
     private String stripeCustomerId; // Lưu mã cus_xxxx của Stripe
 
-    // ĐÃ SỬA: Chuyển từ String sang Enum mã hóa dạng STRING trong DB
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 50)
     private PaymentMethodStatus status = PaymentMethodStatus.ACTIVE;

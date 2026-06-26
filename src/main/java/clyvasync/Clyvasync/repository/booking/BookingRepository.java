@@ -123,4 +123,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Modifying
     @Query("UPDATE Booking b SET b.status = :status WHERE b.id IN :ids")
     void updateStatusByIds(@Param("ids") List<Long> ids, @Param("status") BookingStatus status);
+    @Query("SELECT SUM(b.totalPrice) FROM Booking b WHERE b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED')")
+    BigDecimal sumTotalGmv();
+
+    // 2. Tính Tổng Phí Sàn thu được
+    @Query("SELECT SUM(b.platformFeeAmount) FROM Booking b WHERE b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED')")
+    BigDecimal sumTotalPlatformFee();
 }
