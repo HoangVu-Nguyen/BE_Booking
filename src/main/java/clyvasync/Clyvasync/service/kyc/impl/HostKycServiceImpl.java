@@ -6,11 +6,13 @@ import clyvasync.Clyvasync.dto.record.KycImagesResponse;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
+import clyvasync.Clyvasync.dto.response.HostKycProfileResponse;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentStatus;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.mapper.kyc.HostKycMapper;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -37,6 +40,7 @@ public class HostKycServiceImpl implements HostKycService {
     private final S3Service s3Service;
     private final MediaUtil mediaUtil;
     private final ApplicationEventPublisher eventPublisher;
+    private final HostKycMapper hostKycMapper;
 
     @Override
     @Transactional
@@ -182,5 +186,22 @@ public class HostKycServiceImpl implements HostKycService {
                 .toList();
 
         return new KycImagesResponse(profileId, presignedImages);
+    }
+
+    @Override
+    public Optional<HostKycProfile> findByUserId(Long userId) {
+        return Optional.empty();
+    }
+
+    @Override
+    public HostKycProfileResponse getProfileResponse(Long userId) {
+        HostKycProfile profile = profileRepository.findByUserId(userId)
+                .orElseThrow(() -> new AppException(ResultCode.PROFILE_NOT_FOUND));
+        return hostKycMapper.toHostKycProfileResponse(profile);
+    }
+
+    @Override
+    public Long findIdByUserId(Long userId) {
+        return profileRepository.findIdByUserId(userId).orElseThrow( () -> new AppException(ResultCode.PROFILE_NOT_FOUND));
     }
 }

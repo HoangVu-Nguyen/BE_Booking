@@ -5,6 +5,7 @@ import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.HostKycProfileResponse;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -44,8 +45,16 @@ public class KycController {
 
         return ApiResponse.success();
     }
-    @GetMapping("/{profileId}/image")
+    @GetMapping("/{profileId}/images")
     public ApiResponse<KycImagesResponse> getProfileImage(@PathVariable Long profileId) {
         return ApiResponse.success(hostKycService.getKycImagesForProfile(profileId));
+    }
+    @GetMapping("/my-profile")
+    public ApiResponse<HostKycProfileResponse> getMyProfile(@CurrentUserId Long userId) {
+        return ApiResponse.success(hostKycService.getProfileResponse(userId));
+    }
+    @GetMapping("/my-profile-status")
+    public ApiResponse<Long> getMyProfileId(@CurrentUserId Long userId ) {
+        return ApiResponse.success(hostKycService.findIdByUserId(userId));
     }
 }
