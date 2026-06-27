@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.enums.type;
 
 public enum NotificationType {
+    SYSTEM,
     // Nhóm Booking
     BOOKING_CREATED,
     BOOKING_CANCELLED,
