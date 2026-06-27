@@ -14,4 +14,5 @@ public interface HostKycService {
     void saveDocumentInfo(Long profileId, KycDocumentMeta meta, String fileUrl);
 
     List<PreUploadResponse> prepareUploads(Long profileId, KycBatchUploadRequest request);
+    void confirmUpload(Long profileId, List<Long> documentIds);
 }

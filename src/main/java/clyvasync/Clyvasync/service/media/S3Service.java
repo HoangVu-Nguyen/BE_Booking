@@ -7,4 +7,5 @@ public interface S3Service {
     void deleteFile(String objectKey);
     String getPublicUrl(String objectKey) ;
     void deleteFiles(List<String> objectKeys);
+    boolean doesFileExist(String objectKey);
 }

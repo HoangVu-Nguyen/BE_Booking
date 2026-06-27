@@ -141,6 +141,7 @@ public enum ResultCode {
     CANNOT_DELETE_PRIMARY_IMAGE(7006, HttpStatus.BAD_REQUEST),
     MAX_IMAGES_REACHED(7007, HttpStatus.BAD_REQUEST),
     DATA_ERROR(7008, HttpStatus.BAD_REQUEST),
+    DATA_NOT_FOUND(7009, HttpStatus.NOT_FOUND),
 
     // --- 8xxx: Validation Errors ---
     INVALID_EMAIL(8001, HttpStatus.BAD_REQUEST),

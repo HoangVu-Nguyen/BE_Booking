@@ -16,6 +16,7 @@ import clyvasync.Clyvasync.service.kyc.HostKycService;
 import clyvasync.Clyvasync.service.media.S3Service;
 import clyvasync.Clyvasync.utils.MediaUtil;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import java.util.stream.IntStream;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class HostKycServiceImpl implements HostKycService {
     private final HostKycProfileRepository profileRepository;
     private final HostKycDocumentRepository documentRepository;
@@ -107,5 +109,38 @@ public class HostKycServiceImpl implements HostKycService {
 
                 })
                 .toList();
+    }
+    @Override
+    @Transactional
+    public void confirmUpload(Long profileId, List<Long> documentIds) {
+        List<HostKycDocument> documents = documentRepository.findAllById(documentIds);
+
+        if (documents.size() != documentIds.size()) {
+            throw new AppException(ResultCode.DATA_NOT_FOUND);
+        }
+
+        for (HostKycDocument doc : documents) {
+            if (!doc.getProfileId().equals(profileId)) {
+                throw new AppException(ResultCode.ACCESS_DENIED);
+            }
+
+            if (doc.getStatus() != KycDocumentStatus.PENDING) {
+                throw new AppException(ResultCode.INVALID_STATUS);
+            }
+
+            boolean isUploaded = s3Service.doesFileExist(doc.getFileUrl());
+            if (!isUploaded) {
+                log.error(">>>> [KYC] File chưa lên S3 nhưng bị gọi confirm: {}", doc.getFileUrl());
+                throw new AppException(ResultCode.UPLOAD_FAILED);
+            }
+            doc.setStatus(KycDocumentStatus.VERIFIED);
+        }
+
+        documentRepository.saveAll(documents);
+        HostKycProfile profile = profileRepository.findById(profileId)
+                .orElseThrow(() -> new AppException(ResultCode.PROFILE_NOT_FOUND));
+
+        profile.setStatus(KycProfileStatus.PENDING_REVIEW);
+        profileRepository.save(profile);
     }
 }

@@ -107,4 +107,21 @@ public class S3ServiceImpl implements S3Service {
             throw new AppException(ResultCode.DELETE_FAILED);
         }
     }
+    @Override
+    public boolean doesFileExist(String objectKey) {
+        try {
+            HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectKey)
+                    .build();
+
+            s3Client.headObject(headObjectRequest);
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.error(">>>> [S3] Lỗi khi kiểm tra file tồn tại: {}", e.getMessage());
+            return false;
+        }
+    }
 }
