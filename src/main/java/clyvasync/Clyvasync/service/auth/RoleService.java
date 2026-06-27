@@ -13,5 +13,6 @@ public interface RoleService {
     boolean existsByName(RoleName roleName);
 
     Role saveRole(Role role);
+    void upgradeToHost(Long userId);
 
 }

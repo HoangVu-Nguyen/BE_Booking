@@ -4,6 +4,9 @@ import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
+import clyvasync.Clyvasync.service.auth.RoleService;
+import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.auth.impl.RoleServiceImpl;
 import clyvasync.Clyvasync.service.kyc.RealEkycService;
 import clyvasync.Clyvasync.service.media.S3Service;
 import clyvasync.Clyvasync.service.realtime.SocketEmitterService;
@@ -39,6 +42,8 @@ public class RealEkycServiceImpl implements RealEkycService {
     private final ObjectMapper objectMapper;
     private final SocketEmitterService socketEmitterService;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserService userService;
+    private final RoleService roleService;
 
     @Value("${ekyc.fpt.api-key}")
     private  String fptApiKey;
@@ -92,6 +97,7 @@ public class RealEkycServiceImpl implements RealEkycService {
                 if (isIdMatch && isNameMatch) {
                     profile.setStatus(KycProfileStatus.APPROVED);
                     profile.setRejectionReason(null);
+                    roleService.upgradeToHost(profileId);
                     log.info(">>>> [Real eKYC] THÀNH CÔNG! Dữ liệu khớp 100%.");
                 } else {
                     profile.setStatus(KycProfileStatus.REJECTED);
