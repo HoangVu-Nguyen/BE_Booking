@@ -120,7 +120,8 @@ public class HostKycServiceImpl implements HostKycService {
     }
     @Override
     @Transactional
-    public void confirmUpload(Long profileId, List<Long> documentIds) {
+    public void confirmUpload(Long userId, List<Long> documentIds) {
+        Long profileId = profileRepository.findIdByUserId(userId).orElseThrow(() -> new AppException(ResultCode.PROFILE_NOT_FOUND));
         if (documentIds == null || documentIds.isEmpty()) {
             throw new AppException(ResultCode.PROFILE_NOT_FOUND);
         }

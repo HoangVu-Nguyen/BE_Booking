@@ -44,7 +44,6 @@ public class KycConsumer {
                 return; // Kết thúc sớm nếu không có ảnh
             }
 
-            // Bước 2 & 3: Bắn dữ liệu sang Mock Service để giả lập AI xử lý
             realEkycService.processEkyc(event.getProfileId(), imageUrls);
 
             log.info(">>>> [MQ Consumer] Xử lý eKYC hoàn tất cho Profile ID: {}", event.getProfileId());
