@@ -48,7 +48,6 @@ public class HostKycServiceImpl implements HostKycService {
         profile.setBankAccountNumber(request.getBankAccountNumber());
         profile.setBankAccountOwner(request.getBankAccountOwner());
         profile.setStatus(KycProfileStatus.PENDING_REVIEW);
-
         return profileRepository.save(profile).getId();
     }
 

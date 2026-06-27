@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.modules.kyc.entity;
 
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
+import clyvasync.Clyvasync.service.annotation.AesConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -29,7 +30,8 @@ public class HostKycProfile {
     @Column(name = "legal_name", nullable = false)
     private String legalName;
 
-    @Column(name = "id_card_number", length = 20, nullable = false, unique = true)
+    @Column(name = "id_card_number", length = 20, nullable = false, unique = true,columnDefinition = "TEXT")
+    @Convert(converter = AesConverter.class)
     private String idCardNumber;
 
     @Column(name = "id_card_issued_date")
