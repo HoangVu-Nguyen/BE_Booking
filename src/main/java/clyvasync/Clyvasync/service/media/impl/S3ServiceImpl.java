@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.media.impl;
 
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
+import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
@@ -166,7 +167,31 @@ public class S3ServiceImpl implements S3Service {
         return new PresignedUrlResponse(
                 presignedRequest.url().toString(),
                 objectKey,
-                type,
+                type.name(),
+                java.time.LocalDateTime.ofInstant(expiration, java.time.ZoneId.systemDefault())
+        );
+    }
+
+    @Override
+    public PresignedUrlResponse generatePresignedUrl(String objectKey, PropertyDocumentType type) {
+        java.time.Instant expiration = java.time.Instant.now().plus(5, java.time.temporal.ChronoUnit.MINUTES);
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(java.time.Duration.ofMinutes(5))
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+
+        return new PresignedUrlResponse(
+                presignedRequest.url().toString(),
+                objectKey,
+                type.name(),
                 java.time.LocalDateTime.ofInstant(expiration, java.time.ZoneId.systemDefault())
         );
     }

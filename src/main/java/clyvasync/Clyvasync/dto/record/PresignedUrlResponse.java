@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 public record PresignedUrlResponse (
         String url,
         String objectKey,
-         KycDocumentType documentType,
+         String documentType,
 
         LocalDateTime expiresAt
 ){}

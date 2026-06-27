@@ -1,8 +1,13 @@
 package clyvasync.Clyvasync.service.kyc.impl;
 
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
+import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
+import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.auth.UserService;
@@ -28,6 +33,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +50,7 @@ public class RealEkycServiceImpl implements RealEkycService {
     private final ApplicationEventPublisher eventPublisher;
     private final UserService userService;
     private final RoleService roleService;
+    private final HostKycDocumentRepository documentRepository;
 
     @Value("${ekyc.fpt.api-key}")
     private  String fptApiKey;
@@ -86,29 +93,38 @@ public class RealEkycServiceImpl implements RealEkycService {
 
             if (errorCode == 0) {
                 JsonNode dataNode = rootNode.path("data").get(0);
+                System.out.println(dataNode );
+
+                double confidence = dataNode.path("overall_score").asDouble();
+
                 String extractedId = dataNode.path("id").asText();
                 String extractedName = dataNode.path("name").asText();
+                HostKycDocument doc = documentRepository.findByProfileIdAndDocumentType(profileId, KycDocumentType.ID_FRONT)
+                        .orElseThrow(() -> new AppException(ResultCode.PROFILE_NOT_FOUND));
 
-                log.info(">>>> [Real eKYC] FPT đọc được: ID={}, Name={}", extractedId, extractedName);
+                doc.setAiScore(BigDecimal.valueOf(confidence));
+                doc.setOcrData(dataNode.toString());
+                 documentRepository.save(doc);
+
+                log.info(">>>> [Real eKYC] FPT đọc được: ID={}, Name={}, Confidence={}%", extractedId, extractedName, confidence);
 
                 boolean isIdMatch = profile.getIdCardNumber().trim().equals(extractedId.trim());
                 boolean isNameMatch = profile.getLegalName().trim().equalsIgnoreCase(extractedName.trim());
 
-                if (isIdMatch && isNameMatch) {
-                    profile.setStatus(KycProfileStatus.APPROVED);
+                if (isIdMatch && isNameMatch && confidence >= 95.0) {
+                    profile.setStatus(KycProfileStatus.PENDING_REVIEW);
                     profile.setRejectionReason(null);
-                    roleService.upgradeToHost(profileId);
+                    roleService.upgradeToHost(profile.getUserId());
                     log.info(">>>> [Real eKYC] THÀNH CÔNG! Dữ liệu khớp 100%.");
                 } else {
-                    profile.setStatus(KycProfileStatus.REJECTED);
-                    profile.setRejectionReason("Thông tin bạn nhập không khớp với hình ảnh CCCD.");
-                    log.warn(">>>> [Real eKYC] SAI LỆCH. Nhập: {}/{}, Thật: {}/{}",
-                            profile.getIdCardNumber(), profile.getLegalName(), extractedId, extractedName);
+                    profile.setStatus(KycProfileStatus.PENDING_REVIEW);
+                    profile.setRejectionReason("Thông tin bạn cần chờ xem lại.");
+
                 }
             } else {
                 String errorMessage = rootNode.path("errorMessage").asText();
-                profile.setStatus(KycProfileStatus.REJECTED);
-                profile.setRejectionReason("Ảnh không đạt yêu cầu: " + errorMessage);
+                profile.setStatus(KycProfileStatus.PENDING_REVIEW);
+                profile.setRejectionReason("Thông tin bạn cần chờ xem lại.");
                 log.error(">>>> [Real eKYC] Ảnh lỗi: {}", errorMessage);
             }
 
