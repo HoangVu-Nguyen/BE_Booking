@@ -181,4 +181,11 @@ public class HomestayController {
                 userId
         ));
     }
+    @PostMapping("/{homestayId}/verify")
+    public ApiResponse<?> submitForVerification(
+            @PathVariable Long homestayId,
+            @CurrentUserId Long userId) {
+        verificationService.submitHomestayForVerification(homestayId, userId);
+        return ApiResponse.success();
+    }
 }

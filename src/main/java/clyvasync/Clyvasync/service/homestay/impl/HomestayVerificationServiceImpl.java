@@ -8,9 +8,11 @@ import clyvasync.Clyvasync.dto.response.FptOcrResponse;
 import clyvasync.Clyvasync.dto.response.HomestayDocumentResponse;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
 import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
+import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.repository.homestay.HomestayDocumentRepository;
@@ -156,6 +158,23 @@ public class HomestayVerificationServiceImpl implements HomestayVerificationServ
         }
 
         documentRepository.save(document);
+    }
+
+    @Override
+    public void submitHomestayForVerification(Long homestayId, Long hostId) {
+        Homestay homestay = homestayRepository.findById(homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+        if (!homestay.getOwnerId().equals(hostId)) {
+            throw new AppException(ResultCode.ACCESS_DENIED);
+        }
+        boolean hasDocuments = documentRepository.existsByHomestayId(homestayId);
+        if (!hasDocuments) {
+            throw new RuntimeException("Vui lòng tải lên ít nhất 1 tài liệu sở hữu trước khi gửi duyệt.");
+        }
+        homestay.setStatus(HomestayStatus.PENDING_VERIFICATION);
+        homestayRepository.save(homestay);
+
+        log.info(">>>> [Verify] Căn hộ ID {} đã được Host ID {} gửi lên Admin kiểm duyệt.", homestayId, hostId);
     }
 
 

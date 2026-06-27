@@ -14,4 +14,5 @@ public interface HomestayVerificationService {
     void submitHomestayForReview(Long homestayId, Long hostId);
     List<PreUploadResponse> prepareHomestayUploads(Long homestayId, Long hostId, HomestayBatchUploadRequest request);
     void confirmDocumentUpload(Long homestayId, Long documentId, Long hostId);
+    void submitHomestayForVerification(Long homestayId, Long hostId);
 }

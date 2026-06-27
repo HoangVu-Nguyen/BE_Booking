@@ -18,4 +18,5 @@ public interface HomestayDocumentRepository extends JpaRepository<HomestayDocume
     List<HomestayDocument> findByHomestayIdOrderByCreatedAtDesc(Long homestayId);
 
     long countByHomestayId(Long homestayId);
+    boolean existsByHomestayId(Long homestayId);
 }
