@@ -4,6 +4,8 @@ import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
+import clyvasync.Clyvasync.exception.AppException;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.kyc.HostKycService;
 import jakarta.validation.Valid;
@@ -32,5 +34,15 @@ public class KycController {
         System.out.println(request);
 
         return ApiResponse.success(hostKycService.prepareUploads(request.getProfileId(), request));
+    }
+    @PostMapping("/confirm-upload")
+    public ApiResponse<Void> confirmUpload(
+          @CurrentUserId Long profileId,
+            @RequestBody List<Long> documentIds) {
+
+
+        hostKycService.confirmUpload(profileId, documentIds);
+
+        return ApiResponse.success();
     }
 }

@@ -15,4 +15,5 @@ public interface HostKycService {
 
     List<PreUploadResponse> prepareUploads(Long profileId, KycBatchUploadRequest request);
     void confirmUpload(Long profileId, List<Long> documentIds);
+    void processEkyc(Long profileId, List<String> imageUrls);
 }

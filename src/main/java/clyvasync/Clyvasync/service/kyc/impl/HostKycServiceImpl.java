@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.kyc.impl;
 
 import clyvasync.Clyvasync.dto.detail.KycDocumentMeta;
+import clyvasync.Clyvasync.dto.event.KycSubmittedEvent;
 import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
@@ -17,6 +18,7 @@ import clyvasync.Clyvasync.service.media.S3Service;
 import clyvasync.Clyvasync.utils.MediaUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,7 @@ public class HostKycServiceImpl implements HostKycService {
     private final HostKycDocumentRepository documentRepository;
     private final S3Service s3Service;
     private final MediaUtil mediaUtil;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -113,6 +116,9 @@ public class HostKycServiceImpl implements HostKycService {
     @Override
     @Transactional
     public void confirmUpload(Long profileId, List<Long> documentIds) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            throw new AppException(ResultCode.PROFILE_NOT_FOUND);
+        }
         List<HostKycDocument> documents = documentRepository.findAllById(documentIds);
 
         if (documents.size() != documentIds.size()) {
@@ -133,7 +139,7 @@ public class HostKycServiceImpl implements HostKycService {
                 log.error(">>>> [KYC] File chưa lên S3 nhưng bị gọi confirm: {}", doc.getFileUrl());
                 throw new AppException(ResultCode.UPLOAD_FAILED);
             }
-            doc.setStatus(KycDocumentStatus.VERIFIED);
+            doc.setStatus(KycDocumentStatus.SUBMITTED);
         }
 
         documentRepository.saveAll(documents);
@@ -142,5 +148,24 @@ public class HostKycServiceImpl implements HostKycService {
 
         profile.setStatus(KycProfileStatus.PENDING_REVIEW);
         profileRepository.save(profile);
+        eventPublisher.publishEvent(new KycSubmittedEvent(profileId, documentIds));
+    }
+    @Override
+    public void processEkyc(Long profileId, List<String> imageUrls) {
+        log.info(">>>> [Mock eKYC] Đang gửi ảnh sang FPT.AI...");
+
+        // Giả lập thời gian AI xử lý mất 3 giây
+        try { Thread.sleep(3000); } catch (InterruptedException e) {}
+
+        // Giả lập kết quả trả về random (80% thành công, 20% thất bại)
+        boolean isSuccess = Math.random() > 0.2;
+
+        if (isSuccess) {
+            log.info(">>>> [Mock eKYC] Xác thực THÀNH CÔNG. Khớp 98%!");
+            // Gọi repository update status = APPROVED
+        } else {
+            log.warn(">>>> [Mock eKYC] Xác thực THẤT BẠI. Ảnh mờ hoặc giả mạo.");
+            // Gọi repository update status = REJECTED
+        }
     }
 }
