@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.homestay;
 
 
 import clyvasync.Clyvasync.dto.request.BatchUploadRequest;
+import clyvasync.Clyvasync.dto.request.HomestayBatchUploadRequest;
 import clyvasync.Clyvasync.dto.request.HomestayRequest;
 import clyvasync.Clyvasync.dto.request.HomestaySearchRequest;
 import clyvasync.Clyvasync.dto.response.*;
@@ -9,9 +10,11 @@ import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.homestay.HomestayImageService;
 import clyvasync.Clyvasync.service.homestay.HomestayRoomService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
+import clyvasync.Clyvasync.service.homestay.HomestayVerificationService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.checkerframework.checker.units.qual.C;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -33,6 +36,7 @@ public class HomestayController {
     private final HomestayRoomService homestayRoomService;
     private final TourService tourService;
     private final HomestayImageService homestayImageService;
+    private final HomestayVerificationService verificationService;
 
     @GetMapping("/search")
     public ApiResponse<Page<HomestayResponse>> searchHomestays(
@@ -147,5 +151,34 @@ public class HomestayController {
         return ApiResponse.<List<RoomDisplayResponse>>builder()
                 .data(homestayRoomService.getRoomsByHomestayId(homestayId))
                 .build();
+    }
+    @PostMapping("/{homestayId}/documents/prepare")
+    public ApiResponse<List<PreUploadResponse>> prepareUploads(
+            @PathVariable Long homestayId,
+            @Valid @RequestBody HomestayBatchUploadRequest request,
+            @CurrentUserId Long userId){
+        return ApiResponse.success(verificationService.prepareHomestayUploads(
+                homestayId,
+                userId,
+                request
+        ));
+    }
+    @PatchMapping("/{homestayId}/documents/{documentId}/confirm")
+    public ApiResponse<?> confirmUpload(
+            @PathVariable Long homestayId,
+            @PathVariable Long documentId,
+          @CurrentUserId Long userId) {
+        verificationService.confirmDocumentUpload(homestayId, documentId, userId);
+
+        return ApiResponse.success();
+    }
+    @GetMapping("/{homestayId}/documents")
+    public ApiResponse<?> getDocuments(
+            @PathVariable Long homestayId,
+            @CurrentUserId Long userId) {
+        return ApiResponse.success(verificationService.getDocuments(
+                homestayId,
+                userId
+        ));
     }
 }

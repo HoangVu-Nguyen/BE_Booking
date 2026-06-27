@@ -20,5 +20,6 @@ public interface HomestayRepository extends JpaRepository<Homestay, Long>, JpaSp
     List<Homestay> findAllByOwnerId(Long ownerId);
     @Query("select h.ownerId from Homestay as h where h.id =  :homestayId ")
     Long getOwnerIdByHomestayId(Long homestayId);
+    boolean existsByIdAndOwnerId(Long homestayId, Long ownerId);
 
 }
