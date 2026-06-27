@@ -2,6 +2,8 @@ package clyvasync.Clyvasync.service.kyc.impl;
 
 import clyvasync.Clyvasync.dto.detail.KycDocumentMeta;
 import clyvasync.Clyvasync.dto.event.KycSubmittedEvent;
+import clyvasync.Clyvasync.dto.record.KycImagesResponse;
+import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
@@ -166,5 +168,19 @@ public class HostKycServiceImpl implements HostKycService {
             log.warn(">>>> [Mock eKYC] Xác thực THẤT BẠI. Ảnh mờ hoặc giả mạo.");
             // Gọi repository update status = REJECTED
         }
+    }
+
+    @Override
+    public KycImagesResponse getKycImagesForProfile(Long profileId) {
+        HostKycProfile profile = profileRepository.findById(profileId)
+                .orElseThrow(() -> new AppException(ResultCode.PROFILE_NOT_FOUND));
+
+        List<HostKycDocument> documents = documentRepository.findByProfileId(profileId);
+
+        List<PresignedUrlResponse> presignedImages = documents.stream()
+                .map(doc ->s3Service.generatePresignedUrl(doc.getFileUrl(),doc.getDocumentType()))
+                .toList();
+
+        return new KycImagesResponse(profileId, presignedImages);
     }
 }

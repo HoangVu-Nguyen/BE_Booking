@@ -1,8 +1,13 @@
 package clyvasync.Clyvasync.service.media.impl;
 
+import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
+import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
+import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.service.media.S3Service;
+import com.amazonaws.HttpMethod;
+import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,9 +16,12 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.time.Duration;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -99,7 +107,6 @@ public class S3ServiceImpl implements S3Service {
                     .delete(delete)
                     .build();
 
-            // Bắn 1 request duy nhất lên S3
             s3Client.deleteObjects(deleteReq);
             log.info(">>>> [S3] Batch deleted {} files successfully.", objectKeys.size());
 
@@ -139,5 +146,28 @@ public class S3ServiceImpl implements S3Service {
             log.error(">>>> [S3] Lỗi khi tải file: {}", e.getMessage());
             throw new RuntimeException("Không thể tải ảnh từ S3");
         }
+    }
+    @Override
+    public PresignedUrlResponse generatePresignedUrl(String objectKey, KycDocumentType type) {
+        java.time.Instant expiration = java.time.Instant.now().plus(5, java.time.temporal.ChronoUnit.MINUTES);
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(java.time.Duration.ofMinutes(5))
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+
+        return new PresignedUrlResponse(
+                presignedRequest.url().toString(),
+                objectKey,
+                type,
+                java.time.LocalDateTime.ofInstant(expiration, java.time.ZoneId.systemDefault())
+        );
     }
 }

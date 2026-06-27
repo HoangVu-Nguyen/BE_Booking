@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.service.kyc;
 
 import clyvasync.Clyvasync.dto.detail.KycDocumentMeta;
+import clyvasync.Clyvasync.dto.record.KycImagesResponse;
 import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.PreUploadResponse;
@@ -16,4 +17,5 @@ public interface HostKycService {
     List<PreUploadResponse> prepareUploads(Long profileId, KycBatchUploadRequest request);
     void confirmUpload(Long profileId, List<Long> documentIds);
     void processEkyc(Long profileId, List<String> imageUrls);
+    KycImagesResponse getKycImagesForProfile(Long profileId);
 }

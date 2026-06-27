@@ -4,7 +4,7 @@ CREATE TABLE host_kyc_profiles (
                                    user_id BIGINT NOT NULL UNIQUE,
 
                                    legal_name VARCHAR(255) NOT NULL,
-                                   id_card_number VARCHAR(20) NOT NULL UNIQUE,
+                                   id_card_number TEXT NOT NULL UNIQUE,
                                    id_card_issued_date DATE,
                                    id_card_issued_by VARCHAR(255),
 

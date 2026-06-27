@@ -30,7 +30,7 @@ public class HostKycProfile {
     @Column(name = "legal_name", nullable = false)
     private String legalName;
 
-    @Column(name = "id_card_number", length = 20, nullable = false, unique = true,columnDefinition = "TEXT")
+    @Column(name = "id_card_number", nullable = false, unique = true,columnDefinition = "TEXT")
     @Convert(converter = AesConverter.class)
     private String idCardNumber;
 

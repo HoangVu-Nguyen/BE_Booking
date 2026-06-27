@@ -1,5 +1,7 @@
 package clyvasync.Clyvasync.controller.kyc;
 
+import clyvasync.Clyvasync.dto.record.KycImagesResponse;
+import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.request.HostKycProfileRequest;
 import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
@@ -10,10 +12,7 @@ import clyvasync.Clyvasync.service.annotation.CurrentUserId;
 import clyvasync.Clyvasync.service.kyc.HostKycService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -44,5 +43,9 @@ public class KycController {
         hostKycService.confirmUpload(profileId, documentIds);
 
         return ApiResponse.success();
+    }
+    @GetMapping("/{profileId}/image")
+    public ApiResponse<KycImagesResponse> getProfileImage(@PathVariable Long profileId) {
+        return ApiResponse.success(hostKycService.getKycImagesForProfile(profileId));
     }
 }
