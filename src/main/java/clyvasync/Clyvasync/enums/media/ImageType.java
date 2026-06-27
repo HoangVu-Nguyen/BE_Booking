@@ -5,6 +5,7 @@ public enum ImageType {
     CHAT,
     AVATAR,
     COVER,
+    KYC_DOCUMENT,
     HOMESTAY ;
 }
 

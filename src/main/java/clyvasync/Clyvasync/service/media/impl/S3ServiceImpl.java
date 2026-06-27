@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -105,6 +106,38 @@ public class S3ServiceImpl implements S3Service {
         } catch (Exception e) {
             log.error(">>>> [S3] Error during batch delete: {}", e.getMessage());
             throw new AppException(ResultCode.DELETE_FAILED);
+        }
+    }
+    @Override
+    public boolean doesFileExist(String objectKey) {
+        try {
+            HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectKey)
+                    .build();
+
+            s3Client.headObject(headObjectRequest);
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            log.error(">>>> [S3] Lỗi khi kiểm tra file tồn tại: {}", e.getMessage());
+            return false;
+        }
+    }
+    @Override
+    public byte[] downloadFileAsBytes(String objectKey) {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectKey)
+                    .build();
+
+            ResponseInputStream<GetObjectResponse> s3Object = s3Client.getObject(getObjectRequest);
+            return s3Object.readAllBytes();
+        } catch (Exception e) {
+            log.error(">>>> [S3] Lỗi khi tải file: {}", e.getMessage());
+            throw new RuntimeException("Không thể tải ảnh từ S3");
         }
     }
 }

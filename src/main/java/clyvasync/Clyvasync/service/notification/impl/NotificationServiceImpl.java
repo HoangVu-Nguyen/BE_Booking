@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -27,6 +28,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendNotification(Long recipientId, NotificationType type, String title, String message, Map<String, Object> metadata) {
         Notification notification = Notification.builder()
                 .recipientId(recipientId)
@@ -37,8 +39,14 @@ public class NotificationServiceImpl implements NotificationService {
                 .isRead(false)
                 .createdAt(OffsetDateTime.now())
                 .build();
-      Notification saved =   notificationRepository.save(notification);
-        eventPublisher.publishEvent(new NotificationCreatedEvent(saved));
+      try{
+          Notification saved =   notificationRepository.save(notification);
+          notificationRepository.flush();
+          eventPublisher.publishEvent(new NotificationCreatedEvent(saved));
+      }catch (Exception e){
+          System.out.println(e.getMessage());
+      }
+
     }
 
     @Override

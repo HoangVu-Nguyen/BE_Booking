@@ -39,4 +39,21 @@ public class RabbitMQConfig {
                 .to(bookingExchange)
                 .with(MessagingConstants.PAYMENT_MAIL_ROUTING_KEY);
     }
+    @Bean
+    public Queue kycProcessEkycQueue() {
+        return new Queue(MessagingConstants.KYC_PROCESS_EKYC_QUEUE, true);
+    }
+
+    @Bean
+    public TopicExchange kycExchange() {
+        return new TopicExchange(MessagingConstants.KYC_EXCHANGE);
+    }
+
+    @Bean
+    public Binding kycSubmittedBinding(Queue kycProcessEkycQueue, TopicExchange kycExchange) {
+        return BindingBuilder
+                .bind(kycProcessEkycQueue)
+                .to(kycExchange)
+                .with(MessagingConstants.KYC_SUBMITTED_ROUTING_KEY);
+    }
 }

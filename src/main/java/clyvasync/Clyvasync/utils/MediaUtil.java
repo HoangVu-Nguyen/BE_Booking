@@ -1,6 +1,9 @@
 package clyvasync.Clyvasync.utils;
 
+import clyvasync.Clyvasync.dto.detail.KycDocumentMeta;
+import clyvasync.Clyvasync.dto.request.KycBatchUploadRequest;
 import clyvasync.Clyvasync.dto.request.UploadRequest;
+import clyvasync.Clyvasync.enums.media.ImageType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -67,5 +70,16 @@ public class MediaUtil {
         return objectKeys.stream()
                 .map(this::toCdnUrl)
                 .toList();
+    }
+    public String generateObjectKey(Long userId, KycDocumentMeta request) {
+        String uniqueSuffix = UUID.randomUUID().toString().substring(0, 8);
+
+        String safeFileName = request.getFileName().replaceAll("[^a-zA-Z0-9.-]", "_");
+
+        return String.format("users/%s/%s/%s-%s",
+                userId,
+                ImageType.KYC_DOCUMENT.name().toLowerCase(),
+                uniqueSuffix,
+                safeFileName);
     }
 }
