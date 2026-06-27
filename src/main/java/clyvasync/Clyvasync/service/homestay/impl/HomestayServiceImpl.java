@@ -427,7 +427,7 @@ public class HomestayServiceImpl implements HomestayService {
 
             // 7. FIX CỨNG: Trạng thái hiển thị
             predicates.add(cb.isNull(root.get("deletedAt")));
-            predicates.add(cb.equal(root.get("status"), HomestayStatus.AVAILABLE));
+            predicates.add(cb.equal(root.get("status"), HomestayStatus.APPROVED));
 
             // Nếu query.where() chưa được gọi, JPA tự hiểu là lấy danh sách các Predicate này nối với nhau bằng AND
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -1006,7 +1006,7 @@ public class HomestayServiceImpl implements HomestayService {
                     .location(locationsMap.getOrDefault(home.getLocationId(), "Chưa cập nhật"))
                     .image(mediaUtil.toCdnUrl(coverImage))
                     .price(basePrice)
-                    .status(home.getStatus() != null ? home.getStatus() : HomestayStatus.AVAILABLE)
+                    .status(home.getStatus() != null ? home.getStatus() : HomestayStatus.APPROVED)
                     .stats(PropertyStats.builder()
                             .rating(rating)
                             .reviews(reviews)

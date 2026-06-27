@@ -37,11 +37,11 @@ public class KycController {
     }
     @PostMapping("/confirm-upload")
     public ApiResponse<Void> confirmUpload(
-          @CurrentUserId Long profileId,
+          @CurrentUserId Long userId,
             @RequestBody List<Long> documentIds) {
 
 
-        hostKycService.confirmUpload(profileId, documentIds);
+        hostKycService.confirmUpload(userId, documentIds);
 
         return ApiResponse.success();
     }

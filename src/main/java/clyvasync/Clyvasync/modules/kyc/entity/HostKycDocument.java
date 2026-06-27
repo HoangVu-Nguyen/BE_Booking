@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -39,6 +40,11 @@ public class HostKycDocument {
 
     @Column(name = "rejection_note", columnDefinition = "TEXT")
     private String rejectionNote;
+    @Column(name = "ai_score", precision = 5, scale = 2)
+    private BigDecimal aiScore;
+    @Column(name = "ocr_data", columnDefinition = "TEXT")
+    private String ocrData;
+
 
     @CreationTimestamp
     @Column(name = "uploaded_at", updatable = false)
