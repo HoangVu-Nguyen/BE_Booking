@@ -8,4 +8,5 @@ public interface S3Service {
     String getPublicUrl(String objectKey) ;
     void deleteFiles(List<String> objectKeys);
     boolean doesFileExist(String objectKey);
+    byte[] downloadFileAsBytes(String objectKey);
 }

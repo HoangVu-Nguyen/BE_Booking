@@ -8,6 +8,7 @@ import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
 import clyvasync.Clyvasync.service.kyc.HostKycService;
+import clyvasync.Clyvasync.service.kyc.RealEkycService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class KycConsumer {
 
-    private final HostKycService mockEkycService;
+    private final RealEkycService realEkycService;
     private final HostKycDocumentRepository documentRepository;
     private final HostKycProfileRepository profileRepository;
 
@@ -44,7 +45,7 @@ public class KycConsumer {
             }
 
             // Bước 2 & 3: Bắn dữ liệu sang Mock Service để giả lập AI xử lý
-            mockEkycService.processEkyc(event.getProfileId(), imageUrls);
+            realEkycService.processEkyc(event.getProfileId(), imageUrls);
 
             log.info(">>>> [MQ Consumer] Xử lý eKYC hoàn tất cho Profile ID: {}", event.getProfileId());
 
