@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Builder;
 import lombok.Data;
 import java.time.LocalDate;
@@ -13,6 +14,8 @@ public class HostKycDetailResponse {
     private String phone;
 
     private String citizenId;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+
     private LocalDate issueDate;
     private String issueBy;
 
