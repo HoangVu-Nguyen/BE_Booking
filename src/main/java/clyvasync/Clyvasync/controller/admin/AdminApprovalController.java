@@ -46,4 +46,9 @@ public class AdminApprovalController {
         HostKycDetailResponse detail = adminVerificationService.getKycProfileDetail(profileId);
         return ApiResponse.success(detail);
     }
+    @GetMapping("/kyc/count-pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<Long> countPendingKyc() {
+        return ApiResponse.success(adminVerificationService.countPendingKycProfiles());
+    }
 }

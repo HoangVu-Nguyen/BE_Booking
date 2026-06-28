@@ -1,14 +1,19 @@
 package clyvasync.Clyvasync.service.kyc.impl;
 
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
+import clyvasync.Clyvasync.dto.event.PropertyVerificationEvent;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
 import clyvasync.Clyvasync.dto.response.HostPendingResponse;
+import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
+import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.auth.entity.User;
+import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
+import clyvasync.Clyvasync.modules.homestay.entity.HomestayDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
@@ -17,9 +22,11 @@ import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import clyvasync.Clyvasync.service.media.S3Service;
+import dto.request.ReviewPropertyRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +41,8 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final S3Service s3Service;
     private final RoleService roleService;
     private final ApplicationEventPublisher eventPublisher;
+    private final clyvasync.Clyvasync.repository.homestay.HomestayRepository homestayRepository;
+    private final clyvasync.Clyvasync.repository.homestay.HomestayDocumentRepository documentRepository;
     @Override
     public List<HostPendingResponse> getPendingKycHosts() {
         List<HostKycProfile> pendingProfiles = kycProfileRepository.findByStatus(KycProfileStatus.PENDING_REVIEW);
@@ -151,5 +160,64 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 reason
         ));
 
+    }
+
+    @Override
+    public long countPendingKycProfiles() {
+        return kycProfileRepository.countByStatus(KycProfileStatus.PENDING_REVIEW);
+    }
+
+    @Override
+    @Transactional
+    public void submitPropertyReview(Long homestayId, ReviewPropertyRequest request) {
+
+        Homestay homestay = homestayRepository.findById(homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+
+        List<Long> documentIds = request.getDocuments().stream()
+                .map(ReviewPropertyRequest.DocumentReviewItem::getDocumentId)
+                .collect(Collectors.toList());
+
+        List<HomestayDocument> documents = documentRepository.findAllById(documentIds);
+
+        Map<Long, HomestayDocument> documentMap = documents.stream()
+                .collect(Collectors.toMap(HomestayDocument::getId, doc -> doc));
+
+        boolean hasAnyRejection = false;
+
+        for (ReviewPropertyRequest.DocumentReviewItem item : request.getDocuments()) {
+            HomestayDocument doc = documentMap.get(item.getDocumentId());
+
+            if (doc == null) {
+                throw new AppException(ResultCode.DOCUMENT_NOT_FOUND);
+            }
+
+            if (!doc.getHomestayId().equals(homestayId)) {
+                throw new AppException(ResultCode.DOCUMENT_ACCESS_DENIED);
+            }
+            doc.setStatus(item.getStatus());
+            if (DocumentStatus.REJECTED.equals(item.getStatus())) {
+                doc.setRejectionReason(item.getRejectReason());
+                hasAnyRejection = true;
+            } else {
+                doc.setRejectionReason(null);
+            }
+        }
+        documentRepository.saveAll(documents);
+
+        if (hasAnyRejection) {
+            homestay.setStatus(HomestayStatus.REJECTED);
+        } else {
+            homestay.setStatus(HomestayStatus.APPROVED);
+        }
+
+        homestayRepository.save(homestay);
+
+        eventPublisher.publishEvent(PropertyVerificationEvent.builder()
+                .userId(homestay.getOwnerId())
+                .homestayId(homestay.getId())
+                .homestayName(homestay.getName())
+                .status(homestay.getStatus())
+                .build());
     }
 }
