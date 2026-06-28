@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.homestay;
 
+import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,5 +22,6 @@ public interface HomestayRepository extends JpaRepository<Homestay, Long>, JpaSp
     @Query("select h.ownerId from Homestay as h where h.id =  :homestayId ")
     Long getOwnerIdByHomestayId(Long homestayId);
     boolean existsByIdAndOwnerId(Long homestayId, Long ownerId);
+    List<Homestay> findByStatus(HomestayStatus status);
 
 }

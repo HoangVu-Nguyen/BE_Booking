@@ -14,5 +14,6 @@ public interface HostKycProfileRepository extends JpaRepository<HostKycProfile, 
     @Query("SELECT p.id FROM HostKycProfile p WHERE p.userId = :userId")
     Optional<Long> findIdByUserId(@Param("userId") Long userId);
     List<HostKycProfile> findByStatus(KycProfileStatus status);
+    long countByStatus(KycProfileStatus status);
 
 }
