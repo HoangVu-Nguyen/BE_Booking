@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.controller.admin;
 
 import clyvasync.Clyvasync.dto.request.RejectKycRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
 import clyvasync.Clyvasync.dto.response.HostPendingResponse;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import lombok.RequiredArgsConstructor;
@@ -38,5 +39,11 @@ public class AdminApprovalController {
 
         adminVerificationService.rejectKyc(profileId, request.getReason());
         return ApiResponse.success();
+    }
+    @GetMapping("/kyc/detail/{profileId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<HostKycDetailResponse> getKycDetail(@PathVariable Long profileId) {
+        HostKycDetailResponse detail = adminVerificationService.getKycProfileDetail(profileId);
+        return ApiResponse.success(detail);
     }
 }
