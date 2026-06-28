@@ -52,13 +52,13 @@ public class AdminApprovalController {
     public ApiResponse<Long> countPendingKyc() {
         return ApiResponse.success(adminVerificationService.countPendingKycProfiles());
     }
-    @GetMapping("/pending")
+    @GetMapping("/properties/pending")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<PendingPropertyResponse>> getPendingProperties() {
         return ApiResponse.success(adminVerificationService.getPendingProperties());
     }
 
-    @PostMapping("/{homestayId}/review")
+    @PostMapping("/properties/{homestayId}/review")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<String> submitReview(
             @PathVariable Long homestayId,

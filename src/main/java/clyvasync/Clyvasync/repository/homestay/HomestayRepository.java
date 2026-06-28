@@ -23,5 +23,6 @@ public interface HomestayRepository extends JpaRepository<Homestay, Long>, JpaSp
     Long getOwnerIdByHomestayId(Long homestayId);
     boolean existsByIdAndOwnerId(Long homestayId, Long ownerId);
     List<Homestay> findByStatus(HomestayStatus status);
+    List<Homestay> findByStatusIn(List<HomestayStatus> statuses);
 
 }

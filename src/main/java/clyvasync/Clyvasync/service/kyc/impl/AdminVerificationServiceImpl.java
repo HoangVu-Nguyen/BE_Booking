@@ -9,6 +9,7 @@ import clyvasync.Clyvasync.dto.response.OwnerResponse;
 import clyvasync.Clyvasync.dto.response.PendingPropertyResponse;
 import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
+import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.exception.AppException;
@@ -229,7 +230,8 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     @Override
     @Transactional
     public List<PendingPropertyResponse> getPendingProperties() {
-        List<Homestay> draftHomestays = homestayRepository.findByStatus(HomestayStatus.DRAFT);
+        List<HomestayStatus> draftStatus = List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION);
+        List<Homestay> draftHomestays = homestayRepository.findByStatusIn(draftStatus);
         if (draftHomestays.isEmpty()) {
             return Collections.emptyList();
         }
@@ -244,27 +246,28 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
         return draftHomestays.stream()
                 .filter(homestay -> docsByHomestayId.containsKey(homestay.getId()))
                 .map(homestay -> {
-
                     List<HomestayDocument> docs = docsByHomestayId.get(homestay.getId());
 
                     List<PendingPropertyResponse.DocumentDto> docDtos = docs.stream()
                             .map(doc -> PendingPropertyResponse.DocumentDto.builder()
                                     .id(doc.getId())
                                     .name(doc.getDocumentType().name())
-                                    .url(doc.getFileUrl())
+                                    .url(s3Service.generatePresignedUrl(
+                                            doc.getFileUrl(),
+                                            PropertyDocumentType.valueOf(doc.getDocumentType().name())
+                                    ).url())
                                     .status(doc.getStatus())
                                     .build())
                             .collect(Collectors.toList());
 
                     return PendingPropertyResponse.builder()
                             .id("PRP-" + homestay.getId())
-                            .profileId(homestay.getId())
                             .homestayName(homestay.getName())
                             .hostName(ownerResponseMap.get(homestay.getOwnerId()).getFullName())
                             .documents(docDtos)
                             .submittedAt(homestay.getUpdatedAt())
                             .build();
-
                 }).collect(Collectors.toList());
     }
+
 }
