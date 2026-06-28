@@ -114,7 +114,6 @@ public class RealEkycServiceImpl implements RealEkycService {
                 if (isIdMatch && isNameMatch && confidence >= 95.0) {
                     profile.setStatus(KycProfileStatus.PENDING_REVIEW);
                     profile.setRejectionReason(null);
-                    roleService.upgradeToHost(profile.getUserId());
                     log.info(">>>> [Real eKYC] THÀNH CÔNG! Dữ liệu khớp 100%.");
                 } else {
                     profile.setStatus(KycProfileStatus.PENDING_REVIEW);
@@ -124,7 +123,7 @@ public class RealEkycServiceImpl implements RealEkycService {
             } else {
                 String errorMessage = rootNode.path("errorMessage").asText();
                 profile.setStatus(KycProfileStatus.PENDING_REVIEW);
-                profile.setRejectionReason("Thông tin bạn cần chờ xem lại.");
+                profile.setRejectionReason("CẢNH BÁO AI: " + errorMessage);
                 log.error(">>>> [Real eKYC] Ảnh lỗi: {}", errorMessage);
             }
 
@@ -138,7 +137,7 @@ public class RealEkycServiceImpl implements RealEkycService {
         eventPublisher.publishEvent(new KycProcessedEvent(
                 profile.getUserId(),
                 profile.getStatus(),
-                profile.getRejectionReason()
+               null
         ));
     }
 }

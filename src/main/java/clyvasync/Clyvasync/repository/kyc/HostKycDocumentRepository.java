@@ -10,5 +10,6 @@ import java.util.Optional;
 public interface HostKycDocumentRepository extends JpaRepository<HostKycDocument, Long> {
     List<HostKycDocument> findByProfileId(Long profileId);
     Optional<HostKycDocument> findByProfileIdAndDocumentType(Long profileId, KycDocumentType type);
+    List<HostKycDocument> findByProfileIdInAndDocumentType(List<Long> profileIds, KycDocumentType documentType);
 
 }
