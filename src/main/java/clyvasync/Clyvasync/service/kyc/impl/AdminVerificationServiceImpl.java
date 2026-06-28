@@ -5,6 +5,8 @@ import clyvasync.Clyvasync.dto.event.PropertyVerificationEvent;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
 import clyvasync.Clyvasync.dto.response.HostPendingResponse;
+import clyvasync.Clyvasync.dto.response.OwnerResponse;
+import clyvasync.Clyvasync.dto.response.PendingPropertyResponse;
 import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
@@ -20,6 +22,7 @@ import clyvasync.Clyvasync.repository.auth.UserRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
 import clyvasync.Clyvasync.service.auth.RoleService;
+import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import clyvasync.Clyvasync.service.media.S3Service;
 import dto.request.ReviewPropertyRequest;
@@ -28,6 +31,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -43,6 +47,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final ApplicationEventPublisher eventPublisher;
     private final clyvasync.Clyvasync.repository.homestay.HomestayRepository homestayRepository;
     private final clyvasync.Clyvasync.repository.homestay.HomestayDocumentRepository documentRepository;
+    private final UserService  userService;
     @Override
     public List<HostPendingResponse> getPendingKycHosts() {
         List<HostKycProfile> pendingProfiles = kycProfileRepository.findByStatus(KycProfileStatus.PENDING_REVIEW);
@@ -219,5 +224,47 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .homestayName(homestay.getName())
                 .status(homestay.getStatus())
                 .build());
+    }
+
+    @Override
+    @Transactional
+    public List<PendingPropertyResponse> getPendingProperties() {
+        List<Homestay> draftHomestays = homestayRepository.findByStatus(HomestayStatus.DRAFT);
+        if (draftHomestays.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> homestayIds = draftHomestays.stream()
+                .map(Homestay::getId)
+                .toList();
+        List<HomestayDocument> allDocuments = documentRepository.findByHomestayIdIn(homestayIds);
+        Map<Long, List<HomestayDocument>> docsByHomestayId = allDocuments.stream()
+                .collect(Collectors.groupingBy(HomestayDocument::getHomestayId));
+        List<Long> userIds = draftHomestays.stream().map(Homestay::getOwnerId).distinct().toList();
+        Map<Long, OwnerResponse> ownerResponseMap = userService.getOwnerInfos(userIds);
+        return draftHomestays.stream()
+                .filter(homestay -> docsByHomestayId.containsKey(homestay.getId()))
+                .map(homestay -> {
+
+                    List<HomestayDocument> docs = docsByHomestayId.get(homestay.getId());
+
+                    List<PendingPropertyResponse.DocumentDto> docDtos = docs.stream()
+                            .map(doc -> PendingPropertyResponse.DocumentDto.builder()
+                                    .id(doc.getId())
+                                    .name(doc.getDocumentType().name())
+                                    .url(doc.getFileUrl())
+                                    .status(doc.getStatus())
+                                    .build())
+                            .collect(Collectors.toList());
+
+                    return PendingPropertyResponse.builder()
+                            .id("PRP-" + homestay.getId())
+                            .profileId(homestay.getId())
+                            .homestayName(homestay.getName())
+                            .hostName(ownerResponseMap.get(homestay.getOwnerId()).getFullName())
+                            .documents(docDtos)
+                            .submittedAt(homestay.getUpdatedAt())
+                            .build();
+
+                }).collect(Collectors.toList());
     }
 }

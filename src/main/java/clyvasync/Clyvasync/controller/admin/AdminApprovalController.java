@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.dto.request.RejectKycRequest;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
 import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
 import clyvasync.Clyvasync.dto.response.HostPendingResponse;
+import clyvasync.Clyvasync.dto.response.PendingPropertyResponse;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -50,5 +51,19 @@ public class AdminApprovalController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Long> countPendingKyc() {
         return ApiResponse.success(adminVerificationService.countPendingKycProfiles());
+    }
+    @GetMapping("/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<List<PendingPropertyResponse>> getPendingProperties() {
+        return ApiResponse.success(adminVerificationService.getPendingProperties());
+    }
+
+    @PostMapping("/{homestayId}/review")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<String> submitReview(
+            @PathVariable Long homestayId,
+            @RequestBody dto.request.ReviewPropertyRequest request) {
+        adminVerificationService.submitPropertyReview(homestayId, request);
+        return ApiResponse.success();
     }
 }
