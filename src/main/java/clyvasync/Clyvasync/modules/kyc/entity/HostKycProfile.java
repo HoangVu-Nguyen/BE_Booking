@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.modules.kyc.entity;
 
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.service.annotation.AesConverter;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -64,6 +65,8 @@ public class HostKycProfile {
     private Integer version;
 
     @CreationTimestamp
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
