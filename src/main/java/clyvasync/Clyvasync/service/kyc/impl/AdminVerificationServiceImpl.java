@@ -2,14 +2,16 @@ package clyvasync.Clyvasync.service.kyc.impl;
 
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
 import clyvasync.Clyvasync.dto.event.PropertyVerificationEvent;
+import clyvasync.Clyvasync.dto.projection.HostFinancialProjection;
+import clyvasync.Clyvasync.dto.projection.HostKycStatsProjection;
+import clyvasync.Clyvasync.dto.projection.HostPropertyStatsProjection;
+import clyvasync.Clyvasync.dto.projection.HostWalletProjection;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
-import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
-import clyvasync.Clyvasync.dto.response.HostPendingResponse;
-import clyvasync.Clyvasync.dto.response.OwnerResponse;
-import clyvasync.Clyvasync.dto.response.PendingPropertyResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
+import clyvasync.Clyvasync.enums.kyc.KycDocumentStatus;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.exception.AppException;
@@ -20,18 +22,26 @@ import clyvasync.Clyvasync.modules.homestay.entity.HomestayDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
+import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
+import clyvasync.Clyvasync.repository.wallet.HostWalletRepository;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.auth.UserService;
+import clyvasync.Clyvasync.service.booking.BookingService;
+import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
+import clyvasync.Clyvasync.service.media.IUserPhotoService;
 import clyvasync.Clyvasync.service.media.S3Service;
 import dto.request.ReviewPropertyRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +59,10 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final clyvasync.Clyvasync.repository.homestay.HomestayRepository homestayRepository;
     private final clyvasync.Clyvasync.repository.homestay.HomestayDocumentRepository documentRepository;
     private final UserService  userService;
+    private final HostWalletRepository walletRepository;
+    private final IUserPhotoService userPhotoService;
+    private final HomestayService homestayService;
+    private final BookingRepository bookingRepository;
     @Override
     public List<HostPendingResponse> getPendingKycHosts() {
         List<HostKycProfile> pendingProfiles = kycProfileRepository.findByStatus(KycProfileStatus.PENDING_REVIEW);
@@ -270,4 +284,56 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 }).collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AdminHostResponse> getHostList(String keyword, Pageable pageable) {
+        Page<User> hostPage = userRepository.findByRole("HOST", keyword, pageable);
+        List<Long> hostIds = hostPage.getContent().stream().map(User::getId).toList();
+
+        if (hostIds.isEmpty()) return Page.empty();
+
+        var propertyMap = homestayRepository.getPropertyStatsByOwners(hostIds, List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION))
+                .stream().collect(Collectors.toMap(HostPropertyStatsProjection::getOwnerId, p -> p));
+        var kycMap = kycProfileRepository.getKycStatsByUsers(hostIds)
+                .stream().collect(Collectors.toMap(HostKycStatsProjection::getUserId, k -> k));
+        var walletMap = walletRepository.getWalletBalancesByOwners(hostIds)
+                .stream().collect(Collectors.toMap(HostWalletProjection::getOwnerId, HostWalletProjection::getBalance));
+        var financialMap = bookingRepository.sumFinancialMetricsByOwners(hostIds)
+                .stream().collect(Collectors.toMap(HostFinancialProjection::getOwnerId, f -> f));
+        var photoMap = userPhotoService.getAvatarsMapByIds(hostIds);
+
+        return hostPage.map(user -> {
+            Long hId = user.getId();
+            var pStats = propertyMap.get(hId);
+            var kStats = kycMap.get(hId);
+            var fStats = financialMap.get(hId);
+
+            String finalStatus = !user.isActive() ? "SUSPENDED" :
+                    (kStats == null || "MISSING".equals(kStats.getKycStatus())) ? "PENDING_KYC" :
+                            "PENDING_REVIEW".equals(kStats.getKycStatus()) ? "PENDING_REVIEW" :
+                                    "REJECTED".equals(kStats.getKycStatus()) ? "REJECTED" : "ACTIVE";
+
+            return AdminHostResponse.builder()
+                    .id("HST-" + hId)
+                    .joinDate(user.getCreatedAt())
+                    .status(finalStatus)
+                    .user(UserHeaderResponse.builder()
+                            .username(user.getFullName())
+                            .email(user.getEmail())
+                            .phoneNumber(user.getPhoneNumber())
+                            .photoUrl(photoMap.get(hId))
+                            .build())
+                    .verification(AdminHostResponse.VerificationInfo.builder()
+                            .identityStatus(kStats != null ? kStats.getKycStatus() : "MISSING")
+                            .bankStatus("LINKED")
+                            .build())
+                    .metrics(AdminHostResponse.HostMetrics.builder()
+                            .totalProperties(pStats != null ? pStats.getTotalProperties() : 0)
+                            .pendingProperties((pStats != null ? pStats.getPendingProperties() : 0) + (kStats != null ? kStats.getPendingKycDocs() : 0))
+                            .walletBalance(walletMap.getOrDefault(hId, BigDecimal.ZERO))
+                            .totalRevenue(fStats != null ? fStats.getGmv() : BigDecimal.ZERO)
+                            .build())
+                    .build();
+        });
+    }
 }

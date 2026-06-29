@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.repository.booking;
 
 import clyvasync.Clyvasync.dto.projection.BookingBriefProjection;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
+import clyvasync.Clyvasync.dto.projection.HostFinancialProjection;
 import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
@@ -126,7 +127,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT SUM(b.totalPrice) FROM Booking b WHERE b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED')")
     BigDecimal sumTotalGmv();
 
-    // 2. Tính Tổng Phí Sàn thu được
     @Query("SELECT SUM(b.platformFeeAmount) FROM Booking b WHERE b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED')")
     BigDecimal sumTotalPlatformFee();
+    @Query("SELECT h.ownerId as ownerId , " +
+            "SUM(b.totalPrice) AS gmv, " +
+            "SUM(b.platformFeeAmount) AS platformFee " +
+            "FROM Booking b JOIN Homestay h ON b.homestayId = h.id " +
+            "WHERE h.ownerId IN :ownerIds " +
+            "AND b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED') " +
+            "GROUP BY h.ownerId")
+    List<HostFinancialProjection> sumFinancialMetricsByOwners(@Param("ownerIds") List<Long> ownerIds);
 }

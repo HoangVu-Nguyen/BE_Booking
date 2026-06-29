@@ -1,12 +1,13 @@
 package clyvasync.Clyvasync.controller.admin;
 
 import clyvasync.Clyvasync.dto.request.RejectKycRequest;
-import clyvasync.Clyvasync.dto.response.ApiResponse;
-import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
-import clyvasync.Clyvasync.dto.response.HostPendingResponse;
-import clyvasync.Clyvasync.dto.response.PendingPropertyResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -65,5 +66,16 @@ public class AdminApprovalController {
             @RequestBody dto.request.ReviewPropertyRequest request) {
         adminVerificationService.submitPropertyReview(homestayId, request);
         return ApiResponse.success();
+    }
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<Page<AdminHostResponse>> getHostList(
+            @RequestParam(defaultValue = "") String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String[] sort) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.fromString(sort[1]), sort[0]));
+        Page<AdminHostResponse> response = adminVerificationService.getHostList(keyword, pageable);
+        return ApiResponse.success(response);
     }
 }
