@@ -8,6 +8,7 @@ import clyvasync.Clyvasync.dto.projection.HostPropertyStatsProjection;
 import clyvasync.Clyvasync.dto.projection.HostWalletProjection;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.response.*;
+import clyvasync.Clyvasync.enums.auth.RoleName;
 import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
@@ -35,6 +36,7 @@ import clyvasync.Clyvasync.service.media.IUserPhotoService;
 import clyvasync.Clyvasync.service.media.S3Service;
 import dto.request.ReviewPropertyRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -49,6 +51,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final HostKycProfileRepository kycProfileRepository;
     private final HostKycDocumentRepository hostKycDocumentRepository;
@@ -286,13 +289,27 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AdminHostResponse> getHostList(String keyword, Pageable pageable) {
-        Page<User> hostPage = userRepository.findByRole("HOST", keyword, pageable);
+    public PageResponse<AdminHostResponse> getHostList(String keyword, Pageable pageable) {
+        Page<User> hostPage = userRepository.findByRole(RoleName.HOST, keyword, pageable);
+        log.info(">>>> [Debug] Page number: {}, Total elements: {}", hostPage.getNumber(), hostPage.getTotalElements());
+
+        // Fix: Trả về PageResponse rỗng thay vì Page.empty()
+        if (hostPage.isEmpty()) {
+            return PageResponse.<AdminHostResponse>builder()
+                    .content(List.of())
+                    .totalElements(0)
+                    .totalPages(0)
+                    .number(pageable.getPageNumber())
+                    .size(pageable.getPageSize())
+                    .last(true)
+                    .first(true)
+                    .build();
+        }
+
         List<Long> hostIds = hostPage.getContent().stream().map(User::getId).toList();
 
-        if (hostIds.isEmpty()) return Page.empty();
-
-        var propertyMap = homestayRepository.getPropertyStatsByOwners(hostIds, List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION))
+        // Các query thống kê (Giữ nguyên logic của bạn)
+        var propertyMap = homestayRepository.getPropertyStatsByOwners(hostIds, List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION, HomestayStatus.APPROVED))
                 .stream().collect(Collectors.toMap(HostPropertyStatsProjection::getOwnerId, p -> p));
         var kycMap = kycProfileRepository.getKycStatsByUsers(hostIds)
                 .stream().collect(Collectors.toMap(HostKycStatsProjection::getUserId, k -> k));
@@ -302,7 +319,8 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .stream().collect(Collectors.toMap(HostFinancialProjection::getOwnerId, f -> f));
         var photoMap = userPhotoService.getAvatarsMapByIds(hostIds);
 
-        return hostPage.map(user -> {
+        // Map sang DTO
+        List<AdminHostResponse> dtoList = hostPage.getContent().stream().map(user -> {
             Long hId = user.getId();
             var pStats = propertyMap.get(hId);
             var kStats = kycMap.get(hId);
@@ -334,6 +352,16 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                             .totalRevenue(fStats != null ? fStats.getGmv() : BigDecimal.ZERO)
                             .build())
                     .build();
-        });
+        }).collect(Collectors.toList());
+
+        return PageResponse.<AdminHostResponse>builder()
+                .content(dtoList)
+                .totalElements(hostPage.getTotalElements())
+                .totalPages(hostPage.getTotalPages())
+                .number(hostPage.getNumber())
+                .size(hostPage.getSize())
+                .last(hostPage.isLast())
+                .first(hostPage.isFirst())
+                .build();
     }
 }

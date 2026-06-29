@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -67,15 +68,15 @@ public class AdminApprovalController {
         adminVerificationService.submitPropertyReview(homestayId, request);
         return ApiResponse.success();
     }
-    @GetMapping
+    @GetMapping("/hosts")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Page<AdminHostResponse>> getHostList(
+    public ApiResponse<PageResponse<AdminHostResponse>> getHostList(
             @RequestParam(defaultValue = "") String keyword,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt,desc") String[] sort) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.fromString(sort[1]), sort[0]));
-        Page<AdminHostResponse> response = adminVerificationService.getHostList(keyword, pageable);
+            @PageableDefault(page = 0, size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        System.out.println(pageable);
+
+        PageResponse<AdminHostResponse> response = adminVerificationService.getHostList(keyword, pageable);
         return ApiResponse.success(response);
     }
 }

@@ -1,9 +1,6 @@
 package clyvasync.Clyvasync.service.kyc;
 
-import clyvasync.Clyvasync.dto.response.AdminHostResponse;
-import clyvasync.Clyvasync.dto.response.HostKycDetailResponse;
-import clyvasync.Clyvasync.dto.response.HostPendingResponse;
-import clyvasync.Clyvasync.dto.response.PendingPropertyResponse;
+import clyvasync.Clyvasync.dto.response.*;
 import dto.request.ReviewPropertyRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,5 +15,5 @@ public interface AdminVerificationService {
     long countPendingKycProfiles();
     void submitPropertyReview(Long homestayId, ReviewPropertyRequest request);
     List<PendingPropertyResponse> getPendingProperties();
-    Page<AdminHostResponse> getHostList(String keyword, Pageable pageable);
+    PageResponse<AdminHostResponse> getHostList(String keyword, Pageable pageable);
 }
