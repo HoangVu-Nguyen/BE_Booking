@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.homestay;
 
+import clyvasync.Clyvasync.dto.projection.HomestayImageProjection;
 import clyvasync.Clyvasync.enums.media.MediaStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayImage;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,4 +29,7 @@ public interface HomestayImageRepository extends JpaRepository<HomestayImage,Lon
     @Modifying
     @Query("DELETE FROM HomestayImage h WHERE h.homestayId = :homestayId AND h.status = 'ACTIVE' AND h.id NOT IN :ids")
     void deleteActiveByHomestayIdAndIdNotIn(@Param("homestayId") Long homestayId, @Param("ids") Set<Long> ids);
+    @Query("SELECT i.homestayId as homestayId, i.imageUrl as imageUrl " +
+            "FROM HomestayImage i WHERE i.homestayId IN :homestayIds AND i.isPrimary = true")
+    List<HomestayImageProjection> findPrimaryImagesByHomestayIds(@Param("homestayIds") List<Long> homestayIds);
 }

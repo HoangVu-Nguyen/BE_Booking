@@ -16,4 +16,5 @@ public interface AdminVerificationService {
     void submitPropertyReview(Long homestayId, ReviewPropertyRequest request);
     List<PendingPropertyResponse> getPendingProperties();
     PageResponse<AdminHostResponse> getHostList(String keyword, Pageable pageable);
+    HostDetailResponse getHostDetail(Long hostId);
 }

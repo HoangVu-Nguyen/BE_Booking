@@ -79,4 +79,11 @@ public class AdminApprovalController {
         PageResponse<AdminHostResponse> response = adminVerificationService.getHostList(keyword, pageable);
         return ApiResponse.success(response);
     }
+    @GetMapping("/hosts/{hostId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<HostDetailResponse> getHostDetail(@PathVariable Long hostId) {
+        HostDetailResponse response = adminVerificationService.getHostDetail(hostId);
+        System.out.println(response.toString());
+        return ApiResponse.success(response);
+    }
 }

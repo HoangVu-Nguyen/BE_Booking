@@ -2,10 +2,7 @@ package clyvasync.Clyvasync.service.kyc.impl;
 
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
 import clyvasync.Clyvasync.dto.event.PropertyVerificationEvent;
-import clyvasync.Clyvasync.dto.projection.HostFinancialProjection;
-import clyvasync.Clyvasync.dto.projection.HostKycStatsProjection;
-import clyvasync.Clyvasync.dto.projection.HostPropertyStatsProjection;
-import clyvasync.Clyvasync.dto.projection.HostWalletProjection;
+import clyvasync.Clyvasync.dto.projection.*;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.auth.RoleName;
@@ -18,22 +15,33 @@ import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.auth.entity.User;
+import clyvasync.Clyvasync.modules.homestay.entity.Category;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import clyvasync.Clyvasync.modules.homestay.entity.HomestayDocument;
+import clyvasync.Clyvasync.modules.homestay.entity.Location;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
+import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
+import clyvasync.Clyvasync.modules.wallet.entity.WalletTransaction;
 import clyvasync.Clyvasync.repository.auth.UserRepository;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
+import clyvasync.Clyvasync.repository.homestay.CategoryRepository;
+import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
+import clyvasync.Clyvasync.repository.homestay.LocationRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
 import clyvasync.Clyvasync.repository.wallet.HostWalletRepository;
+import clyvasync.Clyvasync.repository.wallet.WalletTransactionRepository;
 import clyvasync.Clyvasync.service.auth.RoleService;
 import clyvasync.Clyvasync.service.auth.UserService;
 import clyvasync.Clyvasync.service.booking.BookingService;
+import clyvasync.Clyvasync.service.homestay.HomestayImageService;
 import clyvasync.Clyvasync.service.homestay.HomestayService;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import clyvasync.Clyvasync.service.media.IUserPhotoService;
 import clyvasync.Clyvasync.service.media.S3Service;
+import clyvasync.Clyvasync.service.wallet.HostWalletService;
+import clyvasync.Clyvasync.utils.MediaUtil;
 import dto.request.ReviewPropertyRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,9 +52,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,11 +67,20 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final ApplicationEventPublisher eventPublisher;
     private final clyvasync.Clyvasync.repository.homestay.HomestayRepository homestayRepository;
     private final clyvasync.Clyvasync.repository.homestay.HomestayDocumentRepository documentRepository;
-    private final UserService  userService;
+    private final UserService userService;
     private final HostWalletRepository walletRepository;
     private final IUserPhotoService userPhotoService;
     private final HomestayService homestayService;
     private final BookingRepository bookingRepository;
+    private final BookingService bookingService;
+    private final HostWalletService walletService;
+    private final HomestayImageRepository homestayImageRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
+    private final CategoryRepository categoryRepository;
+    private final LocationRepository locationRepository;
+    private final MediaUtil mediaUtil;
+    private final HostKycDocumentRepository kycDocumentRepository;
+
     @Override
     public List<HostPendingResponse> getPendingKycHosts() {
         List<HostKycProfile> pendingProfiles = kycProfileRepository.findByStatus(KycProfileStatus.PENDING_REVIEW);
@@ -293,7 +308,6 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
         Page<User> hostPage = userRepository.findByRole(RoleName.HOST, keyword, pageable);
         log.info(">>>> [Debug] Page number: {}, Total elements: {}", hostPage.getNumber(), hostPage.getTotalElements());
 
-        // Fix: Trả về PageResponse rỗng thay vì Page.empty()
         if (hostPage.isEmpty()) {
             return PageResponse.<AdminHostResponse>builder()
                     .content(List.of())
@@ -332,7 +346,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                                     "REJECTED".equals(kStats.getKycStatus()) ? "REJECTED" : "ACTIVE";
 
             return AdminHostResponse.builder()
-                    .id("HST-" + hId)
+                    .id(String.valueOf(hId))
                     .joinDate(user.getCreatedAt())
                     .status(finalStatus)
                     .user(UserHeaderResponse.builder()
@@ -362,6 +376,180 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .size(hostPage.getSize())
                 .last(hostPage.isLast())
                 .first(hostPage.isFirst())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public HostDetailResponse getHostDetail(Long hostId) {
+        User user = userRepository.findById(hostId)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+        UserHeaderResponse userHeaderResponse = userService.getHeaderInfo(hostId);
+
+        HostKycProfile kyc = kycProfileRepository.findByUserId(hostId).orElse(null);
+        HostWallet wallet = walletRepository.findByOwnerId(hostId).orElse(null);
+
+        List<Homestay> homestays = homestayRepository.findAllByOwnerId(hostId);
+        List<Long> homestayIds = homestays.stream().map(Homestay::getId).toList();
+
+        final Map<Long, HomestayFinancialProjection> financeMap = new HashMap<>();
+        final Map<Long, String> imageMap = new HashMap<>();
+        final Map<Integer, String> categoryMap = new HashMap<>();
+        final Map<Integer, String> locationMap = new HashMap<>();
+        final List<WalletTransaction> transactions = new ArrayList<>();
+        String frontUrl = "";
+        String backUrl = "";
+        if (kyc != null) {
+            List<HostKycDocument> hostKycDocuments = kycDocumentRepository.findByProfileId(kyc.getId());
+            String frontObjectKey = hostKycDocuments.stream()
+                    .filter(d -> KycDocumentType.ID_FRONT.equals(d.getDocumentType()))
+                    .map(HostKycDocument::getFileUrl)
+                    .findFirst().orElse("");
+
+            String backObjectKey = hostKycDocuments.stream()
+                    .filter(d -> KycDocumentType.ID_BACK.equals(d.getDocumentType()))
+                    .map(HostKycDocument::getFileUrl)
+                    .findFirst().orElse("");
+
+            if (!frontObjectKey.isEmpty()) {
+                frontUrl = s3Service.generatePresignedUrl(frontObjectKey, KycDocumentType.ID_FRONT).url();
+            }
+            if (!backObjectKey.isEmpty()) {
+                backUrl = s3Service.generatePresignedUrl(backObjectKey, KycDocumentType.ID_BACK).url();
+            }
+        }
+
+        if (!homestayIds.isEmpty()) {
+            List<HomestayFinancialProjection> finances = bookingRepository.getFinancialStatsByHomestayIds(homestayIds);
+            financeMap.putAll(finances.stream().collect(Collectors.toMap(
+                    HomestayFinancialProjection::getHomestayId,
+                    f -> f,
+                    (existing, replacement) -> replacement
+            )));
+
+            List<HomestayImageProjection> images = homestayImageRepository.findPrimaryImagesByHomestayIds(homestayIds);
+            imageMap.putAll(images.stream().collect(Collectors.toMap(
+                    HomestayImageProjection::getHomestayId,
+                    HomestayImageProjection::getImageUrl,
+                    (existing, replacement) -> existing
+            )));
+
+            List<Integer> categoryIds = homestays.stream().map(Homestay::getCategoryId).filter(Objects::nonNull).distinct().toList();
+            List<Integer> locationIds = homestays.stream().map(Homestay::getLocationId).filter(Objects::nonNull).distinct().toList();
+
+            if (!categoryIds.isEmpty()) {
+                categoryMap.putAll(categoryRepository.findAllById(categoryIds).stream()
+                        .collect(Collectors.toMap(Category::getId, Category::getName)));
+            }
+            if (!locationIds.isEmpty()) {
+                locationMap.putAll(locationRepository.findAllById(locationIds).stream()
+                        .collect(Collectors.toMap(Location::getId, Location::getCityName)));
+            }
+        }
+
+        if (wallet != null) {
+            transactions.addAll(walletTransactionRepository.findTop10ByWalletIdOrderByCreatedAtDesc(wallet.getId()));
+        }
+
+        long hostCompletedBookings = 0;
+        long hostTotalBookingsAllStatus = 0;
+        long hostCancelledBookings = 0;
+        BigDecimal hostTotalRevenue = BigDecimal.ZERO;
+
+        double hostTotalRating = 0;
+        int hostTotalReviews = 0;
+        int ratedHomestayCount = 0;
+
+        for (Homestay h : homestays) {
+            HomestayFinancialProjection stats = financeMap.get(h.getId());
+            if (stats != null) {
+                hostCompletedBookings += (stats.getCompletedBookings() != null ? stats.getCompletedBookings() : 0);
+                hostTotalBookingsAllStatus += (stats.getTotalBookingsAllStatus() != null ? stats.getTotalBookingsAllStatus() : 0);
+                hostCancelledBookings += (stats.getCancelledBookings() != null ? stats.getCancelledBookings() : 0);
+                hostTotalRevenue = hostTotalRevenue.add(stats.getTotalRevenue() != null ? stats.getTotalRevenue() : BigDecimal.ZERO);
+            }
+
+            if (h.getAverageRating() != null && h.getAverageRating().doubleValue() > 0) {
+                hostTotalRating += h.getAverageRating().doubleValue();
+                ratedHomestayCount++;
+            }
+            if (h.getReviewCount() != null) {
+                hostTotalReviews += h.getReviewCount();
+            }
+        }
+
+        double avgHostRating = ratedHomestayCount > 0 ? (hostTotalRating / ratedHomestayCount) : 0.0;
+        double cancellationRate = hostTotalBookingsAllStatus > 0
+                ? ((double) hostCancelledBookings / hostTotalBookingsAllStatus) * 100.0
+                : 0.0;
+        cancellationRate = Math.round(cancellationRate * 10.0) / 10.0;
+
+
+        List<HostDetailResponse.PropertyDto> propertyDtos = homestays.stream().map(h -> {
+            HomestayFinancialProjection stats = financeMap.get(h.getId());
+
+            String categoryName = categoryMap.getOrDefault(h.getCategoryId(), "Chưa phân loại");
+            String cityName = locationMap.getOrDefault(h.getLocationId(), "Chưa cập nhật");
+            String fullLocation = h.getAddressDetail() + ", " + cityName;
+
+            return HostDetailResponse.PropertyDto.builder()
+                    .id("HOM-" + h.getId())
+                    .name(h.getName())
+                    .type(categoryName)
+                    .location(fullLocation)
+                    .image(mediaUtil.toCdnUrl(imageMap.get(h.getId())))
+                    .status(h.getStatus().name())
+                    .metrics(HostDetailResponse.PropertyMetricsDto.builder()
+                            .bookings(stats != null && stats.getCompletedBookings() != null ? stats.getCompletedBookings().intValue() : 0)
+                            .revenue(stats != null && stats.getTotalRevenue() != null ? stats.getTotalRevenue() : BigDecimal.ZERO)
+                            .rating(h.getAverageRating() != null ? h.getAverageRating().doubleValue() : 0.0)
+                            .build())
+                    .build();
+        }).collect(Collectors.toList());
+
+        List<HostDetailResponse.AuditLogDto> auditLogs = transactions.stream().map(t ->
+                HostDetailResponse.AuditLogDto.builder()
+                        .time(t.getCreatedAt().toString())
+                        .action(t.getTransactionType().name())
+                        .desc(t.getDescription())
+                        .status(t.getStatus().name())
+                        .build()
+        ).collect(Collectors.toList());
+
+        return HostDetailResponse.builder()
+                .host(HostDetailResponse.HostInfo.builder()
+                        .id("HST-" + user.getId())
+                        .joinDate(user.getCreatedAt().toString())
+                        .status(user.isActive() ? "ACTIVE" : "SUSPENDED")
+                        .walletBalance(wallet != null ? wallet.getAvailableBalance() : BigDecimal.ZERO)
+                        .totalRevenue(hostTotalRevenue)
+                        .user(UserHeaderResponse.builder()
+                                .username(user.getFullName())
+                                .email(user.getEmail())
+                                .phoneNumber(user.getPhoneNumber())
+                                .photoUrl(userHeaderResponse.getPhotoUrl())
+                                .build())
+                        .kyc(HostDetailResponse.KycDto.builder()
+                        .identity(kyc != null ? kyc.getStatus().name() : "MISSING")
+                        .idNumber(kyc != null ? kyc.getIdCardNumber() : "N/A")
+                        .frontImageUrl(frontUrl)
+                        .backImageUrl(backUrl)
+                        .bankInfo(HostDetailResponse.BankInfoDto.builder()
+                                .bankName(kyc != null ? kyc.getBankName() : "N/A")
+                                .accountNo(kyc != null ? kyc.getBankAccountNumber() : "N/A")
+                                .ownerName(kyc != null ? kyc.getBankName() : "N/A")
+                                .build())
+                        .build())
+                        .metrics(HostDetailResponse.MetricsDto.builder()
+                                .totalBookings((int) hostCompletedBookings)
+                                .cancellationRate(cancellationRate)
+                                .responseRate(100.0)
+                                .avgRating(Math.round(avgHostRating * 100.0) / 100.0)
+                                .reviewsCount(hostTotalReviews)
+                                .build())
+                        .build())
+                .properties(propertyDtos)
+                .auditLogs(auditLogs)
                 .build();
     }
 }
