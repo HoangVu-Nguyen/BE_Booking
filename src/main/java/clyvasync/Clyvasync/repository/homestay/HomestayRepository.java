@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.homestay;
 
+import clyvasync.Clyvasync.dto.projection.HostPropertyStatsProjection;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import org.springframework.data.domain.Page;
@@ -23,5 +24,18 @@ public interface HomestayRepository extends JpaRepository<Homestay, Long>, JpaSp
     Long getOwnerIdByHomestayId(Long homestayId);
     boolean existsByIdAndOwnerId(Long homestayId, Long ownerId);
     List<Homestay> findByStatus(HomestayStatus status);
+    List<Homestay> findByStatusIn(List<HomestayStatus> statuses);
+    @Query("SELECT h.ownerId AS ownerId, " +
+            "COUNT(DISTINCT h.id) AS totalProperties, " +
+            "SUM(CASE WHEN h.status IN :pendingStatuses THEN 1 ELSE 0 END) AS pendingProperties " +
+            "FROM Homestay h " +
+            "LEFT JOIN HomestayDocument hd ON h.id = hd.homestayId " +
+            "WHERE h.ownerId IN :ownerIds " +
+            "GROUP BY h.ownerId")
+    List<HostPropertyStatsProjection> getPropertyStatsByOwners(
+            @Param("ownerIds") List<Long> ownerIds,
+            @Param("pendingStatuses") List<HomestayStatus> pendingStatuses
+    );
+    List<Homestay> findByOwnerIdAndStatusIn(Long ownerId, List<HomestayStatus> statuses);
 
 }
