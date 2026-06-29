@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.repository.auth;
 
+import clyvasync.Clyvasync.enums.auth.RoleName;
 import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.repository.projection.UserNameProjection;
 import org.springframework.data.domain.Page;
@@ -27,8 +28,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "JOIN Role r ON ur.roleId = r.id " +
             "WHERE r.name = :roleName " +
             "AND (:keyword IS NULL OR :keyword = '' OR " +
-            "u.fullName LIKE %:keyword% OR u.email LIKE %:keyword% OR u.phoneNumber LIKE %:keyword%)")
-    Page<User> findByRole(@Param("roleName") String roleName,
+            "u.fullName LIKE CONCAT('%', :keyword, '%') OR " +
+            "u.email LIKE CONCAT('%', :keyword, '%') OR " +
+            "u.phoneNumber LIKE CONCAT('%', :keyword, '%'))")
+    Page<User> findByRole(@Param("roleName") RoleName roleName,
                           @Param("keyword") String keyword,
                           Pageable pageable);
 }

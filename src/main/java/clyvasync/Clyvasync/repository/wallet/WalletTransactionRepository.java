@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface WalletTransactionRepository extends JpaRepository<WalletTransaction,Long> {
     // Lấy toàn bộ giao dịch của một ví, sắp xếp mới nhất lên đầu
@@ -55,4 +56,5 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
         ORDER BY wt.created_at DESC
     """, nativeQuery = true)
     Page<LedgerTransactionProjection> findLedgerTransactions(@Param("search") String search, @Param("type") String type, Pageable pageable);
+    List<WalletTransaction> findTop10ByWalletIdOrderByCreatedAtDesc(Long walletId);
 }

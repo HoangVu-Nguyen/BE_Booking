@@ -2,6 +2,7 @@ package clyvasync.Clyvasync.repository.booking;
 
 import clyvasync.Clyvasync.dto.projection.BookingBriefProjection;
 import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
+import clyvasync.Clyvasync.dto.projection.HomestayFinancialProjection;
 import clyvasync.Clyvasync.dto.projection.HostFinancialProjection;
 import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
@@ -137,4 +138,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "AND b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED') " +
             "GROUP BY h.ownerId")
     List<HostFinancialProjection> sumFinancialMetricsByOwners(@Param("ownerIds") List<Long> ownerIds);
+    @Query("SELECT b.homestayId as homestayId, " +
+            "COUNT(b.id) as totalBookingsAllStatus, " +
+            "SUM(CASE WHEN b.status = 'COMPLETED' THEN 1 ELSE 0 END) as completedBookings, " +
+            "SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelledBookings, " +
+            "SUM(CASE WHEN b.status = 'COMPLETED' THEN b.totalPrice ELSE 0 END) as totalRevenue " +
+            "FROM Booking b WHERE b.homestayId IN :homestayIds " +
+            "GROUP BY b.homestayId")
+    List<HomestayFinancialProjection> getFinancialStatsByHomestayIds(@Param("homestayIds") List<Long> homestayIds);
 }
