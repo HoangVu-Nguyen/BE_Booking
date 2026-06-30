@@ -322,7 +322,6 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
 
         List<Long> hostIds = hostPage.getContent().stream().map(User::getId).toList();
 
-        // Các query thống kê (Giữ nguyên logic của bạn)
         var propertyMap = homestayRepository.getPropertyStatsByOwners(hostIds, List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION, HomestayStatus.APPROVED))
                 .stream().collect(Collectors.toMap(HostPropertyStatsProjection::getOwnerId, p -> p));
         var kycMap = kycProfileRepository.getKycStatsByUsers(hostIds)
@@ -331,14 +330,24 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .stream().collect(Collectors.toMap(HostWalletProjection::getOwnerId, HostWalletProjection::getBalance));
         var financialMap = bookingRepository.sumFinancialMetricsByOwners(hostIds)
                 .stream().collect(Collectors.toMap(HostFinancialProjection::getOwnerId, f -> f));
+
         var photoMap = userPhotoService.getAvatarsMapByIds(hostIds);
 
-        // Map sang DTO
         List<AdminHostResponse> dtoList = hostPage.getContent().stream().map(user -> {
             Long hId = user.getId();
             var pStats = propertyMap.get(hId);
             var kStats = kycMap.get(hId);
             var fStats = financialMap.get(hId);
+
+            long totalBookingsAllStatus = (fStats != null && fStats.getTotalBookingsAllStatus() != null) ? fStats.getTotalBookingsAllStatus() : 0;
+            long cancelledBookings = (fStats != null && fStats.getCancelledBookings() != null) ? fStats.getCancelledBookings() : 0;
+            long completedBookings = (fStats != null && fStats.getCompletedBookings() != null) ? fStats.getCompletedBookings() : 0;
+
+            double cancellationRate = 0.0;
+            if (totalBookingsAllStatus > 0) {
+                cancellationRate = ((double) cancelledBookings / totalBookingsAllStatus) * 100.0;
+                cancellationRate = Math.round(cancellationRate * 10.0) / 10.0;
+            }
 
             String finalStatus = !user.isActive() ? "SUSPENDED" :
                     (kStats == null || "MISSING".equals(kStats.getKycStatus())) ? "PENDING_KYC" :
@@ -364,6 +373,9 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                             .pendingProperties((pStats != null ? pStats.getPendingProperties() : 0) + (kStats != null ? kStats.getPendingKycDocs() : 0))
                             .walletBalance(walletMap.getOrDefault(hId, BigDecimal.ZERO))
                             .totalRevenue(fStats != null ? fStats.getGmv() : BigDecimal.ZERO)
+                            .totalBookings((int) completedBookings)
+                            .cancellationRate(cancellationRate)
+                            .averageResponseTime("100")
                             .build())
                     .build();
         }).collect(Collectors.toList());
@@ -450,7 +462,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
         if (wallet != null) {
             transactions.addAll(walletTransactionRepository.findTop10ByWalletIdOrderByCreatedAtDesc(wallet.getId()));
         }
-
+        long hostValidBookings = 0;
         long hostCompletedBookings = 0;
         long hostTotalBookingsAllStatus = 0;
         long hostCancelledBookings = 0;
@@ -467,6 +479,11 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 hostTotalBookingsAllStatus += (stats.getTotalBookingsAllStatus() != null ? stats.getTotalBookingsAllStatus() : 0);
                 hostCancelledBookings += (stats.getCancelledBookings() != null ? stats.getCancelledBookings() : 0);
                 hostTotalRevenue = hostTotalRevenue.add(stats.getTotalRevenue() != null ? stats.getTotalRevenue() : BigDecimal.ZERO);
+                long totalAll = stats.getTotalBookingsAllStatus() != null ? stats.getTotalBookingsAllStatus() : 0;
+                long cancelled = stats.getCancelledBookings() != null ? stats.getCancelledBookings() : 0;
+                hostTotalBookingsAllStatus += totalAll;
+                hostCancelledBookings += cancelled;
+                hostValidBookings += (totalAll - cancelled);
             }
 
             if (h.getAverageRating() != null && h.getAverageRating().doubleValue() > 0) {
@@ -500,7 +517,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                     .image(mediaUtil.toCdnUrl(imageMap.get(h.getId())))
                     .status(h.getStatus().name())
                     .metrics(HostDetailResponse.PropertyMetricsDto.builder()
-                            .bookings(stats != null && stats.getCompletedBookings() != null ? stats.getCompletedBookings().intValue() : 0)
+                            .bookings(stats != null ? (int) (stats.getTotalBookingsAllStatus() - stats.getCancelledBookings()) : 0)
                             .revenue(stats != null && stats.getTotalRevenue() != null ? stats.getTotalRevenue() : BigDecimal.ZERO)
                             .rating(h.getAverageRating() != null ? h.getAverageRating().doubleValue() : 0.0)
                             .build())
@@ -541,7 +558,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                                 .build())
                         .build())
                         .metrics(HostDetailResponse.MetricsDto.builder()
-                                .totalBookings((int) hostCompletedBookings)
+                                .totalBookings((int) hostValidBookings)
                                 .cancellationRate(cancellationRate)
                                 .responseRate(100.0)
                                 .avgRating(Math.round(avgHostRating * 100.0) / 100.0)
