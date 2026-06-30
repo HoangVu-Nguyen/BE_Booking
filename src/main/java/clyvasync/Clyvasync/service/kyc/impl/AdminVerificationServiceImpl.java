@@ -56,6 +56,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -622,33 +623,64 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
 
     @Override
     public DashboardResponse getDashboardSummary() {
-        long totalHosts = userRepository.countByRoleName(RoleName.HOST);
-        long pendingKyc = kycProfileRepository.countByStatus(KycProfileStatus.PENDING_REVIEW);
-        long totalBookings = bookingRepository.count();
-        long pendingBookings = bookingRepository.countByStatus(BookingStatus.PENDING);
+        // 1. Lấy dữ liệu với mặc định là 0.0 để tránh NPE
         Double gmvToday = bookingRepository.sumTotalPriceByDate(LocalDate.now());
+        double safeGmvToday = (gmvToday != null) ? gmvToday : 0.0;
+
         Double gmvYesterday = bookingRepository.sumTotalPriceByDate(LocalDate.now().minusDays(1));
-        double growth = (gmvYesterday == 0) ? 100.0 : ((gmvToday - gmvYesterday) / gmvYesterday) * 100;
-        List<RevenueData> chartData = prepareRevenueChartData();
+        double safeGmvYesterday = (gmvYesterday != null) ? gmvYesterday : 0.0;
+
+        // 2. Tính toán growth an toàn
+        double growth = 0.0;
+        if (safeGmvYesterday > 0) {
+            growth = ((safeGmvToday - safeGmvYesterday) / safeGmvYesterday) * 100;
+        } else if (safeGmvToday > 0) {
+            growth = 100.0;
+        }
+
         return DashboardResponse.builder()
-                .gmvToday(gmvToday != null ? gmvToday : 0.0)
-                .gmvGrowthPercentage(growth)
-                .newBookings(totalBookings)
-                .pendingBookings(pendingBookings)
-                .pendingKycCount(pendingKyc)
-                .revenueChart(chartData)
+                .gmvToday(safeGmvToday)
+                .gmvGrowthPercentage(Math.round(growth * 10) / 10.0)
+                .newBookings(bookingRepository.count())
+                .pendingBookings(bookingRepository.countByStatus(BookingStatus.PENDING))
+                .newHosts(userRepository.countByRoleName(RoleName.HOST))
+                .pendingKycCount(kycProfileRepository.countByStatus(KycProfileStatus.PENDING_REVIEW))
+                .revenueChart(prepareRevenueChartData())
                 .build();
     }
+
+    @Override
+    public RevenueResponse getRevenueData(String type) {
+        LocalDateTime startDate = switch (type) {
+            case "WEEK" -> LocalDateTime.now().minusWeeks(12);
+            case "MONTH" -> LocalDateTime.now().minusMonths(6);
+            case "QUARTER" -> LocalDateTime.now().minusMonths(24);
+            case "YEAR" -> LocalDateTime.now().minusYears(5);
+            default -> LocalDateTime.now().minusMonths(6);
+        };
+        List<RevenueProjection> projections = bookingRepository.getRevenueReport(type, startDate);
+        return RevenueResponse.builder()
+                .labels(projections.stream().map(RevenueProjection::getTimeLabel).toList())
+                .revenue(projections.stream().map(RevenueProjection::getRevenue).toList())
+                .gmv(projections.stream().map(RevenueProjection::getGmv).toList())
+                .build();
+
+    }
+
     private List<RevenueData> prepareRevenueChartData() {
         List<RevenueProjection> projections = bookingRepository.getRevenueLast7Days();
+        LocalDate today = LocalDate.now();
 
-        return projections.stream().map(p -> RevenueData.builder()
-                .day(p.getDay())
-                .value(p.getValue())
-                .label(formatCurrency(p.getValue()))
-                .isToday(false)
-                .build()
-        ).collect(Collectors.toList());
+        return projections.stream().map(p -> {
+            boolean isToday = p.getDay().equals(today.format(DateTimeFormatter.ofPattern("E", new Locale("vi"))));
+
+            return RevenueData.builder()
+                    .day(p.getDay())
+                    .value(p.getValue())
+                    .label(formatCurrency(p.getValue()))
+                    .isToday(isToday)
+                    .build();
+        }).collect(Collectors.toList());
     }
     private String formatCurrency(Double value) {
         if (value == null) return "0";
