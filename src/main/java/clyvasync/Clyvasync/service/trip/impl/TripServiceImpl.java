@@ -338,7 +338,9 @@ public class TripServiceImpl implements TripService {
             // Trích xuất thông tin từ Map In-Memory
             Homestay homestay = homestayMap.get(booking.getHomestayId());
             String homestayName = (homestay != null) ? homestay.getName() : "Unknown Property";
-            BigDecimal rating = (homestay != null) ? homestay.getAverageRating() : BigDecimal.ZERO;
+            BigDecimal rating = (homestay != null && homestay.getAverageRating() != null)
+                    ? homestay.getAverageRating()
+                    : BigDecimal.ZERO;
 
             String imageUrl = primaryImageMap.getOrDefault(booking.getHomestayId(), "assets/images/default-thumbnail.jpg");
 
@@ -355,7 +357,6 @@ public class TripServiceImpl implements TripService {
                     : "Just now";
 
             String tripReviewStatus = (rating.compareTo(BigDecimal.valueOf(4.8)) >= 0) ? "EXCELLENT" : "GOOD";
-
             return PastTripResponse.builder()
                     .bookingId(booking.getId())
                     .bookingCode(booking.getBookingCode())
