@@ -19,4 +19,5 @@ public interface AdminVerificationService {
     HostDetailResponse getHostDetail(Long hostId);
     HostOverviewMetricsResponse getHostOverviewMetrics();
     void updatePropertyStatus(Long homestayId, String newStatusStr, String reason);
+    DashboardResponse getDashboardSummary();
 }

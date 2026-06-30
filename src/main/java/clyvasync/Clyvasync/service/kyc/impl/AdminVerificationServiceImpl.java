@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.kyc.impl;
 
+import clyvasync.Clyvasync.dto.detail.RevenueData;
 import clyvasync.Clyvasync.dto.event.HomestayStatusChangedEvent;
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
 import clyvasync.Clyvasync.dto.event.PropertyVerificationEvent;
@@ -7,6 +8,7 @@ import clyvasync.Clyvasync.dto.projection.*;
 import clyvasync.Clyvasync.dto.record.PresignedUrlResponse;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.enums.auth.RoleName;
+import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.enums.homestay.DocumentStatus;
 import clyvasync.Clyvasync.enums.homestay.HomestayStatus;
 import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
@@ -52,6 +54,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -617,4 +620,47 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .build());
     }
 
+    @Override
+    public DashboardResponse getDashboardSummary() {
+        long totalHosts = userRepository.countByRoleName(RoleName.HOST);
+        long pendingKyc = kycProfileRepository.countByStatus(KycProfileStatus.PENDING_REVIEW);
+        long totalBookings = bookingRepository.count();
+        long pendingBookings = bookingRepository.countByStatus(BookingStatus.PENDING);
+        Double gmvToday = bookingRepository.sumTotalPriceByDate(LocalDate.now());
+        Double gmvYesterday = bookingRepository.sumTotalPriceByDate(LocalDate.now().minusDays(1));
+        double growth = (gmvYesterday == 0) ? 100.0 : ((gmvToday - gmvYesterday) / gmvYesterday) * 100;
+        List<RevenueData> chartData = prepareRevenueChartData();
+        return DashboardResponse.builder()
+                .gmvToday(gmvToday != null ? gmvToday : 0.0)
+                .gmvGrowthPercentage(growth)
+                .newBookings(totalBookings)
+                .pendingBookings(pendingBookings)
+                .pendingKycCount(pendingKyc)
+                .revenueChart(chartData)
+                .build();
+    }
+    private List<RevenueData> prepareRevenueChartData() {
+        List<RevenueProjection> projections = bookingRepository.getRevenueLast7Days();
+
+        return projections.stream().map(p -> RevenueData.builder()
+                .day(p.getDay())
+                .value(p.getValue())
+                .label(formatCurrency(p.getValue()))
+                .isToday(false)
+                .build()
+        ).collect(Collectors.toList());
+    }
+    private String formatCurrency(Double value) {
+        if (value == null) return "0";
+
+        if (value >= 1_000_000_000) {
+            return String.format("%.1fB", value / 1_000_000_000);
+        } else if (value >= 1_000_000) {
+            return String.format("%.0fM", value / 1_000_000);
+        } else if (value >= 1_000) {
+            return String.format("%.0fK", value / 1_000);
+        }
+
+        return String.format("%.0f", value);
+    }
 }

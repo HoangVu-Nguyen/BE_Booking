@@ -94,6 +94,7 @@ public class AdminApprovalController {
         return ApiResponse.success(adminVerificationService.getHostOverviewMetrics());
     }
     @PostMapping("/properties/{homestayId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> updatePropertyStatus(
             @PathVariable Long homestayId,
             @RequestBody StatusUpdateRequest request) {
@@ -110,5 +111,10 @@ public class AdminApprovalController {
         );
 
         return ApiResponse.success(null);
+    }
+    @GetMapping("/summary")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<DashboardResponse> getDashboardSummary() {
+        return ApiResponse.success(adminVerificationService.getDashboardSummary());
     }
 }

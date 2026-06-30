@@ -1,9 +1,6 @@
 package clyvasync.Clyvasync.repository.booking;
 
-import clyvasync.Clyvasync.dto.projection.BookingBriefProjection;
-import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
-import clyvasync.Clyvasync.dto.projection.HomestayFinancialProjection;
-import clyvasync.Clyvasync.dto.projection.HostFinancialProjection;
+import clyvasync.Clyvasync.dto.projection.*;
 import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
@@ -150,5 +147,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "FROM Booking b WHERE b.homestayId IN :homestayIds " +
             "GROUP BY b.homestayId")
     List<HomestayFinancialProjection> getFinancialStatsByHomestayIds(@Param("homestayIds") List<Long> homestayIds);
+    Long countByStatus(BookingStatus status);
+   Double   sumTotalPriceByDate(LocalDate date);
+    @Query(value = "SELECT TO_CHAR(created_at, 'Dy') as day, SUM(total_price) as value " +
+            "FROM bookings WHERE created_at >= CURRENT_DATE - INTERVAL '7 days' " +
+            "GROUP BY TO_CHAR(created_at, 'Dy') ORDER BY MIN(created_at)", nativeQuery = true)
+    List<RevenueProjection> getRevenueLast7Days();
 
 }
