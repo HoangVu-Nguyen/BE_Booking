@@ -5,5 +5,6 @@ public enum HomestayStatus {
     PENDING_VERIFICATION,  // Đang chờ Admin duyệt giấy tờ
     APPROVED,              // Đã duyệt, đủ điều kiện hoạt động
     REJECTED,              // Bị từ chối
+    SUSPENDED,
     HIDDEN                 // Host chủ động ẩn đi (không cho thuê nữa hoặc tạm nghỉ)
 }

@@ -17,4 +17,6 @@ public interface AdminVerificationService {
     List<PendingPropertyResponse> getPendingProperties();
     PageResponse<AdminHostResponse> getHostList(String keyword, Pageable pageable);
     HostDetailResponse getHostDetail(Long hostId);
+    HostOverviewMetricsResponse getHostOverviewMetrics();
+    void updatePropertyStatus(Long homestayId, String newStatusStr, String reason);
 }

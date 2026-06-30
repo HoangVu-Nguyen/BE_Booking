@@ -18,16 +18,15 @@ public class TesseractOcrService {
             BufferedImage image = ImageIO.read(is);
             if (image == null) throw new RuntimeException("Không thể đọc ảnh.");
 
-            // 1. CHỈ ĐƯỜNG CHO JAVA TÌM LÕI C++ (.dylib) CỦA MAC M1/M2
             System.setProperty("jna.library.path", "/opt/homebrew/lib");
 
             ITesseract tesseract = new Tesseract();
 
-            // 2. CHỈ ĐƯỜNG ĐẾN KHO DATA NGÔN NGỮ MÀ HOMEBREW VỪA CÀI
-            // Không cần tạo thư mục tessdata trong project nữa!
-            tesseract.setDatapath("/opt/homebrew/share/tessdata");
+            //tesseract.setDatapath("/opt/homebrew/share/tessdata");
+            System.setProperty("TESSDATA_PREFIX", "/usr/share/tesseract-ocr/5/tessdata/");
 
-            // 3. Set ngôn ngữ Tiếng Việt
+            tesseract.setDatapath("/usr/share/tesseract-ocr/5/tessdata/");
+
             tesseract.setLanguage("vie");
 
             log.info(">>>> [Tesseract] Đang phân tích hình ảnh...");
