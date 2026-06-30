@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.dto.response;
 
+import clyvasync.Clyvasync.dto.detail.ActivityDto;
 import clyvasync.Clyvasync.dto.detail.RevenueData;
 import lombok.Builder;
 import lombok.Data;
@@ -17,4 +18,5 @@ public class DashboardResponse {
     private Long pendingKycCount;
     private Double occupancyRate;
     private List<RevenueData> revenueChart;
+    private List<ActivityDto> recentActivities;
 }

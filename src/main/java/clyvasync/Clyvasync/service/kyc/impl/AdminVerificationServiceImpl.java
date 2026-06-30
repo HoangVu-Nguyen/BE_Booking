@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.kyc.impl;
 
+import clyvasync.Clyvasync.dto.detail.ActivityDto;
 import clyvasync.Clyvasync.dto.detail.RevenueData;
 import clyvasync.Clyvasync.dto.event.HomestayStatusChangedEvent;
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
@@ -15,10 +16,12 @@ import clyvasync.Clyvasync.enums.homestay.PropertyDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentStatus;
 import clyvasync.Clyvasync.enums.kyc.KycDocumentType;
 import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
+import clyvasync.Clyvasync.enums.user.UserStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.auth.entity.User;
 import clyvasync.Clyvasync.modules.homestay.entity.*;
+import clyvasync.Clyvasync.modules.host.entity.HostAuditLog;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
@@ -29,6 +32,7 @@ import clyvasync.Clyvasync.repository.homestay.CategoryRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayStatusHistoryRepository;
 import clyvasync.Clyvasync.repository.homestay.LocationRepository;
+import clyvasync.Clyvasync.repository.host.HostAuditLogRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
 import clyvasync.Clyvasync.repository.wallet.HostWalletRepository;
@@ -86,6 +90,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final MediaUtil mediaUtil;
     private final HostKycDocumentRepository kycDocumentRepository;
     private final HomestayStatusHistoryRepository homestayStatusHistoryRepository;
+    private final HostAuditLogRepository hostAuditLogRepository;
 
     @Override
     public List<HostPendingResponse> getPendingKycHosts() {
@@ -339,6 +344,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
 
         var photoMap = userPhotoService.getAvatarsMapByIds(hostIds);
 
+
         List<AdminHostResponse> dtoList = hostPage.getContent().stream().map(user -> {
             Long hId = user.getId();
             var pStats = propertyMap.get(hId);
@@ -355,10 +361,23 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 cancellationRate = Math.round(cancellationRate * 10.0) / 10.0;
             }
 
-            String finalStatus = !user.isActive() ? "SUSPENDED" :
-                    (kStats == null || "MISSING".equals(kStats.getKycStatus())) ? "MISSING" :
-                            "PENDING_REVIEW".equals(kStats.getKycStatus()) ? "PENDING_REVIEW" :
-                                    "REJECTED".equals(kStats.getKycStatus()) ? "REJECTED" : "ACTIVE";
+            String finalStatus;
+
+            if (user.getStatus() == UserStatus.SUSPENDED) {
+                finalStatus = "SUSPENDED";
+            }
+            else if (kStats == null || "MISSING".equals(kStats.getKycStatus())) {
+                finalStatus = "MISSING";
+            }
+            else if ("PENDING_REVIEW".equals(kStats.getKycStatus())) {
+                finalStatus = "PENDING_REVIEW";
+            }
+            else if ("REJECTED".equals(kStats.getKycStatus())) {
+                finalStatus = "REJECTED";
+            }
+            else {
+                finalStatus = "ACTIVE";
+            }
 
             return AdminHostResponse.builder()
                     .id(String.valueOf(hId))
@@ -630,13 +649,22 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
         Double gmvYesterday = bookingRepository.sumTotalPriceByDate(LocalDate.now().minusDays(1));
         double safeGmvYesterday = (gmvYesterday != null) ? gmvYesterday : 0.0;
 
-        // 2. Tính toán growth an toàn
         double growth = 0.0;
         if (safeGmvYesterday > 0) {
             growth = ((safeGmvToday - safeGmvYesterday) / safeGmvYesterday) * 100;
         } else if (safeGmvToday > 0) {
             growth = 100.0;
         }
+        List<ActivityProjection> activityProjections = hostAuditLogRepository.getRecentActivities();
+        List<ActivityDto> recentActivities = activityProjections.stream().map(p ->
+                ActivityDto.builder()
+                        .id(p.getId())
+                        .title(p.getTitle())
+                        .time(p.getTime())
+                        .type(p.getType())
+                        .status(p.getStatus())
+                        .build()
+        ).toList();
 
         return DashboardResponse.builder()
                 .gmvToday(safeGmvToday)
@@ -646,6 +674,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .newHosts(userRepository.countByRoleName(RoleName.HOST))
                 .pendingKycCount(kycProfileRepository.countByStatus(KycProfileStatus.PENDING_REVIEW))
                 .revenueChart(prepareRevenueChartData())
+                .recentActivities(recentActivities)
                 .build();
     }
 
@@ -665,6 +694,30 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .gmv(projections.stream().map(RevenueProjection::getGmv).toList())
                 .build();
 
+    }
+
+    @Override
+    @Transactional
+    public void suspendHost(Long hostId, String reason, Integer days) {
+        User host = userRepository.findById(hostId)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+        host.setStatus(UserStatus.SUSPENDED);
+
+        if (days != null && days > 0) {
+            host.setSuspendedUntil(LocalDateTime.now().plusDays(days));
+        } else {
+            host.setSuspendedUntil(null);
+        }
+
+        userRepository.save(host);
+
+        hostAuditLogRepository.save(HostAuditLog.builder()
+                .hostId(hostId)
+                .action(UserStatus.SUSPENDED)
+                .reason(reason + " (Thời hạn: " + days + " ngày)")
+                .createdAt(LocalDateTime.now())
+                .build());
     }
 
     private List<RevenueData> prepareRevenueChartData() {
