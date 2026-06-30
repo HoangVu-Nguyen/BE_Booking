@@ -1,9 +1,6 @@
 package clyvasync.Clyvasync.repository.booking;
 
-import clyvasync.Clyvasync.dto.projection.BookingBriefProjection;
-import clyvasync.Clyvasync.dto.projection.BookingTimelineProjection;
-import clyvasync.Clyvasync.dto.projection.HomestayFinancialProjection;
-import clyvasync.Clyvasync.dto.projection.HostFinancialProjection;
+import clyvasync.Clyvasync.dto.projection.*;
 import clyvasync.Clyvasync.dto.response.PastTripResponse;
 import clyvasync.Clyvasync.enums.booking.BookingStatus;
 import clyvasync.Clyvasync.modules.booking.entity.Booking;
@@ -150,5 +147,34 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             "FROM Booking b WHERE b.homestayId IN :homestayIds " +
             "GROUP BY b.homestayId")
     List<HomestayFinancialProjection> getFinancialStatsByHomestayIds(@Param("homestayIds") List<Long> homestayIds);
+    Long countByStatus(BookingStatus status);
+    @Query("SELECT COALESCE(SUM(b.totalPrice), 0.0) FROM Booking b WHERE DATE(b.createdAt) = :date")
+    Double sumTotalPriceByDate(@Param("date") LocalDate date);
+    @Query(value = "SELECT \n" +
+            "    TO_CHAR(d.date, 'Dy') as day, \n" +
+            "    COALESCE(SUM(b.total_price), 0) as value \n" +
+            "FROM generate_series(CURRENT_DATE - 6, CURRENT_DATE, '1 day'::interval) d\n" +
+            "LEFT JOIN bookings b ON DATE(b.created_at) = d.date\n" +
+            "GROUP BY d.date\n" +
+            "ORDER BY d.date;", nativeQuery = true)
+    List<RevenueProjection> getRevenueLast7Days();
+    @Query(value = """
+    SELECT 
+        CASE 
+            WHEN :type = 'WEEK' THEN 'Tuần ' || TO_CHAR(created_at, 'IW')
+            WHEN :type = 'MONTH' THEN TO_CHAR(created_at, 'YYYY-MM')
+            WHEN :type = 'QUARTER' THEN TO_CHAR(created_at, 'YYYY') || '-Q' || EXTRACT(QUARTER FROM created_at)
+            WHEN :type = 'YEAR' THEN TO_CHAR(created_at, 'YYYY')
+        END as timeLabel,
+        SUM(total_price) as gmv,
+        SUM(platform_fee_amount) as revenue
+    FROM bookings
+    WHERE status = 'CONFIRMED' 
+      AND created_at >= :startDate
+    GROUP BY timeLabel
+    ORDER BY MIN(created_at) ASC
+    """, nativeQuery = true)
+    List<RevenueProjection> getRevenueReport(@Param("type") String type,
+                                             @Param("startDate") LocalDateTime startDate);
 
 }

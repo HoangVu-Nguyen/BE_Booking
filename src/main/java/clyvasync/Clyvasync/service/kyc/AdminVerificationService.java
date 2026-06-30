@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.kyc;
 
+import clyvasync.Clyvasync.dto.projection.RevenueProjection;
 import clyvasync.Clyvasync.dto.response.*;
 import dto.request.ReviewPropertyRequest;
 import org.springframework.data.domain.Page;
@@ -19,4 +20,6 @@ public interface AdminVerificationService {
     HostDetailResponse getHostDetail(Long hostId);
     HostOverviewMetricsResponse getHostOverviewMetrics();
     void updatePropertyStatus(Long homestayId, String newStatusStr, String reason);
+    DashboardResponse getDashboardSummary();
+    RevenueResponse getRevenueData(String type);
 }

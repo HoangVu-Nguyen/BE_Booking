@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.controller.admin;
 
+import clyvasync.Clyvasync.dto.projection.RevenueProjection;
 import clyvasync.Clyvasync.dto.request.RejectKycRequest;
 import clyvasync.Clyvasync.dto.request.StatusUpdateRequest;
 import clyvasync.Clyvasync.dto.response.*;
@@ -94,6 +95,7 @@ public class AdminApprovalController {
         return ApiResponse.success(adminVerificationService.getHostOverviewMetrics());
     }
     @PostMapping("/properties/{homestayId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> updatePropertyStatus(
             @PathVariable Long homestayId,
             @RequestBody StatusUpdateRequest request) {
@@ -110,5 +112,16 @@ public class AdminApprovalController {
         );
 
         return ApiResponse.success(null);
+    }
+    @GetMapping("/dashboard/summary")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<DashboardResponse> getDashboardSummary() {
+        return ApiResponse.success(adminVerificationService.getDashboardSummary());
+    }
+    @GetMapping("/revenue")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<?> getRevenue(@RequestParam String type) {
+        System.out.println(adminVerificationService.getRevenueData(type).toString());
+        return ApiResponse.success(adminVerificationService.getRevenueData(type));
     }
 }
