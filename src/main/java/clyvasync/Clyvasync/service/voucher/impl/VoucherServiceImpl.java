@@ -7,10 +7,17 @@ import clyvasync.Clyvasync.dto.response.VoucherResponse;
 import clyvasync.Clyvasync.modules.voucher.entity.VoucherTemplate;
 import clyvasync.Clyvasync.repository.voucher.VoucherTemplateRepository;
 import clyvasync.Clyvasync.service.voucher.VoucherService;
+import clyvasync.Clyvasync.enums.offer.PointTransactionType;
+import clyvasync.Clyvasync.enums.offer.VoucherStatus;
+import clyvasync.Clyvasync.modules.voucher.entity.UserPointHistory;
+import clyvasync.Clyvasync.modules.voucher.entity.UserVoucher;
+import clyvasync.Clyvasync.repository.voucher.UserPointHistoryRepository;
+import clyvasync.Clyvasync.repository.voucher.UserVoucherRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -19,6 +26,8 @@ import java.util.stream.Collectors;
 public class VoucherServiceImpl implements VoucherService {
 
     private final VoucherTemplateRepository voucherTemplateRepository;
+    private final UserPointHistoryRepository userPointHistoryRepository;
+    private final UserVoucherRepository userVoucherRepository;
 
     @Override
     @Transactional
@@ -58,6 +67,58 @@ public class VoucherServiceImpl implements VoucherService {
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Integer getCurrentUserPoints() {
+        Long userId = getCurrentUserId();
+        return userPointHistoryRepository.sumPointsByUserId(userId);
+    }
+
+    @Override
+    @Transactional
+    public void redeemVoucher(Long userId,Long templateId) {
+        VoucherTemplate template = voucherTemplateRepository.findById(templateId)
+                .orElseThrow(() -> new AppException(ResultCode.DATA_NOT_FOUND));
+
+        if (!Boolean.TRUE.equals(template.getIsActive())) {
+            throw new AppException(ResultCode.DATA_ERROR);
+        }
+        if (template.getValidUntil() != null && template.getValidUntil().isBefore(OffsetDateTime.now())) {
+            throw new AppException(ResultCode.DATA_ERROR);
+        }
+        if (template.getTotalIssueLimit() != null && template.getCurrentIssueCount() >= template.getTotalIssueLimit()) {
+            throw new AppException(ResultCode.DATA_ERROR);
+        }
+
+        Integer requiredPoints = template.getPointsRequired() != null ? template.getPointsRequired() : 0;
+        
+        if (requiredPoints > 0) {
+            Integer currentPoints = userPointHistoryRepository.sumPointsByUserId(userId);
+            if (currentPoints < requiredPoints) {
+                throw new AppException(ResultCode.INSUFFICIENT_FUNDS);
+            }
+            
+            UserPointHistory pointsDeduction = UserPointHistory.builder()
+                    .userId(userId)
+                    .points(-requiredPoints)
+                    .transactionType(PointTransactionType.REDEEM)
+                    .description("Đổi voucher " + template.getCode())
+                    .build();
+            userPointHistoryRepository.save(pointsDeduction);
+        }
+        
+        UserVoucher userVoucher = UserVoucher.builder()
+                .userId(userId)
+                .templateId(templateId)
+                .status(VoucherStatus.AVAILABLE)
+                .build();
+        userVoucherRepository.save(userVoucher);
+        
+        template.setCurrentIssueCount(template.getCurrentIssueCount() + 1);
+        voucherTemplateRepository.save(template);
+    }
+
 
     private VoucherResponse mapToResponse(VoucherTemplate template) {
         return VoucherResponse.builder()
