@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.modules.auth.entity;
 
+import clyvasync.Clyvasync.enums.user.UserStatus;
 import clyvasync.Clyvasync.modules.media.entity.Ringtone;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -48,6 +49,9 @@ public class User {
 
     @Column(name = "gender")
     private String gender;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private UserStatus status = UserStatus.INACTIVE;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -66,6 +70,8 @@ public class User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ringtone_id")
     private Ringtone ringtone;
+    @Column(name = "suspended_until")
+    private LocalDateTime suspendedUntil;
 
     public User(String username) {
         this.username = username;
