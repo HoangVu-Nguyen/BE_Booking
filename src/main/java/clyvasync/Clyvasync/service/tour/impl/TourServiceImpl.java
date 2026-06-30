@@ -96,8 +96,28 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<TourResponse> getAllTours(Pageable pageable) {
-        return null;
+        Page<Tour> tourPage = tourRepository.findAll(pageable);
+
+        if (tourPage.isEmpty()) {
+            return Page.empty();
+        }
+
+        List<Long> tourIds = tourPage.getContent().stream()
+                .map(Tour::getId)
+                .toList();
+
+        Map<Long, List<String>> imagesMap = tourImageService.getImagesForTours(tourIds);
+
+        return tourPage.map(entity -> {
+            List<String> urls = imagesMap.getOrDefault(entity.getId(), List.of());
+
+            String primary = !urls.isEmpty() ? urls.get(0) : null;
+            String hover = urls.size() > 1 ? urls.get(1) : primary;
+
+            return tourMapper.toResponse(entity, primary, hover);
+        });
     }
 
     @Override

@@ -42,10 +42,12 @@ import clyvasync.Clyvasync.service.tour.TourAvailabilityService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
+import clyvasync.Clyvasync.service.voucher.PointService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
@@ -53,6 +55,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
@@ -80,6 +83,7 @@ public class BookingServiceImpl implements BookingService {
     private final ApplicationEventPublisher eventPublisher;
     private final BookingProducer bookingProducer;
     private final NotificationService notificationService;
+    private final PointService pointService;
     private final WalletTransactionService walletTransactionService;
 
     @Value("${app.frontend.url:https://localhost:4200}")
@@ -194,7 +198,9 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal platformRevenue = guestServiceFee.add(hostCommission);        // 180.000
 
         // Điểm thưởng cho khách (1% trên tổng tiền khách trả)
-        int expectedPoints = finalGrandTotal.multiply(new BigDecimal("0.01")).intValue();
+        int pointsEarned = finalGrandTotal
+    .divide(new BigDecimal("100000"), RoundingMode.DOWN)
+    .intValue();
 
         // 4. LƯU BOOKING TỔNG
         Booking booking = Booking.builder()
@@ -210,7 +216,7 @@ public class BookingServiceImpl implements BookingService {
 
                 .status(BookingStatus.DRAFT)
                 .paymentStatus(PaymentStatus.UNPAID)
-                .loyaltyPointsEarned(expectedPoints)
+                .loyaltyPointsEarned(pointsEarned)
                 .guestName(request.getGuestName())
                 .guestEmail(request.getEmail())
                 .guestPhone(request.getPhone())
@@ -841,6 +847,22 @@ public class BookingServiceImpl implements BookingService {
                     detail
             );
             booking.setPaymentStatus(newPaymentStatus);
+
+            // 4.5 TRỪ ĐIỂM THƯỞNG NẾU ĐƠN BỊ HỦY SAU KHI ĐÃ THANH TOÁN (THU HỒI ĐIỂM)
+            try {
+                Integer pointsToDeduct = booking.getTotalPrice().intValue() / 100000;
+                if (pointsToDeduct > 0) {
+                    pointService.deductPointsForBookingCancellation(
+                        userId, 
+                        pointsToDeduct, 
+                        booking.getId(), 
+                        "Thu hồi điểm do hủy đơn đặt phòng #" + bookingCode
+                    );
+                    log.info("Đã thu hồi {} điểm của user {} do hủy booking {}", pointsToDeduct, userId, bookingCode);
+                }
+            } catch (Exception e) {
+                log.error("Lỗi khi thu hồi điểm thưởng do hủy booking {}: {}", bookingCode, e.getMessage());
+            }
         }
 
         // 5. STATE TRANSITION: Cập nhật trạng thái

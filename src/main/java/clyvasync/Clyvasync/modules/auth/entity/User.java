@@ -41,6 +41,9 @@ public class User {
     @Column(name = "bio", columnDefinition = "TEXT")
     private String bio;
 
+    @Column(name = "reward_points", nullable = false)
+    private Integer rewardPoints = 0;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive;
 

@@ -14,6 +14,7 @@ import clyvasync.Clyvasync.service.notification.NotificationService;
 import clyvasync.Clyvasync.service.realtime.SocketEmitterService;
 import clyvasync.Clyvasync.service.tour.TourBookingService;
 import clyvasync.Clyvasync.service.wallet.HostWalletService;
+import clyvasync.Clyvasync.service.voucher.PointService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +40,7 @@ public class PostPaymentWorkflowListener {
     private final BookingRepository bookingRepository;
     private final SocketEmitterService socketEmitterService;
     private final NotificationService notificationService;
+    private final PointService pointService;
 
     // Kéo cấu hình phí hoa hồng từ application.properties (không hardcode)
     @Value("${app.platform.fee-percentage:0.10}")
@@ -73,6 +75,23 @@ public class PostPaymentWorkflowListener {
                 }
             }
             log.info("Luồng Hậu thanh toán hoàn tất cho Booking: {}", booking.getBookingCode());
+            
+            // 2.5 CỘNG ĐIỂM THƯỞNG CHO USER KHI ĐÃ THANH TOÁN THÀNH CÔNG
+            try {
+                // Tỉ lệ mặc định: 100,000 VND = 1 điểm.
+                Integer pointsEarned = booking.getTotalPrice().intValue() / 100000;
+                if (pointsEarned > 0) {
+                    pointService.addPointsFromBooking(
+                        booking.getUserId(), 
+                        pointsEarned, 
+                        booking.getId(), 
+                        "Tích điểm từ đơn đặt phòng #" + booking.getBookingCode()
+                    );
+                    log.info("Đã cộng {} điểm cho user {} từ booking {}", pointsEarned, booking.getUserId(), booking.getBookingCode());
+                }
+            } catch (Exception e) {
+                log.error("Lỗi khi cộng điểm thưởng cho booking {}: {}", booking.getBookingCode(), e.getMessage());
+            }
 
             // --- BẮT ĐẦU IN LOG KIỂM TRA NULL ---
             log.info("🔍 SOI DATA BOOKING:");
