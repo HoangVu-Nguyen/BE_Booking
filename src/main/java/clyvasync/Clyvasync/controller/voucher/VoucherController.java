@@ -38,8 +38,8 @@ public class VoucherController {
     }
 
     @GetMapping("/points/me")
-    public ApiResponse<Integer> getCurrentUserPoints() {
-        return ApiResponse.success(voucherService.getCurrentUserPoints());
+    public ApiResponse<Integer> getCurrentUserPoints(@CurrentUserId  Long userId) {
+        return ApiResponse.success(voucherService.getCurrentUserPoints(userId));
     }
 
     @PostMapping("/{id}/redeem")

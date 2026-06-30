@@ -8,6 +8,6 @@ import java.util.List;
 public interface VoucherService {
     VoucherResponse createVoucher(VoucherCreateRequest request);
     List<VoucherResponse> getAllVouchers();
-    Integer getCurrentUserPoints();
+    Integer getCurrentUserPoints(Long userId);
     void redeemVoucher(Long userId,Long templateId);
 }

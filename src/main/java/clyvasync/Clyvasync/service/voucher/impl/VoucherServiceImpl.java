@@ -7,6 +7,9 @@ import clyvasync.Clyvasync.dto.response.VoucherResponse;
 import clyvasync.Clyvasync.modules.voucher.entity.VoucherTemplate;
 import clyvasync.Clyvasync.repository.voucher.VoucherTemplateRepository;
 import clyvasync.Clyvasync.service.voucher.VoucherService;
+import clyvasync.Clyvasync.modules.auth.entity.User;
+import clyvasync.Clyvasync.repository.auth.UserRepository;
+import clyvasync.Clyvasync.service.voucher.PointService;
 import clyvasync.Clyvasync.enums.offer.PointTransactionType;
 import clyvasync.Clyvasync.enums.offer.VoucherStatus;
 import clyvasync.Clyvasync.modules.voucher.entity.UserPointHistory;
@@ -26,8 +29,9 @@ import java.util.stream.Collectors;
 public class VoucherServiceImpl implements VoucherService {
 
     private final VoucherTemplateRepository voucherTemplateRepository;
-    private final UserPointHistoryRepository userPointHistoryRepository;
     private final UserVoucherRepository userVoucherRepository;
+    private final UserRepository userRepository;
+    private final PointService pointService;
 
     @Override
     @Transactional
@@ -70,14 +74,15 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     @Transactional(readOnly = true)
-    public Integer getCurrentUserPoints() {
-        Long userId = getCurrentUserId();
-        return userPointHistoryRepository.sumPointsByUserId(userId);
+    public Integer getCurrentUserPoints(Long userId) {
+        return userRepository.findById(userId)
+                .map(User::getRewardPoints)
+                .orElse(0);
     }
 
     @Override
     @Transactional
-    public void redeemVoucher(Long userId,Long templateId) {
+    public void redeemVoucher(Long userId, Long templateId) {
         VoucherTemplate template = voucherTemplateRepository.findById(templateId)
                 .orElseThrow(() -> new AppException(ResultCode.DATA_NOT_FOUND));
 
@@ -94,18 +99,7 @@ public class VoucherServiceImpl implements VoucherService {
         Integer requiredPoints = template.getPointsRequired() != null ? template.getPointsRequired() : 0;
         
         if (requiredPoints > 0) {
-            Integer currentPoints = userPointHistoryRepository.sumPointsByUserId(userId);
-            if (currentPoints < requiredPoints) {
-                throw new AppException(ResultCode.INSUFFICIENT_FUNDS);
-            }
-            
-            UserPointHistory pointsDeduction = UserPointHistory.builder()
-                    .userId(userId)
-                    .points(-requiredPoints)
-                    .transactionType(PointTransactionType.REDEEM)
-                    .description("Đổi voucher " + template.getCode())
-                    .build();
-            userPointHistoryRepository.save(pointsDeduction);
+            pointService.deductPointsForVoucher(userId, requiredPoints, "Đổi voucher " + template.getCode());
         }
         
         UserVoucher userVoucher = UserVoucher.builder()
