@@ -108,17 +108,13 @@ public class RoomCalendarServiceImpl implements RoomCalendarService {
 
         List<Long> roomIds = rooms.stream().map(HomestayRoom::getId).toList();
 
-        // 1. KÉO DỮ LIỆU TỒN PHÒNG & ĐẶT PHÒNG
         List<RoomCalendar> overrides = roomCalendarRepository.findCustomCalendarByRoomIdsAndDateRange(roomIds, startDate, endDate);
         List<BookingCalendarProjection> bookings = bookingDetailService.findActiveBookingsForCalendar(roomIds, startDate, endDate);
 
-        // 2. KÉO DỮ LIỆU GÓI GIÁ & LỊCH GIÁ (MỚI)
         List<RoomRatePlan> allRatePlans = roomRatePlanService.getAllRoomRatePlans(roomIds);
         List<Long> ratePlanIds = allRatePlans.stream().map(RoomRatePlan::getId).toList();
-        // 👉 Kéo giá biến động của tất cả các gói giá trong homestay này
         List<RatePlanCalendar> rateCalendars = ratePlanCalendarRepository.findByRatePlanIdInAndNightDateBetween(ratePlanIds, startDate, endDate);
 
-        // 3. KÉO DỮ LIỆU ẢNH & GIƯỜNG
         List<RoomImage> allImages = roomImageRepository.findAllByRoomIdIn(roomIds);
         List<RoomBed> allBeds = roomBedRepository.findByRoomIdIn(roomIds);
 
