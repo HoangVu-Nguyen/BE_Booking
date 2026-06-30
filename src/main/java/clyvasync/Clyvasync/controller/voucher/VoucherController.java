@@ -1,6 +1,7 @@
 package clyvasync.Clyvasync.controller.voucher;
 import clyvasync.Clyvasync.dto.request.VoucherCreateRequest;
 import clyvasync.Clyvasync.dto.response.VoucherResponse;
+import clyvasync.Clyvasync.dto.response.UserVoucherResponse;
 import clyvasync.Clyvasync.dto.response.ApiResponse;
 import clyvasync.Clyvasync.exception.ResultCode;
 
@@ -40,6 +41,11 @@ public class VoucherController {
     @GetMapping("/points/me")
     public ApiResponse<Integer> getCurrentUserPoints(@CurrentUserId  Long userId) {
         return ApiResponse.success(voucherService.getCurrentUserPoints(userId));
+    }
+
+    @GetMapping("/my-vouchers")
+    public ApiResponse<List<UserVoucherResponse>> getMyVouchers(@CurrentUserId Long userId) {
+        return ApiResponse.success(voucherService.getMyVouchers(userId));
     }
 
     @PostMapping("/{id}/redeem")

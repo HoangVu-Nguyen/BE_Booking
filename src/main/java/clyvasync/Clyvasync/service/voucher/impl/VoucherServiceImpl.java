@@ -4,6 +4,7 @@ import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.dto.request.VoucherCreateRequest;
 import clyvasync.Clyvasync.dto.response.VoucherResponse;
+import clyvasync.Clyvasync.dto.response.UserVoucherResponse;
 import clyvasync.Clyvasync.modules.voucher.entity.VoucherTemplate;
 import clyvasync.Clyvasync.repository.voucher.VoucherTemplateRepository;
 import clyvasync.Clyvasync.service.voucher.VoucherService;
@@ -111,6 +112,26 @@ public class VoucherServiceImpl implements VoucherService {
         
         template.setCurrentIssueCount(template.getCurrentIssueCount() + 1);
         voucherTemplateRepository.save(template);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserVoucherResponse> getMyVouchers(Long userId) {
+        List<UserVoucher> userVouchers = userVoucherRepository.findByUserId(userId);
+        return userVouchers.stream().map(userVoucher -> {
+            VoucherTemplate template = voucherTemplateRepository.findById(userVoucher.getTemplateId())
+                    .orElse(null);
+            
+            return UserVoucherResponse.builder()
+                    .id(userVoucher.getId())
+                    .code(template != null ? template.getCode() : null)
+                    .title(template != null ? template.getName() : null)
+                    .discountValue(template != null ? template.getDiscountValue() : null)
+                    .discountType(template != null ? template.getDiscountType() : null)
+                    .validUntil(template != null ? template.getValidUntil() : null)
+                    .status(userVoucher.getStatus().name())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
 
