@@ -1,7 +1,9 @@
 package clyvasync.Clyvasync.controller.admin;
 
 import clyvasync.Clyvasync.dto.request.RejectKycRequest;
+import clyvasync.Clyvasync.dto.request.StatusUpdateRequest;
 import clyvasync.Clyvasync.dto.response.*;
+import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -85,5 +87,28 @@ public class AdminApprovalController {
         HostDetailResponse response = adminVerificationService.getHostDetail(hostId);
         System.out.println(response.toString());
         return ApiResponse.success(response);
+    }
+    @GetMapping("/hosts/metrics")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<HostOverviewMetricsResponse> getHostMetrics() {
+        return ApiResponse.success(adminVerificationService.getHostOverviewMetrics());
+    }
+    @PostMapping("/properties/{homestayId}/status")
+    public ApiResponse<Void> updatePropertyStatus(
+            @PathVariable Long homestayId,
+            @RequestBody StatusUpdateRequest request) {
+
+
+        if (request.getStatus() == null || request.getReason() == null || request.getReason().isBlank()) {
+            return ApiResponse.error(ResultCode.INVALID_INPUT, "Status and reason are required");
+        }
+
+        adminVerificationService.updatePropertyStatus(
+                homestayId,
+                request.getStatus(),
+                request.getReason()
+        );
+
+        return ApiResponse.success(null);
     }
 }

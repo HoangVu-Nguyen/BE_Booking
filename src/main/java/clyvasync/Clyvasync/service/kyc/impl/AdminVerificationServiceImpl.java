@@ -1,5 +1,6 @@
 package clyvasync.Clyvasync.service.kyc.impl;
 
+import clyvasync.Clyvasync.dto.event.HomestayStatusChangedEvent;
 import clyvasync.Clyvasync.dto.event.KycProcessedEvent;
 import clyvasync.Clyvasync.dto.event.PropertyVerificationEvent;
 import clyvasync.Clyvasync.dto.projection.*;
@@ -15,10 +16,7 @@ import clyvasync.Clyvasync.enums.kyc.KycProfileStatus;
 import clyvasync.Clyvasync.exception.AppException;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.modules.auth.entity.User;
-import clyvasync.Clyvasync.modules.homestay.entity.Category;
-import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
-import clyvasync.Clyvasync.modules.homestay.entity.HomestayDocument;
-import clyvasync.Clyvasync.modules.homestay.entity.Location;
+import clyvasync.Clyvasync.modules.homestay.entity.*;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycDocument;
 import clyvasync.Clyvasync.modules.kyc.entity.HostKycProfile;
 import clyvasync.Clyvasync.modules.wallet.entity.HostWallet;
@@ -27,6 +25,7 @@ import clyvasync.Clyvasync.repository.auth.UserRepository;
 import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.homestay.CategoryRepository;
 import clyvasync.Clyvasync.repository.homestay.HomestayImageRepository;
+import clyvasync.Clyvasync.repository.homestay.HomestayStatusHistoryRepository;
 import clyvasync.Clyvasync.repository.homestay.LocationRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycDocumentRepository;
 import clyvasync.Clyvasync.repository.kyc.HostKycProfileRepository;
@@ -48,10 +47,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -80,6 +81,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     private final LocationRepository locationRepository;
     private final MediaUtil mediaUtil;
     private final HostKycDocumentRepository kycDocumentRepository;
+    private final HomestayStatusHistoryRepository homestayStatusHistoryRepository;
 
     @Override
     public List<HostPendingResponse> getPendingKycHosts() {
@@ -262,7 +264,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
     @Override
     @Transactional
     public List<PendingPropertyResponse> getPendingProperties() {
-        List<HomestayStatus> draftStatus = List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION);
+        List<HomestayStatus> draftStatus = List.of(HomestayStatus.DRAFT, HomestayStatus.PENDING_VERIFICATION,HomestayStatus.SUSPENDED);
         List<Homestay> draftHomestays = homestayRepository.findByStatusIn(draftStatus);
         if (draftHomestays.isEmpty()) {
             return Collections.emptyList();
@@ -293,7 +295,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                             .collect(Collectors.toList());
 
                     return PendingPropertyResponse.builder()
-                            .id("PRP-" + homestay.getId())
+                            .id(String.valueOf(homestay.getId()))
                             .homestayName(homestay.getName())
                             .hostName(ownerResponseMap.get(homestay.getOwnerId()).getFullName())
                             .documents(docDtos)
@@ -350,7 +352,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
             }
 
             String finalStatus = !user.isActive() ? "SUSPENDED" :
-                    (kStats == null || "MISSING".equals(kStats.getKycStatus())) ? "PENDING_KYC" :
+                    (kStats == null || "MISSING".equals(kStats.getKycStatus())) ? "MISSING" :
                             "PENDING_REVIEW".equals(kStats.getKycStatus()) ? "PENDING_REVIEW" :
                                     "REJECTED".equals(kStats.getKycStatus()) ? "REJECTED" : "ACTIVE";
 
@@ -510,7 +512,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
             String fullLocation = h.getAddressDetail() + ", " + cityName;
 
             return HostDetailResponse.PropertyDto.builder()
-                    .id("HOM-" + h.getId())
+                    .id(String.valueOf(h.getId()))
                     .name(h.getName())
                     .type(categoryName)
                     .location(fullLocation)
@@ -535,7 +537,7 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
 
         return HostDetailResponse.builder()
                 .host(HostDetailResponse.HostInfo.builder()
-                        .id("HST-" + user.getId())
+                        .id(String.valueOf(user.getId()))
                         .joinDate(user.getCreatedAt().toString())
                         .status(user.isActive() ? "ACTIVE" : "SUSPENDED")
                         .walletBalance(wallet != null ? wallet.getAvailableBalance() : BigDecimal.ZERO)
@@ -569,4 +571,50 @@ public class AdminVerificationServiceImpl implements AdminVerificationService {
                 .auditLogs(auditLogs)
                 .build();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public HostOverviewMetricsResponse getHostOverviewMetrics() {
+        long totalHosts = userRepository.countByRoleName(RoleName.HOST);
+        long pendingKyc = kycProfileRepository.countByStatus(KycProfileStatus.PENDING_REVIEW);
+        long totalProperties = homestayRepository.count();
+        long suspendedHosts = userRepository.countByRoleNameAndIsActive(RoleName.HOST, false);
+        return HostOverviewMetricsResponse.builder()
+                .totalHosts(totalHosts)
+                .pendingKycHosts(pendingKyc)
+                .totalProperties(totalProperties)
+                .suspendedHosts(suspendedHosts)
+                .build();
+
+    }
+
+    @Override
+    @Transactional()
+    public void updatePropertyStatus(Long homestayId, String newStatusStr, String reason) {
+        Homestay homestay = homestayRepository.findById(homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+        HomestayStatus oldStatus = homestay.getStatus();
+        HomestayStatus newStatus = HomestayStatus.valueOf(newStatusStr);
+        homestay.setStatus(newStatus);
+        homestayRepository.save(homestay);
+        String adminEmail = SecurityContextHolder.getContext().getAuthentication().getName();
+        HomestayStatusHistory history = HomestayStatusHistory.builder()
+                .homestayId(homestayId)
+                .oldStatus(oldStatus)
+                .newStatus(newStatus)
+                .reason(reason)
+                .changedBy(adminEmail)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        homestayStatusHistoryRepository.save(history);
+        eventPublisher.publishEvent(HomestayStatusChangedEvent.builder()
+                .userId(homestay.getOwnerId())
+                .homestayId(homestayId)
+                .homestayName(homestay.getName())
+                .newStatus(newStatus)
+                .reason(reason)
+                .build());
+    }
+
 }
