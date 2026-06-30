@@ -586,11 +586,9 @@ public class HomestayServiceImpl implements HomestayService {
         List<ReviewResponse> reviews = reviewService.getReviewsByHomestayId(id);
         List<RoomResponse> rooms;
         if (checkIn != null && checkOut != null) {
-            // Nếu khách đã chọn ngày, chỉ hiện phòng còn trống
             int guestCount = (guests != null) ? guests : 1;
             rooms = homestayRoomService.findAvailableRooms(id, checkIn, checkOut, guestCount);
         } else {
-            // Nếu khách vào xem chung, hiện tất cả phòng để họ tham khảo
             rooms = homestayRoomService.getAllRoomsByHomestay(id);
         }
 

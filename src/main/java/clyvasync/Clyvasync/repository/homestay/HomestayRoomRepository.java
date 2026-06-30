@@ -43,7 +43,6 @@ public interface HomestayRoomRepository extends JpaRepository<HomestayRoom,Long>
       AND r.max_guests >= :guests
       AND rc.night_date >= :checkIn AND rc.night_date < :checkOut
     GROUP BY r.id
-    -- Đảm bảo không có ngày nào trong khoảng đó có available_quantity <= 0
     HAVING MIN(rc.available_quantity) >= 1
     """, nativeQuery = true)
     List<RoomAvailabilityProjection> findAvailableRoomsProjections(

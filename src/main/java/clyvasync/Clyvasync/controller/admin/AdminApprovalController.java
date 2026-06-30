@@ -3,9 +3,11 @@ package clyvasync.Clyvasync.controller.admin;
 import clyvasync.Clyvasync.dto.projection.RevenueProjection;
 import clyvasync.Clyvasync.dto.request.RejectKycRequest;
 import clyvasync.Clyvasync.dto.request.StatusUpdateRequest;
+import clyvasync.Clyvasync.dto.request.SuspendHostRequest;
 import clyvasync.Clyvasync.dto.response.*;
 import clyvasync.Clyvasync.exception.ResultCode;
 import clyvasync.Clyvasync.service.kyc.AdminVerificationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -123,5 +125,14 @@ public class AdminApprovalController {
     public ApiResponse<?> getRevenue(@RequestParam String type) {
         System.out.println(adminVerificationService.getRevenueData(type).toString());
         return ApiResponse.success(adminVerificationService.getRevenueData(type));
+    }
+    @PatchMapping("/hosts/{hostId}/suspend")
+    public ApiResponse<Void> suspendHost(
+            @PathVariable Long hostId,
+            @Valid @RequestBody SuspendHostRequest request) {
+
+        adminVerificationService.suspendHost(hostId, request.getReason(),request.getDays());
+
+        return ApiResponse.success();
     }
 }

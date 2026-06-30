@@ -22,4 +22,5 @@ public interface AdminVerificationService {
     void updatePropertyStatus(Long homestayId, String newStatusStr, String reason);
     DashboardResponse getDashboardSummary();
     RevenueResponse getRevenueData(String type);
+    void suspendHost(Long hostId, String reason, Integer days) ;
 }
