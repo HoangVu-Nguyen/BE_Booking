@@ -130,20 +130,25 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT SUM(b.platformFeeAmount) FROM Booking b WHERE b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED')")
     BigDecimal sumTotalPlatformFee();
-    @Query("SELECT h.ownerId as ownerId , " +
-            "SUM(b.totalPrice) AS gmv, " +
-            "SUM(b.platformFeeAmount) AS platformFee " +
+
+
+    @Query("SELECT h.ownerId as ownerId, " +
+            "SUM(CASE WHEN b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED') THEN b.totalPrice ELSE 0 END) as gmv, " +
+            "SUM(CASE WHEN b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED') THEN b.platformFeeAmount ELSE 0 END) as platformFee, " +
+            "COUNT(b.id) as totalBookingsAllStatus, " +
+            "SUM(CASE WHEN b.status = 'COMPLETED' THEN 1 ELSE 0 END) as completedBookings, " +
+            "SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelledBookings " +
             "FROM Booking b JOIN Homestay h ON b.homestayId = h.id " +
             "WHERE h.ownerId IN :ownerIds " +
-            "AND b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED') " +
             "GROUP BY h.ownerId")
     List<HostFinancialProjection> sumFinancialMetricsByOwners(@Param("ownerIds") List<Long> ownerIds);
     @Query("SELECT b.homestayId as homestayId, " +
             "COUNT(b.id) as totalBookingsAllStatus, " +
             "SUM(CASE WHEN b.status = 'COMPLETED' THEN 1 ELSE 0 END) as completedBookings, " +
             "SUM(CASE WHEN b.status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelledBookings, " +
-            "SUM(CASE WHEN b.status = 'COMPLETED' THEN b.totalPrice ELSE 0 END) as totalRevenue " +
+            "SUM(CASE WHEN b.status NOT IN ('CANCELLED', 'REJECTED', 'REFUNDED') THEN b.totalPrice ELSE 0 END) as totalRevenue " +
             "FROM Booking b WHERE b.homestayId IN :homestayIds " +
             "GROUP BY b.homestayId")
     List<HomestayFinancialProjection> getFinancialStatsByHomestayIds(@Param("homestayIds") List<Long> homestayIds);
+
 }

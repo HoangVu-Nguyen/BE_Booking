@@ -6,4 +6,7 @@ public interface HostFinancialProjection {
     Long getOwnerId();
     BigDecimal getGmv();
     BigDecimal getPlatformFee();
+    Long getTotalBookingsAllStatus();
+    Long getCompletedBookings();
+    Long getCancelledBookings();
 }

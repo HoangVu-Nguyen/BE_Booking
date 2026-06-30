@@ -34,4 +34,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> findByRole(@Param("roleName") RoleName roleName,
                           @Param("keyword") String keyword,
                           Pageable pageable);
+    @Query("SELECT COUNT(u) FROM User u " +
+            "JOIN UserRole ur ON u.id = ur.userId " +
+            "JOIN Role r ON ur.roleId = r.id " +
+            "WHERE r.name = :roleName")
+    long countByRoleName(@Param("roleName") RoleName roleName);
+
+    @Query("SELECT COUNT(u) FROM User u " +
+            "JOIN UserRole ur ON u.id = ur.userId " +
+            "JOIN Role r ON ur.roleId = r.id " +
+            "WHERE r.name = :roleName AND u.isActive = :isActive")
+    long countByRoleNameAndIsActive(@Param("roleName") RoleName roleName, @Param("isActive") boolean isActive);
 }
