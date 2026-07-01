@@ -177,4 +177,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<RevenueProjection> getRevenueReport(@Param("type") String type,
                                              @Param("startDate") LocalDateTime startDate);
 
+    @Query(value = """
+        SELECT 
+            CAST(EXTRACT(MONTH FROM b.created_at) AS INTEGER) as month, 
+            COALESCE(SUM(b.host_payout_amount), 0) as revenue
+        FROM bookings b
+        JOIN homestays h ON b.homestay_id = h.id
+        WHERE h.owner_id = :hostId
+          AND EXTRACT(YEAR FROM b.created_at) = :year
+          AND b.status IN ('COMPLETED', 'CONFIRMED', 'CHECKED_IN')
+        GROUP BY EXTRACT(MONTH FROM b.created_at)
+    """, nativeQuery = true)
+    List<MonthlyRevenueProjection> getMonthlyRevenueByHostAndYear(@Param("hostId") Long hostId, @Param("year") int year);
 }

@@ -948,6 +948,11 @@ public class BookingServiceImpl implements BookingService {
             throw new RuntimeException("Mã giảm giá này đã hết hạn sử dụng.");
         }
 
+        if (template.getTotalUsageLimit() != null && template.getCurrentUsageCount() != null && 
+            template.getCurrentUsageCount() >= template.getTotalUsageLimit()) {
+            throw new RuntimeException("Mã giảm giá này đã vượt quá số lượt sử dụng tối đa.");
+        }
+
         // Tính lại basePrice vì totalPrice hiện tại là (basePrice + taxFee)
         // Mà taxFee = basePrice * 10% => totalPrice = basePrice * 1.1
         // Do đó basePrice = totalPrice - taxFee
@@ -1016,6 +1021,9 @@ public class BookingServiceImpl implements BookingService {
         appliedVoucher.setUsedAt(OffsetDateTime.now());
         appliedVoucher.setUsedOnBookingId(booking.getId());
         userVoucherRepository.save(appliedVoucher);
+
+        template.setCurrentUsageCount((template.getCurrentUsageCount() != null ? template.getCurrentUsageCount() : 0) + 1);
+        voucherTemplateRepository.save(template);
     }
     
     // Hàm phụ để code nhìn gọn hơn

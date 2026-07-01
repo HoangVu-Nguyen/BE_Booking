@@ -50,4 +50,5 @@ public interface HomestayService {
     Long getOwnerIdByHomestayId(Long homestayId);
     HomestaySearchResultResponse mapToHomestay(java.sql.ResultSet rs) throws java.sql.SQLException;
     List<GlobalSearchResponse> aiHybridSearch(AiSearchRequest request);
+    YearlyRevenueResponse getYearlyRevenueChart(Long hostId, int year);
 }

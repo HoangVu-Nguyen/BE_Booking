@@ -87,8 +87,9 @@ public class HomestayServiceImpl implements HomestayService {
     private final HomestaySearchIndexRepository homestaySearchIndexRepository;
     private final EmbeddingModel embeddingModel;
     private final HomestayRoomRepository homestayRoomRepository;
+    private final clyvasync.Clyvasync.repository.booking.BookingRepository bookingRepository;
 
-    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService, HomestayImageRepository homestayImageRepository, HomestaySearchIndexRepository homestaySearchIndexRepository,EmbeddingModel embeddingModel,HomestayRoomRepository homestayRoomRepository) {
+    public HomestayServiceImpl(HomestayRepository homestayRepository, HomestayMapper homestayMapper, AmenityService amenityService, HomestayImageService homestayImageService, LocationService locationService, CategoryService categoryService, ReviewService reviewService, TourService tourService, UserService userService, HomestayRoomService homestayRoomService, FavoriteService favoriteService, TourImageService tourImageService, RoomCalendarService roomCalendarService, BookingDetailService bookingDetailService, @Lazy BookingService bookingService, MediaUtil mediaUtil, RatePlanCalendarRepository ratePlanCalendarRepository, RoomRatePlanService roomRatePlanService, HomestayImageRepository homestayImageRepository, HomestaySearchIndexRepository homestaySearchIndexRepository,EmbeddingModel embeddingModel,HomestayRoomRepository homestayRoomRepository, clyvasync.Clyvasync.repository.booking.BookingRepository bookingRepository) {
         this.homestayRepository = homestayRepository;
         this.homestayMapper = homestayMapper;
         this.amenityService = amenityService;
@@ -111,6 +112,7 @@ public class HomestayServiceImpl implements HomestayService {
         this.homestaySearchIndexRepository = homestaySearchIndexRepository;
         this.embeddingModel = embeddingModel;
         this.homestayRoomRepository = homestayRoomRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     @Override
@@ -1442,5 +1444,28 @@ public class HomestayServiceImpl implements HomestayService {
             log.error("AI trả về sai định dạng ngày: checkIn={}, checkOut={}", checkInStr, checkOutStr);
             return new ArrayList<>();
         }
+    }
+
+    @Override
+    public clyvasync.Clyvasync.dto.response.YearlyRevenueResponse getYearlyRevenueChart(Long hostId, int year) {
+        java.util.List<clyvasync.Clyvasync.dto.projection.MonthlyRevenueProjection> thisYearData = bookingRepository.getMonthlyRevenueByHostAndYear(hostId, year);
+        java.util.List<clyvasync.Clyvasync.dto.projection.MonthlyRevenueProjection> lastYearData = bookingRepository.getMonthlyRevenueByHostAndYear(hostId, year - 1);
+
+        java.util.List<java.math.BigDecimal> thisYearRevenue = new java.util.ArrayList<>(java.util.Collections.nCopies(12, java.math.BigDecimal.ZERO));
+        java.util.List<java.math.BigDecimal> lastYearRevenue = new java.util.ArrayList<>(java.util.Collections.nCopies(12, java.math.BigDecimal.ZERO));
+
+        for (clyvasync.Clyvasync.dto.projection.MonthlyRevenueProjection proj : thisYearData) {
+            if (proj.getMonth() != null && proj.getMonth() >= 1 && proj.getMonth() <= 12) {
+                thisYearRevenue.set(proj.getMonth() - 1, proj.getRevenue());
+            }
+        }
+
+        for (clyvasync.Clyvasync.dto.projection.MonthlyRevenueProjection proj : lastYearData) {
+            if (proj.getMonth() != null && proj.getMonth() >= 1 && proj.getMonth() <= 12) {
+                lastYearRevenue.set(proj.getMonth() - 1, proj.getRevenue());
+            }
+        }
+
+        return new clyvasync.Clyvasync.dto.response.YearlyRevenueResponse(thisYearRevenue, lastYearRevenue);
     }
 }

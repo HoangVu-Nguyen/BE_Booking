@@ -28,4 +28,12 @@ public class HostPropertyController {
     public ApiResponse<HostPortfolioSummaryResponse> getPortfolioSummary(@CurrentUserId Long currentUserId) {
        return  ApiResponse.success(homestayService.getPortfolioSummary(currentUserId));
     }
+
+    @GetMapping("/statistics/revenue/yearly")
+    public ApiResponse<clyvasync.Clyvasync.dto.response.YearlyRevenueResponse> getYearlyRevenue(
+            @CurrentUserId Long currentUserId,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Integer year) {
+        int targetYear = (year != null) ? year : java.time.Year.now().getValue();
+        return ApiResponse.success(homestayService.getYearlyRevenueChart(currentUserId, targetYear));
+    }
 }
