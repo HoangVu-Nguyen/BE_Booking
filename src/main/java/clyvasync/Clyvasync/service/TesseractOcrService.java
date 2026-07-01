@@ -25,9 +25,10 @@ public class TesseractOcrService {
             //tesseract.setDatapath("/opt/homebrew/share/tessdata");
             System.setProperty("TESSDATA_PREFIX", "/usr/share/tesseract-ocr/5/tessdata/");
 
-            tesseract.setDatapath("/usr/share/tesseract-ocr/5/tessdata/");
 
+            tesseract.setDatapath("/usr/share/tesseract-ocr/5/tessdata");
             tesseract.setLanguage("vie");
+
 
             log.info(">>>> [Tesseract] Đang phân tích hình ảnh...");
             String extractedText = tesseract.doOCR(image);
