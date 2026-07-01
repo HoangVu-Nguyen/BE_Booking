@@ -15,6 +15,7 @@ import java.util.Map;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review,Long> {
     List<Review> findAllByHomestayId(Long homestayId);Page<Review> findAllByHomestayId(Long homestayId, Pageable pageable);
+    boolean existsByBookingId(Long bookingId);
     @Query("""
         SELECT COALESCE(AVG(r.rating), 0) 
         FROM Review r 

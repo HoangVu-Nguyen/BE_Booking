@@ -272,6 +272,13 @@ public class PaymentServiceImpl  implements PaymentService {
         validateBookingState(booking);
 
         // =================================================================
+        // 🚀 ÁP DỤNG VOUCHER TỪ CHECKOUT
+        // =================================================================
+        if (request.getUserVoucherId() != null) {
+            bookingService.applyVoucherToBooking(booking, request.getUserVoucherId());
+        }
+
+        // =================================================================
         // TRƯỜNG HỢP 1: QUICK PAY QUA THẺ TÍN DỤNG ĐÃ LIÊN KẾT (STRIPE)
         // =================================================================
         if (methodStr.startsWith("CARD_")) {

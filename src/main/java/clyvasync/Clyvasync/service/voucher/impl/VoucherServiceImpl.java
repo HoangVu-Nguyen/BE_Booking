@@ -6,6 +6,7 @@ import clyvasync.Clyvasync.dto.request.VoucherCreateRequest;
 import clyvasync.Clyvasync.dto.response.VoucherResponse;
 import clyvasync.Clyvasync.dto.response.UserVoucherResponse;
 import clyvasync.Clyvasync.modules.voucher.entity.VoucherTemplate;
+import clyvasync.Clyvasync.repository.booking.BookingRepository;
 import clyvasync.Clyvasync.repository.voucher.VoucherTemplateRepository;
 import clyvasync.Clyvasync.service.voucher.VoucherService;
 import clyvasync.Clyvasync.modules.auth.entity.User;
@@ -39,6 +40,7 @@ public class VoucherServiceImpl implements VoucherService {
     private final PointService pointService;
     private final HostVoucherApplyScopeRepository hostVoucherApplyScopeRepository;
     private final HomestayRepository homestayRepository;
+    private final BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -134,12 +136,65 @@ public class VoucherServiceImpl implements VoucherService {
                     .title(template != null ? template.getName() : null)
                     .discountValue(template != null ? template.getDiscountValue() : null)
                     .discountType(template != null ? template.getDiscountType() : null)
+                    .minOrderValue(template != null ? template.getMinOrderValue() : null)
+                    .maxDiscount(template != null ? template.getMaxDiscount() : null)
                     .validUntil(template != null ? template.getValidUntil() : null)
                     .status(userVoucher.getStatus().name())
                     .build();
         }).collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserVoucherResponse> getApplicableVouchers(Long userId, String bookingCode) {
+        clyvasync.Clyvasync.modules.booking.entity.Booking booking = bookingRepository.findBookingByBookingCode(bookingCode).orElseThrow(() -> new AppException(ResultCode.BOOKING_NOT_FOUND));
+        
+        if (!booking.getUserId().equals(userId)) {
+            throw new AppException(ResultCode.PERMISSION_DENIED);
+        }
+
+        java.math.BigDecimal originalGrandTotal = booking.getTotalPrice();
+        if (booking.getDiscountAmount() != null) {
+            originalGrandTotal = originalGrandTotal.add(booking.getDiscountAmount());
+        }
+        java.math.BigDecimal basePrice = originalGrandTotal.subtract(booking.getTaxFee());
+
+        List<UserVoucher> userVouchers = userVoucherRepository.findByUserId(userId);
+        
+        return userVouchers.stream()
+                .filter(uv -> VoucherStatus.AVAILABLE.equals(uv.getStatus()))
+                .map(uv -> {
+                    VoucherTemplate template = voucherTemplateRepository.findById(uv.getTemplateId()).orElse(null);
+                    return new java.util.AbstractMap.SimpleEntry<>(uv, template);
+                })
+                .filter(entry -> {
+                    VoucherTemplate t = entry.getValue();
+                    if (t == null) return false;
+                    if (t.getValidUntil() != null && t.getValidUntil().isBefore(OffsetDateTime.now())) return false;
+                    if (t.getMinOrderValue() != null && basePrice.compareTo(t.getMinOrderValue()) < 0) return false;
+                    
+                    if (clyvasync.Clyvasync.enums.offer.SponsorType.HOST.equals(t.getSponsorType()) || clyvasync.Clyvasync.enums.offer.SponsorType.HOST_SPONSORED.equals(t.getSponsorType())) {
+                        List<HostVoucherApplyScope> scopes = hostVoucherApplyScopeRepository.findByVoucherId(t.getId());
+                        if (!scopes.isEmpty()) {
+                            boolean isValidHomestay = scopes.stream().anyMatch(scope -> scope.getHomestayId().equals(booking.getHomestayId()));
+                            if (!isValidHomestay) return false;
+                        }
+                    }
+                    return true;
+                })
+                .map(entry -> UserVoucherResponse.builder()
+                        .id(entry.getKey().getId())
+                        .code(entry.getValue().getCode())
+                        .title(entry.getValue().getName())
+                        .discountValue(entry.getValue().getDiscountValue())
+                        .discountType(entry.getValue().getDiscountType())
+                        .minOrderValue(entry.getValue().getMinOrderValue())
+                        .maxDiscount(entry.getValue().getMaxDiscount())
+                        .validUntil(entry.getValue().getValidUntil())
+                        .status(entry.getKey().getStatus().name())
+                        .build())
+                .collect(Collectors.toList());
+    }
     @Override
     @Transactional(readOnly = true)
     public List<VoucherResponse> getHostVouchers(Long hostId) {

@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 public class ReviewImageServiceImpl implements ReviewImageService {
     private final ReviewImageRepository reviewImageRepository;
     private final CacheService cacheService;
+    private final clyvasync.Clyvasync.service.media.S3Service s3Service;
+    private final clyvasync.Clyvasync.utils.MediaUtil mediaUtil;
+
     @Override
     public Map<Long, List<String>> getImagesForReviews(List<Long> reviewIds) {
         if (reviewIds == null || reviewIds.isEmpty()) return Map.of();
@@ -62,4 +65,36 @@ public class ReviewImageServiceImpl implements ReviewImageService {
         return resultMap;
     }
 
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse> prepareReviewImagesBatch(Long guestId, clyvasync.Clyvasync.dto.request.BatchUploadRequest batchRequest) {
+        List<clyvasync.Clyvasync.dto.request.UploadRequest> items = batchRequest.getItems();
+        if (org.springframework.util.CollectionUtils.isEmpty(items)) return List.of();
+
+        List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse> responses = new ArrayList<>(items.size());
+        List<ReviewImage> pendingImages = new ArrayList<>();
+
+        for (clyvasync.Clyvasync.dto.request.UploadRequest item : items) {
+            String objectKey = mediaUtil.generateObjectKey(guestId, item);
+            String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());
+
+            ReviewImage image = new ReviewImage();
+            image.setGuestId(guestId);
+            image.setImageUrl(objectKey);
+            image.setDisplayOrder(item.getSortOrder() != null ? item.getSortOrder() : 0);
+            image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.PENDING);
+            image.setCreatedAt(java.time.LocalDateTime.now());
+            
+            pendingImages.add(image);
+
+            responses.add(clyvasync.Clyvasync.dto.response.PresignedUrlResponse.builder()
+                    .fileName(item.getFileName())
+                    .uploadUrl(presignedUrl)
+                    .objectKey(objectKey)
+                    .build());
+        }
+
+        reviewImageRepository.saveAll(pendingImages);
+        return responses;
+    }
 }

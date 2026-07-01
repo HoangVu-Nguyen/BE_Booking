@@ -53,17 +53,12 @@ public class PostPaymentWorkflowListener {
 
         try {
 
-            // 1. TÍNH TOÁN DÒNG TIỀN VÀ KÝ QUỸ
-            BigDecimal platformFee = booking.getTotalPrice().multiply(platformFeePercent);
-            BigDecimal hostPayout = booking.getTotalPrice().subtract(platformFee);
-
-            booking.setPlatformFeeAmount(platformFee);
-            booking.setHostPayoutAmount(hostPayout);
+            // 1. KÝ QUỸ DOANH THU CHO HOST (Dùng số tiền đã tính chuẩn từ BookingService)
             booking.setPayoutStatus(PayoutStatus.ON_HOLD);
             bookingRepository.save(booking);
 
             var homestay = homestayService.findById(booking.getHomestayId());
-            hostWalletService.lockFundsForBooking(booking.getId(), homestay.getOwnerId(), hostPayout);
+            hostWalletService.lockFundsForBooking(booking.getId(), homestay.getOwnerId(), booking.getHostPayoutAmount());
 
             // 2. CẬP NHẬT TRẠNG THÁI TOUR ĐI KÈM
             List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());

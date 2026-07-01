@@ -20,6 +20,8 @@ public class UserVoucherResponse {
     private String title;
     private BigDecimal discountValue;
     private DiscountType discountType;
+    private BigDecimal minOrderValue;
+    private BigDecimal maxDiscount;
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private OffsetDateTime validUntil;

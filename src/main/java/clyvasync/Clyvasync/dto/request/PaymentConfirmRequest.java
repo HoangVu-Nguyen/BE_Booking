@@ -11,4 +11,6 @@ public class PaymentConfirmRequest {
 
     @NotBlank(message = "Phương thức thanh toán không được để trống")
     private String paymentMethod; // Hứng chuỗi: 'VNPAY', 'MOMO', 'TRANSFER', 'CARD_1', 'CARD_2'...
+
+    private Long userVoucherId;
 }

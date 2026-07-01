@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewController {
 
     private final ReviewService reviewService;
+    private final clyvasync.Clyvasync.service.homestay.ReviewImageService reviewImageService;
 
     /**
      * Lấy danh sách đánh giá phân trang cho một Homestay cụ thể.
@@ -39,5 +40,26 @@ public class ReviewController {
 
         PageResponse<ReviewResponse> result = reviewService.getReviewsByHomestay(homestayId, pageable);
         return ApiResponse.success(result);
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/images/prepare")
+    public ApiResponse<java.util.List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse>> prepareReviewImageUploads(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long guestId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody clyvasync.Clyvasync.dto.request.BatchUploadRequest request) {
+        return ApiResponse.success(reviewImageService.prepareReviewImagesBatch(guestId, request));
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping
+    public ApiResponse<ReviewResponse> createReview(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long guestId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody clyvasync.Clyvasync.dto.request.ReviewCreateRequest request) {
+        return ApiResponse.success(reviewService.createReview(guestId, request));
+    }
+
+    @GetMapping("/check/{bookingCode}")
+    public ApiResponse<Boolean> checkReviewEligibility(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long guestId,
+            @PathVariable String bookingCode) {
+        return ApiResponse.success(reviewService.checkReviewEligibility(guestId, bookingCode));
     }
 }
