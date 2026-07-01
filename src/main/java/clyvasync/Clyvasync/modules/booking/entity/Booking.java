@@ -69,6 +69,22 @@ public class Booking {
     @Column(name = "platform_fee_amount", precision = 19, scale = 2)
     private BigDecimal platformFeeAmount = BigDecimal.ZERO;
 
+    // VOUCHER DISCOUNT TRACKING
+    @Column(name = "user_voucher_id")
+    private Long userVoucherId;
+
+    @Builder.Default
+    @Column(name = "discount_amount", precision = 19, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+
+    @Builder.Default
+    @Column(name = "platform_discount_amount", precision = 19, scale = 2)
+    private BigDecimal platformDiscountAmount = BigDecimal.ZERO;
+
+    @Builder.Default
+    @Column(name = "host_discount_amount", precision = 19, scale = 2)
+    private BigDecimal hostDiscountAmount = BigDecimal.ZERO;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(length = 50, nullable = false)

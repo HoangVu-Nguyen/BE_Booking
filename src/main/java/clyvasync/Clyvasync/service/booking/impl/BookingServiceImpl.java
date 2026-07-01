@@ -44,6 +44,15 @@ import clyvasync.Clyvasync.service.tour.TourImageService;
 import clyvasync.Clyvasync.service.tour.TourService;
 import clyvasync.Clyvasync.service.voucher.PointService;
 import clyvasync.Clyvasync.service.wallet.WalletTransactionService;
+import clyvasync.Clyvasync.repository.voucher.UserVoucherRepository;
+import clyvasync.Clyvasync.repository.voucher.VoucherTemplateRepository;
+import clyvasync.Clyvasync.repository.voucher.HostVoucherApplyScopeRepository;
+import clyvasync.Clyvasync.modules.voucher.entity.UserVoucher;
+import clyvasync.Clyvasync.modules.voucher.entity.VoucherTemplate;
+import clyvasync.Clyvasync.modules.voucher.entity.HostVoucherApplyScope;
+import clyvasync.Clyvasync.enums.offer.VoucherStatus;
+import clyvasync.Clyvasync.enums.offer.DiscountType;
+import clyvasync.Clyvasync.enums.offer.SponsorType;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,6 +94,9 @@ public class BookingServiceImpl implements BookingService {
     private final NotificationService notificationService;
     private final PointService pointService;
     private final WalletTransactionService walletTransactionService;
+    private final UserVoucherRepository userVoucherRepository;
+    private final VoucherTemplateRepository voucherTemplateRepository;
+    private final HostVoucherApplyScopeRepository hostVoucherApplyScopeRepository;
 
     @Value("${app.frontend.url:https://localhost:4200}")
     private String frontendUrl;
@@ -764,6 +776,9 @@ public class BookingServiceImpl implements BookingService {
                 detail.getQuantity()
         );
 
+        // 2.5. HOÀN LẠI VOUCHER (NẾU CÓ)
+        restoreUserVoucher(booking);
+
         // 3. GIẢI PHÓNG SLOT TOUR (Restore Tour Availability)
         List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
         if (tourBookings != null && !tourBookings.isEmpty()) {
@@ -879,6 +894,9 @@ public class BookingServiceImpl implements BookingService {
                 detail.getQuantity()
         );
 
+        // 6.5. HOÀN LẠI VOUCHER
+        restoreUserVoucher(booking);
+
         // 7. RESOURCE CLEANUP (TOUR): Giải phóng slot tour đi kèm
         List<TourBooking> tourBookings = tourBookingService.findAllByHomestayBookingId(booking.getId());
         if (tourBookings != null && !tourBookings.isEmpty()) {
@@ -892,6 +910,114 @@ public class BookingServiceImpl implements BookingService {
         log.info("[CANCEL-BOOKING SUCCESS] Đơn hàng {} đã hủy thành công trên DB, đang chờ commit.", bookingCode);
     }
 
+    private void restoreUserVoucher(Booking booking) {
+        if (booking.getUserVoucherId() != null) {
+            userVoucherRepository.findByIdAndUserId(booking.getUserVoucherId(), booking.getUserId())
+                    .ifPresent(uv -> {
+                        uv.setStatus(VoucherStatus.AVAILABLE);
+                        uv.setUsedAt(null);
+                        uv.setUsedOnBookingId(null);
+                        userVoucherRepository.save(uv);
+                    });
+        }
+    }
+
+    @Override
+    @Transactional
+    public void applyVoucherToBooking(Booking booking, Long userVoucherId) {
+        if (userVoucherId == null) return;
+        
+        if (booking.getUserVoucherId() != null) {
+            if (booking.getUserVoucherId().equals(userVoucherId)) {
+                return;
+            }
+            throw new RuntimeException("Một mã giảm giá đã được áp dụng cho đơn hàng này. Vui lòng hủy đơn và tạo lại để đổi mã.");
+        }
+
+        UserVoucher appliedVoucher = userVoucherRepository.findByIdAndUserId(userVoucherId, booking.getUserId())
+                .orElseThrow(() -> new AppException(ResultCode.DATA_NOT_FOUND));
+
+        if (!VoucherStatus.AVAILABLE.equals(appliedVoucher.getStatus())) {
+            throw new RuntimeException("Mã giảm giá này không khả dụng hoặc đã được sử dụng.");
+        }
+
+        VoucherTemplate template = voucherTemplateRepository.findById(appliedVoucher.getTemplateId())
+                .orElseThrow(() -> new AppException(ResultCode.DATA_NOT_FOUND));
+
+        if (template.getValidUntil() != null && template.getValidUntil().isBefore(OffsetDateTime.now())) {
+            throw new RuntimeException("Mã giảm giá này đã hết hạn sử dụng.");
+        }
+
+        // Tính lại basePrice vì totalPrice hiện tại là (basePrice + taxFee)
+        // Mà taxFee = basePrice * 10% => totalPrice = basePrice * 1.1
+        // Do đó basePrice = totalPrice - taxFee
+        BigDecimal originalGrandTotal = booking.getTotalPrice(); 
+        BigDecimal basePrice = originalGrandTotal.subtract(booking.getTaxFee());
+
+        if (template.getMinOrderValue() != null && basePrice.compareTo(template.getMinOrderValue()) < 0) {
+            throw new RuntimeException("Đơn hàng chưa đạt giá trị tối thiểu " + template.getMinOrderValue() + " để áp dụng mã giảm giá này.");
+        }
+
+        if (SponsorType.HOST.equals(template.getSponsorType()) || SponsorType.HOST_SPONSORED.equals(template.getSponsorType())) {
+            List<HostVoucherApplyScope> scopes = hostVoucherApplyScopeRepository.findByVoucherId(template.getId());
+            if (!scopes.isEmpty()) {
+                boolean isValidHomestay = scopes.stream().anyMatch(scope -> scope.getHomestayId().equals(booking.getHomestayId()));
+                if (!isValidHomestay) {
+                    throw new RuntimeException("Mã giảm giá này không áp dụng cho Homestay bạn đang đặt.");
+                }
+            }
+        }
+
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        if (DiscountType.FIXED_AMOUNT.equals(template.getDiscountType())) {
+            discountAmount = template.getDiscountValue();
+        } else if (DiscountType.PERCENTAGE.equals(template.getDiscountType())) {
+            discountAmount = basePrice.multiply(template.getDiscountValue()).divide(new BigDecimal("100"), RoundingMode.HALF_UP);
+            if (template.getMaxDiscount() != null && discountAmount.compareTo(template.getMaxDiscount()) > 0) {
+                discountAmount = template.getMaxDiscount();
+            }
+        }
+        
+        // Capping
+        if (discountAmount.compareTo(originalGrandTotal) > 0) {
+            discountAmount = originalGrandTotal;
+        }
+
+        booking.setDiscountAmount(discountAmount);
+        booking.setUserVoucherId(userVoucherId);
+        
+        if (SponsorType.HOST.equals(template.getSponsorType()) || SponsorType.HOST_SPONSORED.equals(template.getSponsorType())) {
+            // Không để Host Payout bị âm
+            if (discountAmount.compareTo(booking.getHostPayoutAmount()) > 0) {
+                discountAmount = booking.getHostPayoutAmount();
+            }
+            booking.setHostDiscountAmount(discountAmount);
+            booking.setHostPayoutAmount(booking.getHostPayoutAmount().subtract(discountAmount));
+        } else {
+            // Không để Platform Fee bị âm
+            if (discountAmount.compareTo(booking.getPlatformFeeAmount()) > 0) {
+                discountAmount = booking.getPlatformFeeAmount();
+            }
+            booking.setPlatformDiscountAmount(discountAmount);
+            booking.setPlatformFeeAmount(booking.getPlatformFeeAmount().subtract(discountAmount));
+        }
+
+        booking.setTotalPrice(originalGrandTotal.subtract(discountAmount));
+        
+        // Recalculate loyalty points
+        int pointsEarned = booking.getTotalPrice()
+                .divide(new BigDecimal("100000"), RoundingMode.DOWN)
+                .intValue();
+        booking.setLoyaltyPointsEarned(pointsEarned);
+
+        bookingRepository.save(booking);
+        
+        appliedVoucher.setStatus(VoucherStatus.USED);
+        appliedVoucher.setUsedAt(OffsetDateTime.now());
+        appliedVoucher.setUsedOnBookingId(booking.getId());
+        userVoucherRepository.save(appliedVoucher);
+    }
+    
     // Hàm phụ để code nhìn gọn hơn
     private PolicyDetail mapToPolicyDto(HomestayPolicy policy) {
         return PolicyDetail.builder()

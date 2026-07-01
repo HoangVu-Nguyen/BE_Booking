@@ -20,6 +20,9 @@ public interface BookingService {
     boolean existsActiveBooking(Long userId,Long homestayId);
     List<LocalDate> getUnavailableDates(Long homestayId, int month, int year) ;
     BookingInitResponse initBooking(BookingInitRequest request, Long userId);
+    
+    void applyVoucherToBooking(Booking booking, Long userVoucherId);
+
     BookingDetailsResponse getBookingDetailsByCode(String bookingCode);
     Booking getBookingByCode(String bookingCode);
     List<Booking> findByUserIdOrderByCreatedAtDesc(Long userId);

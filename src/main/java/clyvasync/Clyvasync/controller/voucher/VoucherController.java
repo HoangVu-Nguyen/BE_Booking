@@ -49,6 +49,13 @@ public class VoucherController {
         return ApiResponse.success(voucherService.getMyVouchers(userId));
     }
 
+    @GetMapping("/applicable")
+    public ApiResponse<List<UserVoucherResponse>> getApplicableVouchers(
+            @CurrentUserId Long userId,
+            @org.springframework.web.bind.annotation.RequestParam String bookingCode) {
+        return ApiResponse.success(voucherService.getApplicableVouchers(userId, bookingCode));
+    }
+
     @PostMapping("/{id}/redeem")
     public ApiResponse<Void> redeemVoucher(@PathVariable("id") Long templateId, @CurrentUserId Long userId) {
         voucherService.redeemVoucher(userId,templateId);
