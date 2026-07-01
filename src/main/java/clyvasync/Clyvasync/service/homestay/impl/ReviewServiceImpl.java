@@ -36,6 +36,8 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewImageService reviewImageService;
     private final ReviewMapper reviewMapper;
     private final UserService userService;
+    private final clyvasync.Clyvasync.repository.booking.BookingRepository bookingRepository;
+    private final clyvasync.Clyvasync.repository.homestay.ReviewImageRepository reviewImageRepository;
 
     @Override
     public List<ReviewResponse> getReviewsByHomestay(Long homestayId) {
@@ -117,5 +119,63 @@ public class ReviewServiceImpl implements ReviewService {
     public Double getAverageRatingByHomestaysUpToDate(List<Long> homestayIds, OffsetDateTime targetDate) {
         if (homestayIds == null || homestayIds.isEmpty()) return 0.0;
         return reviewRepository.getAverageRatingByHomestaysUpToDate(homestayIds, targetDate);
+    }
+
+    @Override
+    @Transactional
+    public ReviewResponse createReview(Long userId, clyvasync.Clyvasync.dto.request.ReviewCreateRequest request) {
+        clyvasync.Clyvasync.modules.booking.entity.Booking booking = bookingRepository.findBookingByBookingCode(request.getBookingCode())
+                .orElseThrow(() -> new clyvasync.Clyvasync.exception.AppException(clyvasync.Clyvasync.exception.ResultCode.BOOKING_NOT_FOUND));
+
+        if (!booking.getUserId().equals(userId)) {
+            throw new clyvasync.Clyvasync.exception.AppException(clyvasync.Clyvasync.exception.ResultCode.PERMISSION_DENIED);
+        }
+
+        if (!java.util.List.of(
+                clyvasync.Clyvasync.enums.booking.BookingStatus.COMPLETED,
+                clyvasync.Clyvasync.enums.booking.BookingStatus.CHECKED_IN,
+                clyvasync.Clyvasync.enums.booking.BookingStatus.CONFIRMED
+        ).contains(booking.getStatus())) {
+            throw new clyvasync.Clyvasync.exception.AppException(clyvasync.Clyvasync.exception.ResultCode.BOOKING_REQUIRED_FOR_REVIEW);
+        }
+
+        if (reviewRepository.existsByBookingId(booking.getId())) {
+            throw new clyvasync.Clyvasync.exception.AppException(clyvasync.Clyvasync.exception.ResultCode.ALREADY_REVIEWED);
+        }
+
+        Review review = new Review();
+        review.setBookingId(booking.getId());
+        review.setHomestayId(booking.getHomestayId());
+        review.setGuestId(userId);
+        review.setRating(request.getRating());
+        review.setComment(request.getContent());
+        review = reviewRepository.save(review);
+
+        List<String> imageKeys = request.getImageKeys();
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            List<ReviewImage> pendingImages = reviewImageRepository.findByGuestIdAndStatusAndImageUrlIn(
+                    userId, clyvasync.Clyvasync.enums.media.MediaStatus.PENDING, imageKeys);
+            
+            for (ReviewImage image : pendingImages) {
+                image.setReviewId(review.getId());
+                image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE);
+            }
+            reviewImageRepository.saveAll(pendingImages);
+        }
+
+        return reviewMapper.toReviewResponse(review);
+    }
+
+    @Override
+    public boolean checkReviewEligibility(Long userId, String bookingCode) {
+        return bookingRepository.findBookingByBookingCode(bookingCode)
+                .filter(b -> b.getUserId().equals(userId))
+                .filter(b -> java.util.List.of(
+                        clyvasync.Clyvasync.enums.booking.BookingStatus.COMPLETED,
+                        clyvasync.Clyvasync.enums.booking.BookingStatus.CHECKED_IN,
+                        clyvasync.Clyvasync.enums.booking.BookingStatus.CONFIRMED
+                ).contains(b.getStatus()))
+                .map(b -> !reviewRepository.existsByBookingId(b.getId()))
+                .orElse(false);
     }
 }
