@@ -1,4 +1,16 @@
 package clyvasync.Clyvasync.controller.voucher;
+
+import clyvasync.Clyvasync.dto.request.VoucherCreateRequest;
+import clyvasync.Clyvasync.dto.response.ApiResponse;
+import clyvasync.Clyvasync.dto.response.UserVoucherResponse;
+import clyvasync.Clyvasync.dto.response.VoucherResponse;
+import clyvasync.Clyvasync.service.annotation.CurrentUserId;
+import clyvasync.Clyvasync.service.voucher.VoucherService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 import clyvasync.Clyvasync.dto.request.VoucherCreateRequest;
 import clyvasync.Clyvasync.dto.response.VoucherResponse;
 import clyvasync.Clyvasync.dto.response.UserVoucherResponse;
@@ -21,53 +33,24 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/vouchers")
+@RequestMapping("/api/v1/host")
 @RequiredArgsConstructor
-public class VoucherController {
-
+public class HostVoucherController {
     private final VoucherService voucherService;
-
-    @PostMapping
-    public ApiResponse<VoucherResponse> createVoucher(@Valid @RequestBody VoucherCreateRequest request) {
-        VoucherResponse response = voucherService.createVoucher(request);
-        return ApiResponse.success(response);
-    }
-
-    @GetMapping
-    public ApiResponse<List<VoucherResponse>> getAllVouchers() {
-        List<VoucherResponse> responses = voucherService.getAllVouchers();
-        return ApiResponse.success(responses);
-    }
-
-    @GetMapping("/points/me")
-    public ApiResponse<Integer> getCurrentUserPoints(@CurrentUserId  Long userId) {
-        return ApiResponse.success(voucherService.getCurrentUserPoints(userId));
-    }
-
-    @GetMapping("/my-vouchers")
-    public ApiResponse<List<UserVoucherResponse>> getMyVouchers(@CurrentUserId Long userId) {
-        return ApiResponse.success(voucherService.getMyVouchers(userId));
-    }
-
-    @PostMapping("/{id}/redeem")
-    public ApiResponse<Void> redeemVoucher(@PathVariable("id") Long templateId, @CurrentUserId Long userId) {
-        voucherService.redeemVoucher(userId,templateId);
-        return ApiResponse.success();
-    }
-
-    @GetMapping("/host")
+    @GetMapping("/vouchers")
     public ApiResponse<List<VoucherResponse>> getHostVouchers(@CurrentUserId Long hostId) {
         return ApiResponse.success(voucherService.getHostVouchers(hostId));
     }
 
-    @PostMapping("/host/voucher")
+    @PostMapping("/vouchers")
     public ApiResponse<VoucherResponse> createHostVoucher(@Valid @RequestBody VoucherCreateRequest request, @CurrentUserId Long hostId) {
         return ApiResponse.success(voucherService.createHostVoucher(hostId, request));
     }
 
-    @PutMapping("/host/{id}/deactivate")
+    @PutMapping("/{id}/deactivate")
     public ApiResponse<Void> deactivateHostVoucher(@PathVariable("id") Long id, @CurrentUserId Long hostId) {
         voucherService.deactivateHostVoucher(hostId, id);
         return ApiResponse.success();
     }
 }
+
