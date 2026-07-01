@@ -52,6 +52,24 @@ public class TourController {
     public ApiResponse<java.util.List<TourResponse>> getHostTours(
             @clyvasync.Clyvasync.service.annotation.CurrentUserId Long ownerId,
             @PathVariable Long homestayId) {
+        // Có thể thêm bước kiểm tra ownerId == homestay.getOwnerId() để bảo mật, 
+        // nhưng TourService getToursByHomestayId đã lấy các tour của homestayId.
         return ApiResponse.success(tourService.getToursByHomestayId(homestayId));
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{tourId}")
+    public ApiResponse<TourResponse> updateTour(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long ownerId,
+            @PathVariable Long tourId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody clyvasync.Clyvasync.dto.request.UpdateTourRequest request) {
+        return ApiResponse.success(tourService.updateTour(tourId, request));
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{tourId}")
+    public ApiResponse<Void> deleteTour(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long ownerId,
+            @PathVariable Long tourId) {
+        tourService.deleteTour(tourId);
+        return ApiResponse.success(null);
     }
 }

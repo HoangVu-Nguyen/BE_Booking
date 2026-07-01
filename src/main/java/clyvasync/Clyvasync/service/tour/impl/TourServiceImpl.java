@@ -82,13 +82,73 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
+    @Transactional
     public TourResponse updateTour(Long tourId, UpdateTourRequest request) {
-        return null;
+        Tour tour = tourRepository.findById(tourId)
+                .orElseThrow(() -> new AppException(ResultCode.TOUR_NOT_FOUND));
+
+        clyvasync.Clyvasync.modules.homestay.entity.Homestay homestay = homestayRepository.findById(tour.getHomestayId())
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+        
+        Long ownerId = homestay.getOwnerId();
+
+        tour.setName(request.name());
+        tour.setDescription(request.description());
+        if (request.durationType() != null) {
+            tour.setDurationType(request.durationType().name());
+        }
+        if (request.durationValue() != null) {
+            tour.setDurationValue(request.durationValue());
+        }
+        if (request.pricePerPerson() != null) {
+            tour.setPricePerPerson(request.pricePerPerson());
+        }
+        if (request.maxParticipants() != null) {
+            tour.setMaxParticipants(request.maxParticipants());
+        }
+        if (request.allowExternalGuests() != null) {
+            tour.setAllowExternalGuests(request.allowExternalGuests());
+        }
+
+        tour = tourRepository.save(tour);
+
+        List<String> imageKeys = request.imageKeys();
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            // Có thể xóa ảnh cũ hoặc đánh dấu INACTIVE ở đây nếu muốn. Hiện tại ta update/thêm ảnh mới
+            List<clyvasync.Clyvasync.modules.tour.entity.TourImage> pendingImages = tourImageRepository.findByOwnerIdAndStatusAndImageUrlIn(
+                    ownerId, clyvasync.Clyvasync.enums.media.MediaStatus.PENDING, imageKeys);
+            
+            for (clyvasync.Clyvasync.modules.tour.entity.TourImage image : pendingImages) {
+                image.setTourId(tour.getId());
+                image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE);
+            }
+            tourImageRepository.saveAll(pendingImages);
+        }
+
+        // Fetch new images
+        List<clyvasync.Clyvasync.modules.tour.entity.TourImage> allImages = tourImageRepository.findByTourIdIn(List.of(tour.getId()));
+        String primary = null;
+        String hover = null;
+        for (clyvasync.Clyvasync.modules.tour.entity.TourImage img : allImages) {
+            if (img.getStatus() == clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE) {
+                if (primary == null) primary = img.getImageUrl();
+                else if (hover == null) hover = img.getImageUrl();
+            }
+        }
+
+        String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+        String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+        return tourMapper.toResponse(tour, primaryUrl, hoverUrl);
     }
 
     @Override
+    @Transactional
     public void deleteTour(Long tourId) {
-
+        Tour tour = tourRepository.findById(tourId)
+                .orElseThrow(() -> new AppException(ResultCode.TOUR_NOT_FOUND));
+        tour.setStatus(TourStatus.INACTIVE);
+        tourRepository.save(tour);
     }
 
     @Override
@@ -102,7 +162,7 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
-    @Cacheable(value = "homestay_tours", key = "#homestayId", unless = "#result.isEmpty()")
+
     public List<TourResponse> getToursByHomestayId(Long homestayId) {
         log.info("Lấy danh sách tour cho homestay: {}", homestayId);
 
