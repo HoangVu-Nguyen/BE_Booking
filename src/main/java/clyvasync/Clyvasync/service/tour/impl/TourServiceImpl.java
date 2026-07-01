@@ -37,10 +37,48 @@ public class TourServiceImpl implements TourService {
     private final TourRepository tourRepository;
     private final TourImageService tourImageService;
     private final TourMapper tourMapper;
+    private final clyvasync.Clyvasync.repository.homestay.HomestayRepository homestayRepository;
+    private final clyvasync.Clyvasync.repository.tour.TourImageRepository tourImageRepository;
+    private final clyvasync.Clyvasync.utils.MediaUtil mediaUtil;
 
     @Override
-    public TourResponse createTour(Long homestayId, CreateTourRequest request) {
-        return null;
+    @Transactional
+    public TourResponse createTour(Long currentOwnerId, Long homestayId, CreateTourRequest request) {
+        clyvasync.Clyvasync.modules.homestay.entity.Homestay homestay = homestayRepository.findById(homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+
+        if (!homestay.getOwnerId().equals(currentOwnerId)) {
+            throw new AppException(ResultCode.PERMISSION_DENIED);
+        }
+
+        Long ownerId = homestay.getOwnerId();
+
+        Tour tour = new Tour();
+        tour.setHomestayId(homestayId);
+        tour.setName(request.name());
+        tour.setDescription(request.description());
+        tour.setDurationType(request.durationType().name());
+        tour.setDurationValue(request.durationValue());
+        tour.setPricePerPerson(request.pricePerPerson());
+        tour.setMaxParticipants(request.maxParticipants());
+        tour.setAllowExternalGuests(request.allowExternalGuests() != null ? request.allowExternalGuests() : false);
+        tour.setStatus(TourStatus.ACTIVE);
+        
+        tour = tourRepository.save(tour);
+
+        List<String> imageKeys = request.imageKeys();
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            List<clyvasync.Clyvasync.modules.tour.entity.TourImage> pendingImages = tourImageRepository.findByOwnerIdAndStatusAndImageUrlIn(
+                    ownerId, clyvasync.Clyvasync.enums.media.MediaStatus.PENDING, imageKeys);
+            
+            for (clyvasync.Clyvasync.modules.tour.entity.TourImage image : pendingImages) {
+                image.setTourId(tour.getId());
+                image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE);
+            }
+            tourImageRepository.saveAll(pendingImages);
+        }
+
+        return tourMapper.toResponse(tour, null, null);
     }
 
     @Override
@@ -81,7 +119,10 @@ public class TourServiceImpl implements TourService {
             String primary = !urls.isEmpty() ? urls.get(0) : null;
             String hover = urls.size() > 1 ? urls.get(1) : primary;
 
-            return tourMapper.toResponse(entity, primary, hover);
+            String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+            String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+            return tourMapper.toResponse(entity, primaryUrl, hoverUrl);
         }).toList();
     }
 
@@ -116,7 +157,10 @@ public class TourServiceImpl implements TourService {
             String primary = !urls.isEmpty() ? urls.get(0) : null;
             String hover = urls.size() > 1 ? urls.get(1) : primary;
 
-            return tourMapper.toResponse(entity, primary, hover);
+            String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+            String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+            return tourMapper.toResponse(entity, primaryUrl, hoverUrl);
         });
     }
 
@@ -138,7 +182,10 @@ public class TourServiceImpl implements TourService {
             String primary = !urls.isEmpty() ? urls.get(0) : null;
             String hover = urls.size() > 1 ? urls.get(1) : primary;
 
-            return tourMapper.toResponse(entity, primary, hover);
+            String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+            String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+            return tourMapper.toResponse(entity, primaryUrl, hoverUrl);
         }).toList();
     }
 

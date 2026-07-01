@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class TourController {
     private final TourService tourService;
+    private final clyvasync.Clyvasync.service.tour.TourImageService tourImageService;
     // Lấy toàn bộ tour (Trang khám phá)
     @GetMapping
     public ApiResponse<Page<TourResponse>> getAllTours(
@@ -31,4 +32,26 @@ public class TourController {
         return ApiResponse.success(tourService.getTourById(id));
     }
 
+    // Host APIs
+    @org.springframework.web.bind.annotation.PostMapping("/images/prepare")
+    public ApiResponse<java.util.List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse>> prepareTourImageUploads(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long ownerId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody clyvasync.Clyvasync.dto.request.BatchUploadRequest request) {
+        return ApiResponse.success(tourImageService.prepareTourImagesBatch(ownerId, request));
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/homestay/{homestayId}")
+    public ApiResponse<TourResponse> createTour(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long ownerId,
+            @PathVariable Long homestayId,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody clyvasync.Clyvasync.dto.request.CreateTourRequest request) {
+        return ApiResponse.success(tourService.createTour(ownerId, homestayId, request));
+    }
+
+    @GetMapping("/homestay/{homestayId}/manage")
+    public ApiResponse<java.util.List<TourResponse>> getHostTours(
+            @clyvasync.Clyvasync.service.annotation.CurrentUserId Long ownerId,
+            @PathVariable Long homestayId) {
+        return ApiResponse.success(tourService.getToursByHomestayId(homestayId));
+    }
 }

@@ -182,9 +182,11 @@ public class UserPhotoServiceImpl implements IUserPhotoService {
             case CHAT -> null;
             case AVATAR -> ImageConstants.AVATAR_DEFAULT;
             case COVER -> ImageConstants.COVER_DEFAULT;
-
             case KYC_DOCUMENT -> null;
             case HOMESTAY -> null;
+            case TOUR_PRIMARY -> null;
+            case TOUR_GALLERY -> null;
+            case TOUR_HOVER -> null;
         };
     }
 }
