@@ -27,6 +27,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import clyvasync.Clyvasync.enums.auth.RoleName;
+import clyvasync.Clyvasync.enums.user.UserStatus;
+import clyvasync.Clyvasync.modules.auth.entity.Role;
+import clyvasync.Clyvasync.repository.auth.spec.UserSpecification;
+import clyvasync.Clyvasync.dto.response.AdminUserResponse;
+import clyvasync.Clyvasync.dto.response.AdminUserStatsResponse;
+import clyvasync.Clyvasync.dto.response.AdminUserListResponse;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -269,4 +281,77 @@ private OwnerResponse mapToResponse(User user, String avatarUrl) {
             .phoneNumber(user.getPhoneNumber())
             .build();
 }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminUserListResponse getAdminUsers(String keyword, String role, String status, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<User> spec = UserSpecification.filterUsers(keyword, role, status);
+        Page<User> userPage = userRepository.findAll(spec, pageable);
+
+        // Fetch avatars for all users in the page in one query
+        List<Long> userIds = userPage.getContent().stream().map(User::getId).collect(Collectors.toList());
+        Map<Long, String> avatarMap = userPhotoService.getAvatarsMapByIds(userIds);
+
+        List<AdminUserResponse> content = userPage.getContent().stream().map(user -> {
+            String primaryRole = "USER";
+            if (user.getRoles() != null && !user.getRoles().isEmpty()) {
+                primaryRole = user.getRoles().stream()
+                        .map(Role::getName)
+                        .map(Enum::name)
+                        .filter(n -> n.equals("HOST") || n.equals("ADMIN"))
+                        .findFirst()
+                        .orElse("USER");
+            }
+
+            return AdminUserResponse.builder()
+                    .id(user.getId())
+                    .fullName(user.getFullName() != null && !user.getFullName().isEmpty() ? user.getFullName() : user.getUsername())
+                    .email(user.getEmail())
+                    .phone(user.getPhoneNumber())
+                    .role(primaryRole)
+                    .status(UserStatus.ACTIVE.equals(user.getStatus()) ? "ACTIVE" : "LOCKED")
+                    .joinedDate(user.getCreatedAt())
+                    .avatar(avatarMap.getOrDefault(user.getId(), "https://ui-avatars.com/api/?name=" + user.getUsername() + "&background=random"))
+                    .build();
+        }).collect(Collectors.toList());
+
+        // Get total stats
+        long totalUsers = userRepository.count();
+        long activeHosts = userRepository.countByRoleNameAndIsActive(RoleName.HOST, true);
+        
+        // Count locked users by specification (not active)
+        Specification<User> lockedSpec = UserSpecification.filterUsers(null, "ALL", "LOCKED");
+        long lockedUsers = userRepository.count(lockedSpec);
+
+        AdminUserStatsResponse stats = AdminUserStatsResponse.builder()
+                .totalUsers(totalUsers)
+                .activeHosts(activeHosts)
+                .lockedUsers(lockedUsers)
+                .build();
+
+        return AdminUserListResponse.builder()
+                .content(content)
+                .stats(stats)
+                .totalPages(userPage.getTotalPages())
+                .totalElements(userPage.getTotalElements())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void toggleUserStatus(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+        if (UserStatus.ACTIVE.equals(user.getStatus())) {
+            user.setStatus(UserStatus.SUSPENDED);
+            user.setActive(false);
+        } else {
+            user.setStatus(UserStatus.ACTIVE);
+            user.setActive(true);
+        }
+
+        userRepository.save(user);
+    }
 }
