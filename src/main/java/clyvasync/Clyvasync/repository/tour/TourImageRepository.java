@@ -34,4 +34,5 @@ public interface TourImageRepository extends JpaRepository<TourImage,Long> {
 
     }
     List<TourImage> findByTourIdIn(List<Long> tourIds);
+    List<TourImage> findByOwnerIdAndStatusAndImageUrlIn(Long ownerId, clyvasync.Clyvasync.enums.media.MediaStatus status, List<String> imageUrls);
 }

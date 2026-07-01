@@ -16,7 +16,7 @@ import java.util.List;
 
 public interface TourService {
 
-    TourResponse createTour(Long homestayId, CreateTourRequest request);
+    TourResponse createTour(Long ownerId, Long homestayId, CreateTourRequest request);
 
     TourResponse updateTour(Long tourId, UpdateTourRequest request);
 

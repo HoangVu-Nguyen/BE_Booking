@@ -37,20 +37,118 @@ public class TourServiceImpl implements TourService {
     private final TourRepository tourRepository;
     private final TourImageService tourImageService;
     private final TourMapper tourMapper;
+    private final clyvasync.Clyvasync.repository.homestay.HomestayRepository homestayRepository;
+    private final clyvasync.Clyvasync.repository.tour.TourImageRepository tourImageRepository;
+    private final clyvasync.Clyvasync.utils.MediaUtil mediaUtil;
 
     @Override
-    public TourResponse createTour(Long homestayId, CreateTourRequest request) {
-        return null;
+    @Transactional
+    public TourResponse createTour(Long currentOwnerId, Long homestayId, CreateTourRequest request) {
+        clyvasync.Clyvasync.modules.homestay.entity.Homestay homestay = homestayRepository.findById(homestayId)
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+
+        if (!homestay.getOwnerId().equals(currentOwnerId)) {
+            throw new AppException(ResultCode.PERMISSION_DENIED);
+        }
+
+        Long ownerId = homestay.getOwnerId();
+
+        Tour tour = new Tour();
+        tour.setHomestayId(homestayId);
+        tour.setName(request.name());
+        tour.setDescription(request.description());
+        tour.setDurationType(request.durationType().name());
+        tour.setDurationValue(request.durationValue());
+        tour.setPricePerPerson(request.pricePerPerson());
+        tour.setMaxParticipants(request.maxParticipants());
+        tour.setAllowExternalGuests(request.allowExternalGuests() != null ? request.allowExternalGuests() : false);
+        tour.setStatus(TourStatus.ACTIVE);
+        
+        tour = tourRepository.save(tour);
+
+        List<String> imageKeys = request.imageKeys();
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            List<clyvasync.Clyvasync.modules.tour.entity.TourImage> pendingImages = tourImageRepository.findByOwnerIdAndStatusAndImageUrlIn(
+                    ownerId, clyvasync.Clyvasync.enums.media.MediaStatus.PENDING, imageKeys);
+            
+            for (clyvasync.Clyvasync.modules.tour.entity.TourImage image : pendingImages) {
+                image.setTourId(tour.getId());
+                image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE);
+            }
+            tourImageRepository.saveAll(pendingImages);
+        }
+
+        return tourMapper.toResponse(tour, null, null);
     }
 
     @Override
+    @Transactional
     public TourResponse updateTour(Long tourId, UpdateTourRequest request) {
-        return null;
+        Tour tour = tourRepository.findById(tourId)
+                .orElseThrow(() -> new AppException(ResultCode.TOUR_NOT_FOUND));
+
+        clyvasync.Clyvasync.modules.homestay.entity.Homestay homestay = homestayRepository.findById(tour.getHomestayId())
+                .orElseThrow(() -> new AppException(ResultCode.HOMESTAY_NOT_FOUND));
+        
+        Long ownerId = homestay.getOwnerId();
+
+        tour.setName(request.name());
+        tour.setDescription(request.description());
+        if (request.durationType() != null) {
+            tour.setDurationType(request.durationType().name());
+        }
+        if (request.durationValue() != null) {
+            tour.setDurationValue(request.durationValue());
+        }
+        if (request.pricePerPerson() != null) {
+            tour.setPricePerPerson(request.pricePerPerson());
+        }
+        if (request.maxParticipants() != null) {
+            tour.setMaxParticipants(request.maxParticipants());
+        }
+        if (request.allowExternalGuests() != null) {
+            tour.setAllowExternalGuests(request.allowExternalGuests());
+        }
+
+        tour = tourRepository.save(tour);
+
+        List<String> imageKeys = request.imageKeys();
+        if (imageKeys != null && !imageKeys.isEmpty()) {
+            // Có thể xóa ảnh cũ hoặc đánh dấu INACTIVE ở đây nếu muốn. Hiện tại ta update/thêm ảnh mới
+            List<clyvasync.Clyvasync.modules.tour.entity.TourImage> pendingImages = tourImageRepository.findByOwnerIdAndStatusAndImageUrlIn(
+                    ownerId, clyvasync.Clyvasync.enums.media.MediaStatus.PENDING, imageKeys);
+            
+            for (clyvasync.Clyvasync.modules.tour.entity.TourImage image : pendingImages) {
+                image.setTourId(tour.getId());
+                image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE);
+            }
+            tourImageRepository.saveAll(pendingImages);
+        }
+
+        // Fetch new images
+        List<clyvasync.Clyvasync.modules.tour.entity.TourImage> allImages = tourImageRepository.findByTourIdIn(List.of(tour.getId()));
+        String primary = null;
+        String hover = null;
+        for (clyvasync.Clyvasync.modules.tour.entity.TourImage img : allImages) {
+            if (img.getStatus() == clyvasync.Clyvasync.enums.media.MediaStatus.ACTIVE) {
+                if (primary == null) primary = img.getImageUrl();
+                else if (hover == null) hover = img.getImageUrl();
+            }
+        }
+
+        String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+        String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+        return tourMapper.toResponse(tour, primaryUrl, hoverUrl);
     }
 
     @Override
+    @Transactional
     public void deleteTour(Long tourId) {
-
+        Tour tour = tourRepository.findById(tourId)
+                .orElseThrow(() -> new AppException(ResultCode.TOUR_NOT_FOUND));
+        tour.setStatus(TourStatus.INACTIVE);
+        tourRepository.save(tour);
     }
 
     @Override
@@ -64,7 +162,7 @@ public class TourServiceImpl implements TourService {
     }
 
     @Override
-    @Cacheable(value = "homestay_tours", key = "#homestayId", unless = "#result.isEmpty()")
+
     public List<TourResponse> getToursByHomestayId(Long homestayId) {
         log.info("Lấy danh sách tour cho homestay: {}", homestayId);
 
@@ -81,7 +179,10 @@ public class TourServiceImpl implements TourService {
             String primary = !urls.isEmpty() ? urls.get(0) : null;
             String hover = urls.size() > 1 ? urls.get(1) : primary;
 
-            return tourMapper.toResponse(entity, primary, hover);
+            String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+            String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+            return tourMapper.toResponse(entity, primaryUrl, hoverUrl);
         }).toList();
     }
 
@@ -116,7 +217,10 @@ public class TourServiceImpl implements TourService {
             String primary = !urls.isEmpty() ? urls.get(0) : null;
             String hover = urls.size() > 1 ? urls.get(1) : primary;
 
-            return tourMapper.toResponse(entity, primary, hover);
+            String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+            String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+            return tourMapper.toResponse(entity, primaryUrl, hoverUrl);
         });
     }
 
@@ -138,7 +242,10 @@ public class TourServiceImpl implements TourService {
             String primary = !urls.isEmpty() ? urls.get(0) : null;
             String hover = urls.size() > 1 ? urls.get(1) : primary;
 
-            return tourMapper.toResponse(entity, primary, hover);
+            String primaryUrl = primary != null ? mediaUtil.toCdnUrl(primary) : null;
+            String hoverUrl = hover != null ? mediaUtil.toCdnUrl(hover) : null;
+
+            return tourMapper.toResponse(entity, primaryUrl, hoverUrl);
         }).toList();
     }
 

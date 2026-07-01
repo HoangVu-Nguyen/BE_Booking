@@ -22,5 +22,5 @@ public interface TourImageService {
     TourImage getPrimaryImageUrl(Long tourId);
     Map<Long, String> getPrimaryImagesByTourIds(List<Long> tourIds);
     List<TourImage> findByTourIdIn(List<Long> tourIds);
-
+    List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse> prepareTourImagesBatch(Long ownerId, clyvasync.Clyvasync.dto.request.BatchUploadRequest batchRequest);
 }

@@ -18,6 +18,9 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 public class TourImageServiceImpl implements TourImageService {
     private final TourImageRepository tourImageRepository;
+    private final clyvasync.Clyvasync.service.media.S3Service s3Service;
+    private final clyvasync.Clyvasync.utils.MediaUtil mediaUtil;
+
     @Override
     public List<TourImageResponse> uploadImages(Long tourId, List<MultipartFile> files) {
         return List.of();
@@ -62,5 +65,38 @@ public class TourImageServiceImpl implements TourImageService {
     @Override
     public List<TourImage> findByTourIdIn(List<Long> tourIds) {
         return tourImageRepository.findByTourIdIn(tourIds);
+    }
+
+    @Override
+    public List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse> prepareTourImagesBatch(Long ownerId, clyvasync.Clyvasync.dto.request.BatchUploadRequest batchRequest) {
+        java.util.List<clyvasync.Clyvasync.dto.request.UploadRequest> items = batchRequest.getItems();
+        if (items == null || items.isEmpty()) {
+            throw new AppException(ResultCode.INVALID_INPUT);
+        }
+
+        java.util.List<clyvasync.Clyvasync.dto.response.PresignedUrlResponse> responses = new java.util.ArrayList<>();
+        java.util.List<TourImage> pendingImages = new java.util.ArrayList<>();
+
+        for (clyvasync.Clyvasync.dto.request.UploadRequest item : items) {
+            String objectKey = mediaUtil.generateObjectKey(ownerId, item);
+            String presignedUrl = s3Service.generatePresignedPutUrl(objectKey, item.getContentType(), item.getFileSize());
+
+            TourImage image = new TourImage();
+            image.setOwnerId(ownerId);
+            image.setImageUrl(objectKey);
+            image.setIsPrimary(item.getIsCover() != null ? item.getIsCover() : false);
+            image.setDisplayOrder(item.getSortOrder() != null ? item.getSortOrder() : 0);
+            image.setStatus(clyvasync.Clyvasync.enums.media.MediaStatus.PENDING);
+            pendingImages.add(image);
+
+            responses.add(clyvasync.Clyvasync.dto.response.PresignedUrlResponse.builder()
+                    .fileName(item.getFileName())
+                    .uploadUrl(presignedUrl)
+                    .objectKey(objectKey)
+                    .build());
+        }
+
+        tourImageRepository.saveAll(pendingImages);
+        return responses;
     }
 }

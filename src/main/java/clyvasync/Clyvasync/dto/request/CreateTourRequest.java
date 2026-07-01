@@ -28,6 +28,8 @@ public record CreateTourRequest(
         @Min(value = 1, message = "Số người tối đa phải từ 1 trở lên")
         Integer maxParticipants,
 
-        Boolean allowExternalGuests
+        Boolean allowExternalGuests,
+
+        java.util.List<String> imageKeys
 ) {}
 

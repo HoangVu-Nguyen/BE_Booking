@@ -131,4 +131,7 @@ public interface UserService {
 //
 //    Optional<UserDTO> findUserSummaryById(Long userId);
  UserHeaderResponse getHeaderInfo(Long userId);
+
+    clyvasync.Clyvasync.dto.response.AdminUserListResponse getAdminUsers(String keyword, String role, String status, int page, int size);
+    void toggleUserStatus(Long userId);
 }

@@ -14,8 +14,15 @@ public class TourImage {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "tour_id", nullable = false)
+    @Column(name = "tour_id")
     private Long tourId;
+
+    @Column(name = "owner_id")
+    private Long ownerId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private clyvasync.Clyvasync.enums.media.MediaStatus status = clyvasync.Clyvasync.enums.media.MediaStatus.PENDING;
 
     @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
     private String imageUrl;
