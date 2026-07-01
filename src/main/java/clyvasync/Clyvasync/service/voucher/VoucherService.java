@@ -13,4 +13,8 @@ public interface VoucherService {
     Integer getCurrentUserPoints(Long userId);
     void redeemVoucher(Long userId,Long templateId);
     List<UserVoucherResponse> getMyVouchers(Long userId);
+    
+    List<VoucherResponse> getHostVouchers(Long hostId);
+    VoucherResponse createHostVoucher(Long hostId, VoucherCreateRequest request);
+    void deactivateHostVoucher(Long hostId, Long voucherId);
 }

@@ -17,6 +17,10 @@ import clyvasync.Clyvasync.modules.voucher.entity.UserPointHistory;
 import clyvasync.Clyvasync.modules.voucher.entity.UserVoucher;
 import clyvasync.Clyvasync.repository.voucher.UserPointHistoryRepository;
 import clyvasync.Clyvasync.repository.voucher.UserVoucherRepository;
+import clyvasync.Clyvasync.modules.voucher.entity.HostVoucherApplyScope;
+import clyvasync.Clyvasync.repository.voucher.HostVoucherApplyScopeRepository;
+import clyvasync.Clyvasync.repository.homestay.HomestayRepository;
+import clyvasync.Clyvasync.modules.homestay.entity.Homestay;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +37,8 @@ public class VoucherServiceImpl implements VoucherService {
     private final UserVoucherRepository userVoucherRepository;
     private final UserRepository userRepository;
     private final PointService pointService;
+    private final HostVoucherApplyScopeRepository hostVoucherApplyScopeRepository;
+    private final HomestayRepository homestayRepository;
 
     @Override
     @Transactional
@@ -132,6 +138,93 @@ public class VoucherServiceImpl implements VoucherService {
                     .status(userVoucher.getStatus().name())
                     .build();
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VoucherResponse> getHostVouchers(Long hostId) {
+        return voucherTemplateRepository.findHostVouchers(hostId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public VoucherResponse createHostVoucher(Long hostId, VoucherCreateRequest request) {
+        if (request.getCode() != null && voucherTemplateRepository.existsByCode(request.getCode())) {
+            throw new AppException(ResultCode.DATA_ERROR);
+        }
+
+        VoucherTemplate template = VoucherTemplate.builder()
+                .code(request.getCode())
+                .name(request.getName())
+                .description(request.getDescription())
+                .discountType(request.getDiscountType())
+                .discountValue(request.getDiscountValue())
+                .maxDiscount(request.getMaxDiscount())
+                .minOrderValue(request.getMinOrderValue())
+                .pointsRequired(request.getPointsRequired() != null ? request.getPointsRequired() : 0)
+                .sponsorType(request.getSponsorType())
+                .validFrom(request.getValidFrom())
+                .validUntil(request.getValidUntil())
+                .totalIssueLimit(request.getTotalIssueLimit())
+                .totalUsageLimit(request.getTotalUsageLimit())
+                .currentIssueCount(0)
+                .currentUsageCount(0)
+                .isActive(true)
+                .build();
+
+        template = voucherTemplateRepository.save(template);
+
+        List<Long> homestayIds;
+        if (Boolean.TRUE.equals(request.getIsApplyAll())) {
+            homestayIds = homestayRepository.findAllByOwnerId(hostId).stream()
+                    .map(Homestay::getId)
+                    .collect(Collectors.toList());
+        } else {
+            homestayIds = request.getApplicableHomestayIds();
+            if (homestayIds != null) {
+                // Validate all homestays belong to the host
+                for (Long homestayId : homestayIds) {
+                    if (!homestayRepository.existsByIdAndOwnerId(homestayId, hostId)) {
+                        throw new AppException(ResultCode.DATA_ERROR);
+                    }
+                }
+            }
+        }
+
+        if (homestayIds != null) {
+            for (Long homestayId : homestayIds) {
+                HostVoucherApplyScope scope = HostVoucherApplyScope.builder()
+                        .voucherId(template.getId())
+                        .homestayId(homestayId)
+                        .build();
+                hostVoucherApplyScopeRepository.save(scope);
+            }
+        }
+
+        return mapToResponse(template);
+    }
+
+    @Override
+    @Transactional
+    public void deactivateHostVoucher(Long hostId, Long voucherId) {
+        VoucherTemplate template = voucherTemplateRepository.findById(voucherId)
+                .orElseThrow(() -> new AppException(ResultCode.DATA_NOT_FOUND));
+
+        // Check if host owns this voucher
+        List<HostVoucherApplyScope> scopes = hostVoucherApplyScopeRepository.findByVoucherId(voucherId);
+        if (scopes.isEmpty()) {
+            throw new AppException(ResultCode.DATA_ERROR);
+        }
+        
+        Long homestayId = scopes.get(0).getHomestayId();
+        if (!homestayRepository.existsByIdAndOwnerId(homestayId, hostId)) {
+            throw new AppException(ResultCode.DATA_ERROR);
+        }
+
+        template.setIsActive(false);
+        voucherTemplateRepository.save(template);
     }
 
 
