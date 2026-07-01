@@ -40,6 +40,9 @@ import clyvasync.Clyvasync.dto.response.AdminUserResponse;
 import clyvasync.Clyvasync.dto.response.AdminUserStatsResponse;
 import clyvasync.Clyvasync.dto.response.AdminUserListResponse;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
+import clyvasync.Clyvasync.dto.request.ChangePasswordRequest;
+
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -47,6 +50,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final IUserPhotoService userPhotoService;
     private final CacheService cacheService;
+    private final PasswordEncoder passwordEncoder;
 
 
 
@@ -352,6 +356,20 @@ private OwnerResponse mapToResponse(User user, String avatarUrl) {
             user.setActive(true);
         }
 
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ResultCode.USER_NOT_FOUND));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new AppException(ResultCode.CURRENT_PASSWORD_INCORRECT);
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
     }
 }
