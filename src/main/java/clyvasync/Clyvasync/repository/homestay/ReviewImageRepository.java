@@ -8,4 +8,5 @@ import java.util.List;
 public interface ReviewImageRepository extends JpaRepository<ReviewImage, Long> {
     List<ReviewImage> findAllByReviewId(Long reviewId);
     List<ReviewImage> findAllByReviewIdIn(List<Long> reviewIds);
+    List<ReviewImage> findByGuestIdAndStatusAndImageUrlIn(Long guestId, clyvasync.Clyvasync.enums.media.MediaStatus status, List<String> imageUrls);
 }

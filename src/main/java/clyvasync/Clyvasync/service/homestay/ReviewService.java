@@ -17,4 +17,6 @@ public interface ReviewService {
             List<Long> homestayIds,
             OffsetDateTime targetDate
     );
+    clyvasync.Clyvasync.dto.response.ReviewResponse createReview(Long userId, clyvasync.Clyvasync.dto.request.ReviewCreateRequest request);
+    boolean checkReviewEligibility(Long userId, String bookingCode);
 }

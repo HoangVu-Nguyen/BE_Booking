@@ -19,8 +19,15 @@ public class ReviewImage {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "review_id", nullable = false)
+    @Column(name = "review_id")
     private Long reviewId;
+
+    @Column(name = "guest_id")
+    private Long guestId;
+
+    @Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private clyvasync.Clyvasync.enums.media.MediaStatus status;
 
     @Column(name = "image_url", nullable = false, columnDefinition = "TEXT")
     private String imageUrl;
