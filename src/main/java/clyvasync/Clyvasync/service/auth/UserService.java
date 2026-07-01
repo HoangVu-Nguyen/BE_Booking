@@ -134,4 +134,6 @@ public interface UserService {
 
     clyvasync.Clyvasync.dto.response.AdminUserListResponse getAdminUsers(String keyword, String role, String status, int page, int size);
     void toggleUserStatus(Long userId);
+
+    void changePassword(Long userId, clyvasync.Clyvasync.dto.request.ChangePasswordRequest request);
 }
