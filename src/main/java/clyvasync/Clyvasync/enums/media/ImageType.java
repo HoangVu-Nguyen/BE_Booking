@@ -6,6 +6,9 @@ public enum ImageType {
     AVATAR,
     COVER,
     KYC_DOCUMENT,
-    HOMESTAY ;
+    HOMESTAY,
+    TOUR_PRIMARY,
+    TOUR_GALLERY,
+    TOUR_HOVER;
 }
 
