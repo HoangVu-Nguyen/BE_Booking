@@ -54,6 +54,7 @@ public class VnpayStrategy implements PaymentStrategy {
 
         Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+        formatter.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh")); // Cực kỳ quan trọng khi deploy server UTC
         vnpParams.put("vnp_CreateDate", formatter.format(calendar.getTime()));
 
         calendar.add(Calendar.MINUTE, 15);
