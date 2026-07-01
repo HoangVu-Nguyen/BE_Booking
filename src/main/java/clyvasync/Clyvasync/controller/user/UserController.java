@@ -22,4 +22,10 @@ public class UserController {
     public ApiResponse<UserHeaderResponse> getHeaderInfo(@CurrentUserId Long userId) {
         return ApiResponse.success(userService.getHeaderInfo(userId));
     }
+
+    @org.springframework.web.bind.annotation.PutMapping("/password")
+    public ApiResponse<Void> changePassword(@CurrentUserId Long userId, @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody clyvasync.Clyvasync.dto.request.ChangePasswordRequest request) {
+        userService.changePassword(userId, request);
+        return ApiResponse.success(null);
+    }
 }
