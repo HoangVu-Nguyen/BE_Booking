@@ -8,8 +8,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Data
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -35,4 +37,10 @@ public class VoucherCreateRequest {
     private OffsetDateTime validUntil;
     private Integer totalIssueLimit;
     private Integer totalUsageLimit;
+
+    @JsonProperty("isApplyAll")
+    private Boolean isApplyAll;
+
+    @JsonProperty("applicableHomestayIds")
+    private List<Long> applicableHomestayIds;
 }
